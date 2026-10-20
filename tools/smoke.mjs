@@ -186,7 +186,8 @@ section('scene: status priority')
 section('format + roster')
 {
   const { elapsed, ago, clip } = await import(new URL('../src/client/format.js', import.meta.url).href)
-  const { seatOf, ROSTER } = await import(new URL('../src/client/const.js', import.meta.url).href)
+  const { seatOf, ROSTER, statusLabel } = await import(new URL('../src/client/const.js', import.meta.url).href)
+  const { fallbackT } = await import(new URL('../src/client/locale.js', import.meta.url).href)
 
   const now = 1_000_000_000
   check(elapsed(now - 42_000, now) === '42s', 'elapsed under a minute is seconds')
@@ -204,6 +205,14 @@ section('format + roster')
   check(stranger.face !== stranger.color && /^#[0-9a-f]{6}$/i.test(stranger.face), 'a stranger gets a two-tone face')
   check(['crown', 'glasses', 'bowRed', 'bowCream', 'hat', 'sprout', 'headphones', null].includes(stranger.head),
     'a stranger head comes from the allowed set')
+
+  // An activity ds-bot adds later has no dictionary entry; printing the raw token
+  // onto the card is worse than reading it as "working".
+  const t = fallbackT('zh')
+  check(statusLabel('working', t) === '干活中', 'a known activity is translated')
+  check(statusLabel('error', t) === '出错了', 'a known status keeps its own label')
+  check(statusLabel('compacting', t) === '干活中',
+    'an unknown activity reads as a sentence, not as a raw token')
 }
 
 // ------------------------------------------------------------- poll loop --
@@ -442,6 +451,11 @@ section('css')
   }
   check(/\.bb-blob\{[^}]*bb-breathe 2\.6s/.test(CSS), 'breathing runs bb-breathe over 2.6s')
   check(/\.bb-meta-time\{[^}]*tabular-nums/.test(CSS), 'elapsed time uses tabular numerals')
+  // Every control is reachable by Tab; without a ring you cannot see where you are.
+  check(/\.bb-station:focus-visible/.test(CSS), 'a workstation has a visible focus ring')
+  check(/\.bb-handoff:focus-visible/.test(CSS), 'the hand-off strip has a visible focus ring')
+  check(/\.bb-btn:focus-visible/.test(CSS), 'the drawer buttons have a visible focus ring')
+  check(/\.bb-pill:focus-visible/.test(CSS), 'the collapsed pill has a visible focus ring')
 
   const reduceAt = CSS.lastIndexOf('@media (prefers-reduced-motion:reduce)')
   check(reduceAt > CSS.lastIndexOf('@keyframes'), 'reduced-motion block comes after every keyframe')

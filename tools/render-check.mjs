@@ -26,6 +26,7 @@ globalThis.document = {
 globalThis.window = { innerWidth: 1440, innerHeight: 900 }
 
 const { buildRows } = await import('../src/client/rows.js')
+const { ERROR_LAMP_MS } = await import('../src/client/const.js')
 const { fallbackT } = await import('../src/client/locale.js')
 const { Station } = await import('../src/client/station.js')
 const { Drawer } = await import('../src/client/drawer.js')
@@ -205,6 +206,27 @@ console.log('\n-- upstream fields --')
   check(textOf(placedDrawer).includes('群 群聊'), 'the drawer says where the turn runs')
 }
 
+console.log('\n-- failure decay --')
+{
+  const base = {
+    bots: [{ id: 'b1', name: '化学' }],
+    activity: {}, workBots: {}, waiting: {}, approvals: [], works: [], questions: {},
+    t, nameOf, now,
+  }
+  // The lamp is about now. A Bot that failed and then went quiet is idle with a
+  // badge, not still stuck — a red lamp nobody can clear trains you to ignore red.
+  const quiet = buildRows({ ...base, errors: [{ botId: 'b1', at: now - ERROR_LAMP_MS - 1000, message: '模型超时' }] })
+  check(quiet[0].scene === 'idle', 'a failure from minutes ago does not keep the lamp red')
+  check(quiet[0].badge === true, 'it becomes a badge instead')
+  check(quiet[0].failure === '模型超时', 'the message is still on the row')
+  check(quiet[0].detail.kind === 'error', 'and the drawer still shows it')
+  check(quiet[0].action.includes('报错'), 'the card still says what went wrong')
+
+  const fresh = buildRows({ ...base, errors: [{ botId: 'b1', at: now - 1000, message: '模型超时' }] })
+  check(fresh[0].scene === 'error', 'a fresh failure is still the status')
+  check(fresh[0].badge === false, 'and needs no badge')
+}
+
 console.log('\n-- panel position --')
 // The harness pins the viewport at 1440x900 (see globalThis.window above).
 check(clampPos({ left: 120, top: 80 }, { w: 560, h: 480 })?.left === 120, 'an on-screen position is kept as-is')
@@ -260,6 +282,8 @@ try {
   drawerThrew = error
 }
 check(!drawerThrew, `the drawer renders without throwing${drawerThrew ? `: ${drawerThrew.message}` : ''}`)
+check(approvalDrawer?.props?.['aria-modal'] === 'true',
+  'the drawer is a modal dialog, so the workstations under it are not announced')
 const codeBlocks = findAll(approvalDrawer, node => node.props?.className === 'bb-code')
 check(codeBlocks.length === 1, 'the drawer shows one command block')
 check(textOf(codeBlocks[0]).includes('rm -rf dist'), 'the drawer shows the exact command to approve')
@@ -306,6 +330,12 @@ const handoffs = render(Handoffs({
 }))
 check(findAll(handoffs, node => node.props?.className === 'bb-handoff').length === 1,
   'only works with open items are listed (the 16h orphan record is skipped)')
+{
+  const [row] = findAll(handoffs, node => node.props?.className === 'bb-handoff')
+  check(row?.props?.role === 'button' && row?.props?.tabIndex === 0,
+    'a hand-off row is reachable by keyboard, like a workstation is')
+  check(typeof row?.props?.onKeyDown === 'function', 'and answers Enter/Space')
+}
 check(textOf(handoffs).includes('班主任') && textOf(handoffs).includes('数学'), 'the strip names both ends')
 check(textOf(handoffs).includes('4 项待交'), 'the strip counts the open items')
 check(textOf(handoffs).includes('12 分钟前'), 'the strip says how long ago it started')

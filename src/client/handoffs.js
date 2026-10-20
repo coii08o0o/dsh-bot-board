@@ -11,7 +11,17 @@ export function Handoffs({ works, t, onPick }) {
     open.map(work => h('div', {
       className: 'bb-handoff',
       key: work.id,
+      // The workstations are reachable by keyboard; the strip used to be a plain
+      // clickable div, so a keyboard user could not open a hand-off at all.
+      role: 'button',
+      tabIndex: 0,
       onClick: () => onPick?.(work),
+      onKeyDown: event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onPick?.(work)
+        }
+      },
       title: work.last ?? '',
     },
       h('span', { className: 'bb-ho-name' }, work.from || '？'),

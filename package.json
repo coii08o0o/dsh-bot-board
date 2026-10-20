@@ -1,6 +1,6 @@
 {
   "name": "dsh-bot-board",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "type": "module",
   "description": "Bot 看板 — 一眼看清 DS Bot 里每个 Bot 现在在干什么、跑了多久、卡在哪",

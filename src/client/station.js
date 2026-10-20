@@ -1,7 +1,7 @@
 // One workstation: chair + desk + monitor + lamp + dumpling + prop + name, plus
 // the one-line meta strip that answers "what is it doing and for how long".
 import { memo, createElement as h } from 'react'
-import { LAMP, NAME_INK, STATUS_KEY, seatOf } from './const.js'
+import { LAMP, NAME_INK, seatOf, statusLabel } from './const.js'
 import { Elapsed } from './elapsed.js'
 
 const DARK = '#2C2C2A'
@@ -224,7 +224,7 @@ function blobSeat(scene, seat) {
 function StationView({ row, onOpen, note, t }) {
   const { bot, status, scene, action, since, stalled, badge } = row
   const seat = seatOf(bot)
-  const label = scene === 'done' ? t('status.done') : (STATUS_KEY[status] ? t(STATUS_KEY[status]) : status)
+  const label = scene === 'done' ? t('status.done') : statusLabel(status, t)
   const title = `${bot.name} · ${label}${action ? ` · ${action}` : ''}${stalled ? ` · ${t('meta.stalled')}` : ''}`
   return h('div', {
     className: 'bb-station',
@@ -280,7 +280,6 @@ export const Station = memo(StationView, (prev, next) => {
     && a.stalled === b.stalled
     && a.badge === b.badge
     && a.failure === b.failure
-    && a.sinceKnown === b.sinceKnown
     && prev.note === next.note
     && prev.t === next.t
 })

@@ -3,7 +3,7 @@
 // `now` is a parameter so the stall check is deterministic under test.
 import { clip } from './format.js'
 import { badgeOf, isLive, sceneOf, stalledOf, statusOf } from './scene.js'
-import { ROSTER } from './const.js'
+import { ERROR_LAMP_MS, ROSTER } from './const.js'
 
 // Roster order first so a workstation never moves when a status changes; unknown
 // Bots trail in a stable order instead of hashing into somebody else's seat.
@@ -118,13 +118,17 @@ export function buildRows({
       // moved past. Keeping it would leave the "!" badge up for the whole
       // 15-minute TTL even though the Bot is working again.
       const isWorking = isLive(activity[bot.id])
-      const stale = recorded && ((since > 0 && recorded.at < since)
+      const recovered = recorded && ((since > 0 && recorded.at < since)
         || (isWorking && now - recorded.at > RECOVERED_MS))
-      const failure = stale ? null : recorded
+      const failure = recovered ? null : recorded
+      // The lamp is about *now*; the badge and the drawer keep the history. A Bot
+      // that failed and then went quiet is idle-with-a-badge, not still stuck — a
+      // red lamp nobody can clear is the same cry-wolf the yellow lamp used to be.
+      const quietLong = Boolean(failure) && !isWorking && now - failure.at > ERROR_LAMP_MS
       const status = statusOf({
         activity: activity[bot.id],
         waiting: Boolean(wait),
-        failed: Boolean(failure),
+        failed: Boolean(failure) && !quietLong,
         alerting: Boolean(approval || question || kickoff),
       })
       const scene = sceneOf(status, Boolean(waveMap[bot.id]))
@@ -149,8 +153,6 @@ export function buildRows({
         scene,
         action,
         since,
-        // A busy Bot without a turn start is not "0 seconds in" — it is unknown.
-        sinceKnown: since > 0,
         stalled: stalledOf(since, scene, now),
         badge: badgeOf(scene, Boolean(failure)),
         failure: failure?.message ?? '',

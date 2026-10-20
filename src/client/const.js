@@ -9,6 +9,11 @@ export const STALL_MS = 5 * 60 * 1000
 // for a while, so the tail of the work is not missed, then backs off.
 export const IDLE_POLL_MS = 6000
 export const ACTIVE_TAIL_MS = 90 * 1000
+// How long a failure keeps the lamp red once the Bot has gone quiet. Past this it
+// is a badge and a line in the drawer, not the current state: a Bot that failed
+// ten minutes ago and has been idle since is not stuck *now*. Kept well under the
+// host's 15-minute failure TTL, which only exists to bound the store.
+export const ERROR_LAMP_MS = 3 * 60 * 1000
 
 export const COLLAPSE_KEY = 'dsh-bot-board:collapsed:v5'
 export const POS_KEY = 'dsh-bot-board:pos:v5'
@@ -50,6 +55,12 @@ export const STATUS_KEY = {
   waiting: 'status.waiting',
   idle: 'status.idle',
 }
+
+// An activity value ds-bot adds in a later release has no dictionary entry. The
+// card must still read as a sentence: falling back to "working" is honest (that
+// is what an unrecognised live activity means to sceneOf), while printing the raw
+// token onto the workstation is not.
+export const statusLabel = (status, t) => t(STATUS_KEY[status] ?? 'status.working')
 
 // Nine Bots = nine flat body colours + lighter face disc + one head accessory +
 // one desk prop. Identity is fixed by Bot name so a Bot keeps its face across

@@ -40,6 +40,10 @@ export const CSS = `
   transition:background-color .12s ease;outline:none}
 .bb-station:hover{background:rgba(0,0,0,.045)}
 .bb-station:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+/* Every other control is reachable by keyboard too; without a ring you cannot
+   tell where you are. */
+.bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible{
+  outline:2px solid #378ADD;outline-offset:1px}
 .bb-scene{display:block;width:100%;height:auto}
 .bb-station-name{margin-top:1px;text-align:center;font-size:12px;font-weight:500;color:#2C2C2A;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

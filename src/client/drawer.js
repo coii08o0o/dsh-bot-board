@@ -3,7 +3,7 @@
 // showed the tool name, so you still had to jump into the chat to find out.
 import { createElement as h } from 'react'
 import { Elapsed } from './elapsed.js'
-import { LAMP, NAME_INK, STATUS_KEY } from './const.js'
+import { LAMP, NAME_INK, statusLabel } from './const.js'
 
 function Row({ label, children }) {
   return h('div', { className: 'bb-kv' },
@@ -14,13 +14,21 @@ function Row({ label, children }) {
 export function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
   if (!row) return null
   const { bot, status, scene, detail, work, lastResult, since, action, place } = row
-  const label = scene === 'done' ? t('status.done') : (STATUS_KEY[status] ? t(STATUS_KEY[status]) : status)
+  const label = scene === 'done' ? t('status.done') : statusLabel(status, t)
   const approval = detail.kind === 'approval' ? detail : null
   const question = detail.kind === 'question' ? detail : null
   const failure = detail.kind === 'error' ? detail : null
   const hasBody = Boolean(approval || question || failure || lastResult)
 
-  return h('div', { className: 'bb-drawer', role: 'dialog', 'aria-label': bot.name },
+  return h('div', {
+    className: 'bb-drawer',
+    role: 'dialog',
+    // Modal for assistive tech: the workstations underneath are still in the DOM
+    // and must not be announced while the drawer is up. Focus handling (move in,
+    // trap Tab, Escape to close) lives in panel.js, next to the drawer state.
+    'aria-modal': 'true',
+    'aria-label': bot.name,
+  },
     h('div', { className: 'bb-drawer-head' },
       h('span', {
         style: {

@@ -115,6 +115,48 @@ function Board(props) {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // Keyboard handling for the drawer. Without it the drawer is a visual overlay
+  // the keyboard walks straight past: focus stays on the workstation underneath,
+  // Tab keeps moving through the grid behind it, and there is no way out but the
+  // mouse. Move focus in, keep Tab inside, close on Escape, hand focus back.
+  useEffect(() => {
+    if (!drawerId) return undefined
+    if (typeof document === 'undefined') return undefined
+    const host = wrapRef.current
+    if (!host?.querySelector) return undefined
+    const drawer = host.querySelector('.bb-drawer')
+    const previous = document.activeElement ?? null
+    const focusable = () => [...(drawer?.querySelectorAll?.('button:not([disabled])') ?? [])]
+    focusable()[0]?.focus?.()
+
+    const onKeyDown = event => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        setDrawerId(null)
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusable()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus?.()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus?.()
+      }
+    }
+    host.addEventListener('keydown', onKeyDown)
+    return () => {
+      host.removeEventListener('keydown', onKeyDown)
+      // Back to the workstation that opened it, not to the top of the page.
+      previous?.focus?.()
+    }
+  }, [drawerId])
+
   const flip = useCallback(value => {
     setCollapsed(value)
     writeRaw(COLLAPSE_KEY, value ? '1' : '0')

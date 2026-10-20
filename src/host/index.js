@@ -43,8 +43,18 @@ export function apply(ctx) {
     const error = payload?.error
     const message = typeof error?.message === 'string' ? error.message : String(error ?? 'error')
     failures.set(sessionId, { at: Date.now(), message: message.replace(/\s+/g, ' ').slice(0, 200) })
-    // A long-lived client must not grow this store without bound.
-    while (failures.size > FAILURE_MAX) failures.delete(failures.keys().next().value)
+    // A long-lived client must not grow this store without bound. Evict the oldest
+    // by `at`, not by insertion order: re-setting a key does not move it in a Map,
+    // so a Bot that keeps failing would keep its original position and be dropped
+    // before a one-off failure from long ago.
+    if (failures.size > FAILURE_MAX) {
+      let oldestKey
+      let oldestAt = Infinity
+      for (const [key, value] of failures) {
+        if (value.at < oldestAt) { oldestAt = value.at; oldestKey = key }
+      }
+      if (oldestKey !== undefined) failures.delete(oldestKey)
+    }
   }
   // Registered inside an effect so a plugin reload does not stack listeners (and
   // therefore a second failures store) on the same context.

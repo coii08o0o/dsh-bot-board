@@ -44,6 +44,7 @@ var __bbEntry = (() => {
   var STALL_MS = 5 * 60 * 1e3;
   var IDLE_POLL_MS = 6e3;
   var ACTIVE_TAIL_MS = 90 * 1e3;
+  var ERROR_LAMP_MS = 3 * 60 * 1e3;
   var COLLAPSE_KEY = "dsh-bot-board:collapsed:v5";
   var POS_KEY = "dsh-bot-board:pos:v5";
   var SIZE_KEY = "dsh-bot-board:size:v5";
@@ -78,6 +79,7 @@ var __bbEntry = (() => {
     waiting: "status.waiting",
     idle: "status.idle"
   };
+  var statusLabel = (status, t) => t(STATUS_KEY[status] ?? "status.working");
   var ROSTER = [
     { name: "Chief", color: "#378ADD", face: "#7FB4E8", head: "crown", prop: "flag" },
     { name: "Researcher", color: "#EC4899", face: "#F5A3CD", head: "glasses", prop: "magnifier" },
@@ -453,12 +455,13 @@ var __bbEntry = (() => {
       const kickoff = bot.waiting === true;
       const recorded = failureOf(bot);
       const isWorking = isLive(activity[bot.id]);
-      const stale = recorded && (since > 0 && recorded.at < since || isWorking && now - recorded.at > RECOVERED_MS);
-      const failure = stale ? null : recorded;
+      const recovered = recorded && (since > 0 && recorded.at < since || isWorking && now - recorded.at > RECOVERED_MS);
+      const failure = recovered ? null : recorded;
+      const quietLong = Boolean(failure) && !isWorking && now - failure.at > ERROR_LAMP_MS;
       const status = statusOf({
         activity: activity[bot.id],
         waiting: Boolean(wait),
-        failed: Boolean(failure),
+        failed: Boolean(failure) && !quietLong,
         alerting: Boolean(approval || question || kickoff)
       });
       const scene = sceneOf(status, Boolean(waveMap[bot.id]));
@@ -474,8 +477,6 @@ var __bbEntry = (() => {
         scene,
         action,
         since,
-        // A busy Bot without a turn start is not "0 seconds in" — it is unknown.
-        sinceKnown: since > 0,
         stalled: stalledOf(since, scene, now),
         badge: badgeOf(scene, Boolean(failure)),
         failure: failure?.message ?? "",
@@ -808,7 +809,7 @@ var __bbEntry = (() => {
   function StationView({ row, onOpen, note, t }) {
     const { bot, status, scene, action, since, stalled, badge } = row;
     const seat = seatOf(bot);
-    const label = scene === "done" ? t("status.done") : STATUS_KEY[status] ? t(STATUS_KEY[status]) : status;
+    const label = scene === "done" ? t("status.done") : statusLabel(status, t);
     const title = `${bot.name} \xB7 ${label}${action ? ` \xB7 ${action}` : ""}${stalled ? ` \xB7 ${t("meta.stalled")}` : ""}`;
     return (0, import_react3.createElement)(
       "div",
@@ -872,7 +873,7 @@ var __bbEntry = (() => {
   var Station = (0, import_react3.memo)(StationView, (prev, next) => {
     const a = prev.row;
     const b = next.row;
-    return a.bot.id === b.bot.id && a.bot.name === b.bot.name && a.status === b.status && a.scene === b.scene && a.action === b.action && a.since === b.since && a.stalled === b.stalled && a.badge === b.badge && a.failure === b.failure && a.sinceKnown === b.sinceKnown && prev.note === next.note && prev.t === next.t;
+    return a.bot.id === b.bot.id && a.bot.name === b.bot.name && a.status === b.status && a.scene === b.scene && a.action === b.action && a.since === b.since && a.stalled === b.stalled && a.badge === b.badge && a.failure === b.failure && prev.note === next.note && prev.t === next.t;
   });
 
   // src/client/drawer.js
@@ -888,14 +889,22 @@ var __bbEntry = (() => {
   function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
     if (!row) return null;
     const { bot, status, scene, detail, work, lastResult, since, action, place } = row;
-    const label = scene === "done" ? t("status.done") : STATUS_KEY[status] ? t(STATUS_KEY[status]) : status;
+    const label = scene === "done" ? t("status.done") : statusLabel(status, t);
     const approval = detail.kind === "approval" ? detail : null;
     const question = detail.kind === "question" ? detail : null;
     const failure = detail.kind === "error" ? detail : null;
     const hasBody = Boolean(approval || question || failure || lastResult);
     return (0, import_react4.createElement)(
       "div",
-      { className: "bb-drawer", role: "dialog", "aria-label": bot.name },
+      {
+        className: "bb-drawer",
+        role: "dialog",
+        // Modal for assistive tech: the workstations underneath are still in the DOM
+        // and must not be announced while the drawer is up. Focus handling (move in,
+        // trap Tab, Escape to close) lives in panel.js, next to the drawer state.
+        "aria-modal": "true",
+        "aria-label": bot.name
+      },
       (0, import_react4.createElement)(
         "div",
         { className: "bb-drawer-head" },
@@ -1005,7 +1014,17 @@ var __bbEntry = (() => {
         {
           className: "bb-handoff",
           key: work.id,
+          // The workstations are reachable by keyboard; the strip used to be a plain
+          // clickable div, so a keyboard user could not open a hand-off at all.
+          role: "button",
+          tabIndex: 0,
           onClick: () => onPick?.(work),
+          onKeyDown: (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onPick?.(work);
+            }
+          },
           title: work.last ?? ""
         },
         (0, import_react5.createElement)("span", { className: "bb-ho-name" }, work.from || "\uFF1F"),
@@ -1243,6 +1262,10 @@ var __bbEntry = (() => {
   transition:background-color .12s ease;outline:none}
 .bb-station:hover{background:rgba(0,0,0,.045)}
 .bb-station:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+/* Every other control is reachable by keyboard too; without a ring you cannot
+   tell where you are. */
+.bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible{
+  outline:2px solid #378ADD;outline-offset:1px}
 .bb-scene{display:block;width:100%;height:auto}
 .bb-station-name{margin-top:1px;text-align:center;font-size:12px;font-weight:500;color:#2C2C2A;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1444,6 +1467,41 @@ var __bbEntry = (() => {
       window.addEventListener("resize", onResize);
       return () => window.removeEventListener("resize", onResize);
     }, []);
+    (0, import_react7.useEffect)(() => {
+      if (!drawerId) return void 0;
+      if (typeof document === "undefined") return void 0;
+      const host = wrapRef.current;
+      if (!host?.querySelector) return void 0;
+      const drawer = host.querySelector(".bb-drawer");
+      const previous = document.activeElement ?? null;
+      const focusable = () => [...drawer?.querySelectorAll?.("button:not([disabled])") ?? []];
+      focusable()[0]?.focus?.();
+      const onKeyDown = (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          setDrawerId(null);
+          return;
+        }
+        if (event.key !== "Tab") return;
+        const items = focusable();
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus?.();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus?.();
+        }
+      };
+      host.addEventListener("keydown", onKeyDown);
+      return () => {
+        host.removeEventListener("keydown", onKeyDown);
+        previous?.focus?.();
+      };
+    }, [drawerId]);
     const flip = (0, import_react7.useCallback)((value) => {
       setCollapsed(value);
       writeRaw(COLLAPSE_KEY, value ? "1" : "0");
