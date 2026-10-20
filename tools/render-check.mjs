@@ -5,7 +5,7 @@
 // command, six-state legend, stable workstation order).
 //
 // Run: node --import ./tools/register-shim.mjs tools/render-check.mjs
-import { findAll, render, textOf } from './react-shim.mjs'
+import { findAll, render, textOf, effects } from './react-shim.mjs'
 
 let failed = 0
 const check = (ok, label) => {
@@ -29,7 +29,7 @@ const { buildRows } = await import('../src/client/rows.js')
 const { fallbackT } = await import('../src/client/locale.js')
 const { Station } = await import('../src/client/station.js')
 const { Drawer } = await import('../src/client/drawer.js')
-const { Board } = await import('../src/client/panel.js')
+const { Board, clampPos } = await import('../src/client/panel.js')
 const { Handoffs } = await import('../src/client/handoffs.js')
 
 const t = fallbackT('zh')
@@ -139,6 +139,16 @@ console.log('\n-- rows: recovered failures and stale question keys --')
   check(rolled[0].scene === 'alert', 'and it still raises the alert state')
 }
 
+console.log('\n-- panel position --')
+// The harness pins the viewport at 1440x900 (see globalThis.window above).
+check(clampPos({ left: 120, top: 80 }, { w: 560, h: 480 })?.left === 120, 'an on-screen position is kept as-is')
+const parked = clampPos({ left: 2000, top: 1400 }, { w: 560, h: 480 })
+check(parked?.left === 1440 - 560 - 6, 'a position past the right edge is pulled back inside')
+check(parked?.top === 900 - 60, 'a position past the bottom edge is pulled back inside')
+check(clampPos({ left: -80, top: -80 }, { w: 560, h: 480 })?.left === 6, 'a negative position is pulled back too')
+check(clampPos(null, { w: 560, h: 480 }) === null, 'no saved position stays no position')
+check(clampPos({ left: 'x', top: 1 }, { w: 560, h: 480 }) === null, 'a corrupt saved position is discarded, not rendered')
+
 console.log('\n-- Station --')
 let stationThrew = null
 const stations = {}
@@ -196,6 +206,14 @@ check(textOf(questionDrawer).includes('更像口语'), 'the drawer keeps option 
 
 const errorDrawer = render(Drawer({ row: byName['化学'], t, onClose: () => {}, onOpenChat: () => {} }))
 check(textOf(errorDrawer).includes('模型超时'), 'the drawer shows the failure message')
+
+// The drawer's elapsed value must come from the ticking node, not a value read
+// once at open time. Subscribing to the clock is what makes that observable here:
+// Drawer itself runs no effects, so a queued effect means the timer is wired up.
+const effectsBefore = effects.length
+const chiefDrawer = render(Drawer({ row: byName['Chief'], t, onClose: () => {}, onOpenChat: () => {} }))
+check(effects.length > effectsBefore, 'the drawer subscribes to the clock (its elapsed time keeps counting)')
+check(/4m1\ds/.test(textOf(chiefDrawer).replace(/\s+/g, '')), 'the drawer shows the running duration, not 未知')
 
 console.log('\n-- Board shell --')
 let boardThrew = null

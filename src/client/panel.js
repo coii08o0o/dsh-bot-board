@@ -46,28 +46,46 @@ function Dot({ tone, busy }) {
   })
 }
 
+const readSize = () => {
+  try {
+    const raw = readRaw(SIZE_KEY, '')
+    const parsed = raw ? JSON.parse(raw) : null
+    if (parsed && parsed.w && parsed.h) {
+      return {
+        w: Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, parsed.w)),
+        h: Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, parsed.h)),
+      }
+    }
+  } catch {}
+  return { ...SIZE_DEFAULT }
+}
+
+const readPos = () => {
+  try {
+    const raw = readRaw(POS_KEY, '')
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+// A saved position only means something for the window that saved it. Restored
+// unclamped, a panel parked in the bottom-right corner lands outside the viewport
+// after the window shrinks — and you cannot drag back something you cannot see.
+// The size was already clamped on restore; the position was not.
+export function clampPos(value, size) {
+  if (!value || !Number.isFinite(value.left) || !Number.isFinite(value.top)) return null
+  if (typeof window === 'undefined') return { left: value.left, top: value.top }
+  const width = size?.w ?? SIZE_DEFAULT.w
+  return {
+    left: Math.min(Math.max(6, value.left), Math.max(6, (window.innerWidth || 0) - width - 6)),
+    top: Math.min(Math.max(6, value.top), Math.max(6, (window.innerHeight || 0) - 60)),
+  }
+}
+
 function Board(props) {
   const t = (typeof props?.t === 'function' ? props.t : null) ?? defaultT
   const [collapsed, setCollapsed] = useState(() => readRaw(COLLAPSE_KEY, '0') === '1')
-  const [pos, setPos] = useState(() => {
-    try {
-      const raw = readRaw(POS_KEY, '')
-      return raw ? JSON.parse(raw) : null
-    } catch { return null }
-  })
-  const [size, setSize] = useState(() => {
-    try {
-      const raw = readRaw(SIZE_KEY, '')
-      const parsed = raw ? JSON.parse(raw) : null
-      if (parsed && parsed.w && parsed.h) {
-        return {
-          w: Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, parsed.w)),
-          h: Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, parsed.h)),
-        }
-      }
-    } catch {}
-    return { ...SIZE_DEFAULT }
-  })
+  const [size, setSize] = useState(readSize)
+  const [pos, setPos] = useState(() => clampPos(readPos(), readSize()))
   const [drawerId, setDrawerId] = useState(null)
   const [waveMap, setWaveMap] = useState({})
   const [noteMap, setNoteMap] = useState({})
@@ -88,6 +106,14 @@ function Board(props) {
   useEffect(() => { ensureStyle() }, [])
   useEffect(() => { posRef.current = pos }, [pos])
   useEffect(() => { sizeRef.current = size }, [size])
+
+  // A window that shrinks must not strand the panel outside the viewport.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined
+    const onResize = () => setPos(previous => (previous ? clampPos(previous, sizeRef.current) : previous))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   const flip = useCallback(value => {
     setCollapsed(value)
@@ -251,6 +277,13 @@ function Board(props) {
     if (!rzRef.current) return
     rzRef.current = null
     writeRaw(SIZE_KEY, JSON.stringify(sizeRef.current))
+    // Growing the panel near an edge can push it past the viewport; settle it back.
+    const next = clampPos(posRef.current, sizeRef.current)
+    if (next) {
+      posRef.current = next
+      setPos(next)
+      writeRaw(POS_KEY, JSON.stringify(next))
+    }
   }
 
   const wrapStyle = pos ? { left: pos.left, top: pos.top, right: 'auto', bottom: 'auto' } : undefined

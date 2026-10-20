@@ -2,7 +2,7 @@
 // particular what an approval is actually asking to run — the old board only
 // showed the tool name, so you still had to jump into the chat to find out.
 import { createElement as h } from 'react'
-import { elapsed } from './format.js'
+import { Elapsed } from './elapsed.js'
 import { LAMP, NAME_INK, STATUS_KEY } from './const.js'
 
 function Row({ label, children }) {
@@ -39,7 +39,7 @@ export function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
     h('div', { className: 'bb-drawer-body' },
       bot.role ? h(Row, { label: t('drawer.role') }, bot.role) : null,
       bot.model ? h(Row, { label: t('drawer.model') }, bot.model) : null,
-      h(Row, { label: t('drawer.elapsed') }, since ? elapsed(since) : t('drawer.unknown')),
+      h(Row, { label: t('drawer.elapsed') }, since ? h(Elapsed, { since }) : t('drawer.unknown')),
       action ? h(Row, { label: t('drawer.now') }, action) : null,
 
       approval ? h('div', { className: 'bb-block' },

@@ -153,6 +153,10 @@ section('scene: status priority')
   check(sceneOf('error', true) === 'error', 'a failure is never masked by a hand-off wave')
   check(sceneOf('alert', true) === 'alert', 'an approval is never masked by a hand-off wave')
   check(sceneOf('idle', true) === 'done', 'a clean hand-off still shows done')
+  // A hand-off lands in the same second the receiver picks up its next turn; the
+  // 7-second celebration must not repaint a working Bot as 干完.
+  check(sceneOf('working', true) === 'busy', 'a hand-off wave never paints a working Bot as done')
+  check(sceneOf('thinking', true) === 'busy', 'and never paints a thinking Bot as done either')
   check(sceneOf('working', false) === 'busy', 'working is busy')
 
   check(stalledOf(Date.now() - STALL_MS - 1000, 'busy') === true, 'a long busy turn reads as stalled')

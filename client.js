@@ -35,7 +35,7 @@ var __bbEntry = (() => {
   });
 
   // src/client/panel.js
-  var import_react6 = __require("react");
+  var import_react7 = __require("react");
 
   // src/client/const.js
   var POLL_MS = 1500;
@@ -334,7 +334,7 @@ var __bbEntry = (() => {
     if (status === "alert") return "alert";
     if (status === "waiting") return "waiting";
     if (status === "error") return "error";
-    if (done) return "done";
+    if (done && status === "idle") return "done";
     if (status === "idle") return "idle";
     return "busy";
   }
@@ -464,6 +464,9 @@ var __bbEntry = (() => {
   }
 
   // src/client/station.js
+  var import_react3 = __require("react");
+
+  // src/client/elapsed.js
   var import_react2 = __require("react");
 
   // src/client/clock.js
@@ -495,6 +498,13 @@ var __bbEntry = (() => {
     }, [active]);
   }
 
+  // src/client/elapsed.js
+  function Elapsed({ since, className }) {
+    useNow(Boolean(since));
+    if (!since) return null;
+    return (0, import_react2.createElement)("span", { className }, elapsed(since));
+  }
+
   // src/client/station.js
   var DARK = "#2C2C2A";
   var FACE_X = 86;
@@ -504,7 +514,7 @@ var __bbEntry = (() => {
     const cx = FACE_X;
     const top = FACE_Y - BODY_R;
     if (kind === "crown") {
-      return (0, import_react2.createElement)("path", {
+      return (0, import_react3.createElement)("path", {
         d: `M ${cx - 13} ${top + 2} L ${cx - 9} ${top - 8} L ${cx - 4} ${top - 1} L ${cx} ${top - 10} L ${cx + 4} ${top - 1} L ${cx + 9} ${top - 8} L ${cx + 13} ${top + 2} Z`,
         fill: "#FBBF24",
         stroke: "#D97706",
@@ -514,124 +524,124 @@ var __bbEntry = (() => {
     }
     if (kind === "bowRed" || kind === "bowCream") {
       const fill = kind === "bowRed" ? "#DC2626" : "#FDE68A";
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("path", { d: `M ${cx + 14} ${top + 4} l -9 -6 v 12 z`, fill }),
-        (0, import_react2.createElement)("path", { d: `M ${cx + 14} ${top + 4} l 9 -6 v 12 z`, fill }),
-        (0, import_react2.createElement)("circle", { cx: cx + 14, cy: top + 4, r: 3, fill })
+        (0, import_react3.createElement)("path", { d: `M ${cx + 14} ${top + 4} l -9 -6 v 12 z`, fill }),
+        (0, import_react3.createElement)("path", { d: `M ${cx + 14} ${top + 4} l 9 -6 v 12 z`, fill }),
+        (0, import_react3.createElement)("circle", { cx: cx + 14, cy: top + 4, r: 3, fill })
       );
     }
     if (kind === "hat") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("path", { d: `M ${cx - 15} ${top + 1} a 15 13 0 0 1 30 0 z`, fill: "#15803D" }),
-        (0, import_react2.createElement)("rect", { x: cx - 19, y: top, width: 38, height: 5, rx: 2.5, fill: "#166534" })
+        (0, import_react3.createElement)("path", { d: `M ${cx - 15} ${top + 1} a 15 13 0 0 1 30 0 z`, fill: "#15803D" }),
+        (0, import_react3.createElement)("rect", { x: cx - 19, y: top, width: 38, height: 5, rx: 2.5, fill: "#166534" })
       );
     }
     if (kind === "sprout") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("line", { x1: cx, y1: top + 2, x2: cx, y2: top - 8, stroke: "#15803D", strokeWidth: 2, strokeLinecap: "round" }),
-        (0, import_react2.createElement)("ellipse", { cx: cx - 6, cy: top - 10, rx: 6, ry: 3.5, fill: "#16A34A", transform: `rotate(-24 ${cx - 6} ${top - 10})` }),
-        (0, import_react2.createElement)("ellipse", { cx: cx + 6, cy: top - 10, rx: 6, ry: 3.5, fill: "#22C55E", transform: `rotate(24 ${cx + 6} ${top - 10})` })
+        (0, import_react3.createElement)("line", { x1: cx, y1: top + 2, x2: cx, y2: top - 8, stroke: "#15803D", strokeWidth: 2, strokeLinecap: "round" }),
+        (0, import_react3.createElement)("ellipse", { cx: cx - 6, cy: top - 10, rx: 6, ry: 3.5, fill: "#16A34A", transform: `rotate(-24 ${cx - 6} ${top - 10})` }),
+        (0, import_react3.createElement)("ellipse", { cx: cx + 6, cy: top - 10, rx: 6, ry: 3.5, fill: "#22C55E", transform: `rotate(24 ${cx + 6} ${top - 10})` })
       );
     }
     return null;
   }
   function faceGear(kind) {
     if (kind === "glasses") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         { fill: "none", stroke: DARK, strokeWidth: 2 },
-        (0, import_react2.createElement)("circle", { cx: FACE_X - 9, cy: FACE_Y - 4, r: 6.5 }),
-        (0, import_react2.createElement)("circle", { cx: FACE_X + 9, cy: FACE_Y - 4, r: 6.5 }),
-        (0, import_react2.createElement)("line", { x1: FACE_X - 2.5, y1: FACE_Y - 4, x2: FACE_X + 2.5, y2: FACE_Y - 4 })
+        (0, import_react3.createElement)("circle", { cx: FACE_X - 9, cy: FACE_Y - 4, r: 6.5 }),
+        (0, import_react3.createElement)("circle", { cx: FACE_X + 9, cy: FACE_Y - 4, r: 6.5 }),
+        (0, import_react3.createElement)("line", { x1: FACE_X - 2.5, y1: FACE_Y - 4, x2: FACE_X + 2.5, y2: FACE_Y - 4 })
       );
     }
     if (kind === "headphones") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("path", {
+        (0, import_react3.createElement)("path", {
           d: `M ${FACE_X - 20} ${FACE_Y - 2} a 20 20 0 0 1 40 0`,
           fill: "none",
           stroke: DARK,
           strokeWidth: 4,
           strokeLinecap: "round"
         }),
-        (0, import_react2.createElement)("rect", { x: FACE_X - 23, y: FACE_Y - 5, width: 8, height: 13, rx: 4, fill: DARK }),
-        (0, import_react2.createElement)("rect", { x: FACE_X + 15, y: FACE_Y - 5, width: 8, height: 13, rx: 4, fill: DARK })
+        (0, import_react3.createElement)("rect", { x: FACE_X - 23, y: FACE_Y - 5, width: 8, height: 13, rx: 4, fill: DARK }),
+        (0, import_react3.createElement)("rect", { x: FACE_X + 15, y: FACE_Y - 5, width: 8, height: 13, rx: 4, fill: DARK })
       );
     }
     return null;
   }
   function deskProp(kind) {
     if (kind === "flag") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("line", { x1: 60, y1: 70, x2: 60, y2: 88, stroke: "#A16207", strokeWidth: 2.5, strokeLinecap: "round" }),
-        (0, import_react2.createElement)("path", { d: "M 60 70 h 16 l -4 5 4 5 h -16 z", fill: "#378ADD" })
+        (0, import_react3.createElement)("line", { x1: 60, y1: 70, x2: 60, y2: 88, stroke: "#A16207", strokeWidth: 2.5, strokeLinecap: "round" }),
+        (0, import_react3.createElement)("path", { d: "M 60 70 h 16 l -4 5 4 5 h -16 z", fill: "#378ADD" })
       );
     }
     if (kind === "magnifier") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("circle", { cx: 63, cy: 80, r: 6, fill: "none", stroke: DARK, strokeWidth: 2 }),
-        (0, import_react2.createElement)("line", { x1: 67.5, y1: 84.5, x2: 73, y2: 89, stroke: DARK, strokeWidth: 3, strokeLinecap: "round" })
+        (0, import_react3.createElement)("circle", { cx: 63, cy: 80, r: 6, fill: "none", stroke: DARK, strokeWidth: 2 }),
+        (0, import_react3.createElement)("line", { x1: 67.5, y1: 84.5, x2: 73, y2: 89, stroke: DARK, strokeWidth: 3, strokeLinecap: "round" })
       );
     }
     if (kind === "pointer") {
-      return (0, import_react2.createElement)("line", { x1: 56, y1: 88, x2: 76, y2: 71, stroke: "#A16207", strokeWidth: 2.5, strokeLinecap: "round" });
+      return (0, import_react3.createElement)("line", { x1: 56, y1: 88, x2: 76, y2: 71, stroke: "#A16207", strokeWidth: 2.5, strokeLinecap: "round" });
     }
     if (kind === "abacus") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("rect", { x: 54, y: 75, width: 22, height: 13, rx: 2, fill: "#F1E3C6", stroke: "#A16207", strokeWidth: 1.5 }),
-        (0, import_react2.createElement)("circle", { cx: 59, cy: 81.5, r: 2, fill: "#B45309" }),
-        (0, import_react2.createElement)("circle", { cx: 65, cy: 81.5, r: 2, fill: "#B45309" }),
-        (0, import_react2.createElement)("circle", { cx: 71, cy: 81.5, r: 2, fill: "#B45309" })
+        (0, import_react3.createElement)("rect", { x: 54, y: 75, width: 22, height: 13, rx: 2, fill: "#F1E3C6", stroke: "#A16207", strokeWidth: 1.5 }),
+        (0, import_react3.createElement)("circle", { cx: 59, cy: 81.5, r: 2, fill: "#B45309" }),
+        (0, import_react3.createElement)("circle", { cx: 65, cy: 81.5, r: 2, fill: "#B45309" }),
+        (0, import_react3.createElement)("circle", { cx: 71, cy: 81.5, r: 2, fill: "#B45309" })
       );
     }
     if (kind === "bolt") {
-      return (0, import_react2.createElement)("path", { d: "M 66 71 l -8 12 h 6 l -3 8 9 -12 h -6 z", fill: "#FBBF24", stroke: "#D97706", strokeWidth: 1, strokeLinejoin: "round" });
+      return (0, import_react3.createElement)("path", { d: "M 66 71 l -8 12 h 6 l -3 8 9 -12 h -6 z", fill: "#FBBF24", stroke: "#D97706", strokeWidth: 1, strokeLinejoin: "round" });
     }
     if (kind === "flask") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("path", { d: "M 60 71 v 6 l -7 11 h 16 l -7 -11 v -6 z", fill: "#BBF7D0", stroke: "#166534", strokeWidth: 1.5, strokeLinejoin: "round" }),
-        (0, import_react2.createElement)("rect", { x: 58, y: 70, width: 6, height: 2.5, rx: 1, fill: "#166534" })
+        (0, import_react3.createElement)("path", { d: "M 60 71 v 6 l -7 11 h 16 l -7 -11 v -6 z", fill: "#BBF7D0", stroke: "#166534", strokeWidth: 1.5, strokeLinejoin: "round" }),
+        (0, import_react3.createElement)("rect", { x: 58, y: 70, width: 6, height: 2.5, rx: 1, fill: "#166534" })
       );
     }
     if (kind === "leaf") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("ellipse", { cx: 63, cy: 83, rx: 8, ry: 4.5, fill: "#22C55E", transform: "rotate(-18 63 83)" }),
-        (0, import_react2.createElement)("line", { x1: 57, y1: 86, x2: 69, y2: 80, stroke: "#15803D", strokeWidth: 1.2 })
+        (0, import_react3.createElement)("ellipse", { cx: 63, cy: 83, rx: 8, ry: 4.5, fill: "#22C55E", transform: "rotate(-18 63 83)" }),
+        (0, import_react3.createElement)("line", { x1: 57, y1: 86, x2: 69, y2: 80, stroke: "#15803D", strokeWidth: 1.2 })
       );
     }
     if (kind === "books") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("rect", { x: 54, y: 83, width: 24, height: 5, rx: 1, fill: "#EF4444" }),
-        (0, import_react2.createElement)("rect", { x: 56, y: 78, width: 22, height: 5, rx: 1, fill: "#3B82F6" }),
-        (0, import_react2.createElement)("rect", { x: 55, y: 73, width: 21, height: 5, rx: 1, fill: "#FBBF24" })
+        (0, import_react3.createElement)("rect", { x: 54, y: 83, width: 24, height: 5, rx: 1, fill: "#EF4444" }),
+        (0, import_react3.createElement)("rect", { x: 56, y: 78, width: 22, height: 5, rx: 1, fill: "#3B82F6" }),
+        (0, import_react3.createElement)("rect", { x: 55, y: 73, width: 21, height: 5, rx: 1, fill: "#FBBF24" })
       );
     }
     if (kind === "mic") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("rect", { x: 59, y: 72, width: 9, height: 13, rx: 4.5, fill: DARK }),
-        (0, import_react2.createElement)("line", { x1: 63.5, y1: 85, x2: 63.5, y2: 88, stroke: DARK, strokeWidth: 2 })
+        (0, import_react3.createElement)("rect", { x: 59, y: 72, width: 9, height: 13, rx: 4.5, fill: DARK }),
+        (0, import_react3.createElement)("line", { x1: 63.5, y1: 85, x2: 63.5, y2: 88, stroke: DARK, strokeWidth: 2 })
       );
     }
     return null;
@@ -640,31 +650,31 @@ var __bbEntry = (() => {
     const fill = LAMP[scene] ?? LAMP.idle;
     const common = { fill, stroke: "#5B5648", strokeWidth: 0.8 };
     if (scene === "error") {
-      return (0, import_react2.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, transform: "rotate(45 151 85)", ...common });
+      return (0, import_react3.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, transform: "rotate(45 151 85)", ...common });
     }
     if (scene === "alert") {
-      return (0, import_react2.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, rx: 1, ...common });
+      return (0, import_react3.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, rx: 1, ...common });
     }
-    return (0, import_react2.createElement)("circle", { cx: 151, cy: 85, r: 2.9, ...common });
+    return (0, import_react3.createElement)("circle", { cx: 151, cy: 85, r: 2.9, ...common });
   }
   function screenContent(scene) {
     if (scene === "error") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#E7E5E1" }),
-        (0, import_react2.createElement)("rect", { x: 113, y: 67, width: 34, height: 4, rx: 2, fill: "#EF4444" })
+        (0, import_react3.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#E7E5E1" }),
+        (0, import_react3.createElement)("rect", { x: 113, y: 67, width: 34, height: 4, rx: 2, fill: "#EF4444" })
       );
     }
     if (scene === "idle") {
-      return (0, import_react2.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#EDEBE7" });
+      return (0, import_react3.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#EDEBE7" });
     }
     if (scene === "done") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#CDEFD9" }),
-        (0, import_react2.createElement)("path", {
+        (0, import_react3.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#CDEFD9" }),
+        (0, import_react3.createElement)("path", {
           d: "M 120 69 l 5 5 9 -11",
           fill: "none",
           stroke: "#0F766E",
@@ -675,29 +685,29 @@ var __bbEntry = (() => {
       );
     }
     if (scene === "alert") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#FDF0C8" }),
-        (0, import_react2.createElement)("path", { d: "M 130 61 v 9", stroke: "#B45309", strokeWidth: 2.6, strokeLinecap: "round" }),
-        (0, import_react2.createElement)("circle", { cx: 130, cy: 75, r: 1.8, fill: "#B45309" })
+        (0, import_react3.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#FDF0C8" }),
+        (0, import_react3.createElement)("path", { d: "M 130 61 v 9", stroke: "#B45309", strokeWidth: 2.6, strokeLinecap: "round" }),
+        (0, import_react3.createElement)("circle", { cx: 130, cy: 75, r: 1.8, fill: "#B45309" })
       );
     }
     if (scene === "waiting") {
-      return (0, import_react2.createElement)(
+      return (0, import_react3.createElement)(
         "g",
         null,
-        (0, import_react2.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#D6E4F8" }),
-        (0, import_react2.createElement)("path", { d: "M 118 69 h 16 m -5 -5 l 5 5 l -5 5", fill: "none", stroke: "#1D4ED8", strokeWidth: 2.2, strokeLinecap: "round", strokeLinejoin: "round" })
+        (0, import_react3.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#D6E4F8" }),
+        (0, import_react3.createElement)("path", { d: "M 118 69 h 16 m -5 -5 l 5 5 l -5 5", fill: "none", stroke: "#1D4ED8", strokeWidth: 2.2, strokeLinecap: "round", strokeLinejoin: "round" })
       );
     }
-    return (0, import_react2.createElement)(
+    return (0, import_react3.createElement)(
       "g",
       null,
-      (0, import_react2.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#B9D8F2" }),
-      (0, import_react2.createElement)("rect", { x: 113, y: 61, width: 30, height: 3, rx: 1.5, fill: "#7FB4E8" }),
-      (0, import_react2.createElement)("rect", { x: 113, y: 67, width: 34, height: 3, rx: 1.5, fill: "#7FB4E8" }),
-      (0, import_react2.createElement)("rect", { x: 113, y: 73, width: 22, height: 3, rx: 1.5, fill: "#7FB4E8" })
+      (0, import_react3.createElement)("rect", { x: 108, y: 56, width: 44, height: 26, rx: 2, fill: "#B9D8F2" }),
+      (0, import_react3.createElement)("rect", { x: 113, y: 61, width: 30, height: 3, rx: 1.5, fill: "#7FB4E8" }),
+      (0, import_react3.createElement)("rect", { x: 113, y: 67, width: 34, height: 3, rx: 1.5, fill: "#7FB4E8" }),
+      (0, import_react3.createElement)("rect", { x: 113, y: 73, width: 22, height: 3, rx: 1.5, fill: "#7FB4E8" })
     );
   }
   function blobSeat(scene, seat) {
@@ -706,32 +716,32 @@ var __bbEntry = (() => {
     const moon = scene === "done";
     const squint = scene === "error";
     const oMouth = scene === "alert" || scene === "waiting";
-    const eyes = squint ? (0, import_react2.createElement)(
+    const eyes = squint ? (0, import_react3.createElement)(
       "g",
       null,
-      (0, import_react2.createElement)("rect", { x: FACE_X - 12, y: FACE_Y - 5.5, width: 6, height: 2.5, rx: 1.25, fill: DARK }),
-      (0, import_react2.createElement)("rect", { x: FACE_X + 6, y: FACE_Y - 5.5, width: 6, height: 2.5, rx: 1.25, fill: DARK })
-    ) : moon ? (0, import_react2.createElement)(
+      (0, import_react3.createElement)("rect", { x: FACE_X - 12, y: FACE_Y - 5.5, width: 6, height: 2.5, rx: 1.25, fill: DARK }),
+      (0, import_react3.createElement)("rect", { x: FACE_X + 6, y: FACE_Y - 5.5, width: 6, height: 2.5, rx: 1.25, fill: DARK })
+    ) : moon ? (0, import_react3.createElement)(
       "g",
       { fill: "none", stroke: DARK, strokeWidth: 2.5, strokeLinecap: "round" },
-      (0, import_react2.createElement)("path", { d: `M ${FACE_X - 13} ${FACE_Y - 1} q 4 -6 8 0` }),
-      (0, import_react2.createElement)("path", { d: `M ${FACE_X + 5} ${FACE_Y - 1} q 4 -6 8 0` })
-    ) : (0, import_react2.createElement)(
+      (0, import_react3.createElement)("path", { d: `M ${FACE_X - 13} ${FACE_Y - 1} q 4 -6 8 0` }),
+      (0, import_react3.createElement)("path", { d: `M ${FACE_X + 5} ${FACE_Y - 1} q 4 -6 8 0` })
+    ) : (0, import_react3.createElement)(
       "g",
       {
         className: scene === "busy" ? "bb-eyes" : scene === "idle" ? "bb-eyes bb-eyes-slow" : void 0,
         fill: DARK
       },
-      (0, import_react2.createElement)("rect", { x: FACE_X - 11.5, y: FACE_Y - 8.5, width: 5, height: 9, rx: 2.5 }),
-      (0, import_react2.createElement)("rect", { x: FACE_X + 6.5, y: FACE_Y - 8.5, width: 5, height: 9, rx: 2.5 })
+      (0, import_react3.createElement)("rect", { x: FACE_X - 11.5, y: FACE_Y - 8.5, width: 5, height: 9, rx: 2.5 }),
+      (0, import_react3.createElement)("rect", { x: FACE_X + 6.5, y: FACE_Y - 8.5, width: 5, height: 9, rx: 2.5 })
     );
-    const mouth = oMouth ? (0, import_react2.createElement)("circle", { cx: FACE_X, cy: FACE_Y + 9, r: 3, fill: DARK }) : squint ? (0, import_react2.createElement)("path", {
+    const mouth = oMouth ? (0, import_react3.createElement)("circle", { cx: FACE_X, cy: FACE_Y + 9, r: 3, fill: DARK }) : squint ? (0, import_react3.createElement)("path", {
       d: `M ${FACE_X - 4} ${FACE_Y + 10} q 4 -3 8 0`,
       fill: "none",
       stroke: DARK,
       strokeWidth: 2,
       strokeLinecap: "round"
-    }) : (0, import_react2.createElement)("path", {
+    }) : (0, import_react3.createElement)("path", {
       d: `M ${FACE_X - 4} ${FACE_Y + 6} q 4 5 8 0`,
       fill: "none",
       stroke: DARK,
@@ -739,27 +749,27 @@ var __bbEntry = (() => {
       strokeLinecap: "round"
     });
     const wavingNow = scene === "done" || scene === "alert";
-    const handL = (0, import_react2.createElement)("circle", {
+    const handL = (0, import_react3.createElement)("circle", {
       cx: cx - 23,
       cy: cy + 16,
       r: 4,
       fill: seat.color,
       className: scene === "busy" ? "bb-hand bb-tap" : "bb-hand"
     });
-    const handR = (0, import_react2.createElement)("circle", {
+    const handR = (0, import_react3.createElement)("circle", {
       cx: cx + 23,
       cy: cy + 16,
       r: 4,
       fill: seat.color,
       className: wavingNow ? "bb-hand bb-wave" : scene === "busy" ? "bb-hand bb-tap" : "bb-hand"
     });
-    return (0, import_react2.createElement)(
+    return (0, import_react3.createElement)(
       "g",
       { className: "bb-blob" },
-      (0, import_react2.createElement)("circle", { cx, cy, r: BODY_R, fill: seat.color }),
-      (0, import_react2.createElement)("circle", { cx: FACE_X, cy: FACE_Y, r: 18, fill: seat.face }),
-      (0, import_react2.createElement)("ellipse", { cx: FACE_X - 14, cy: FACE_Y + 7, rx: 4.5, ry: 2.8, fill: seat.color, opacity: 0.3 }),
-      (0, import_react2.createElement)("ellipse", { cx: FACE_X + 14, cy: FACE_Y + 7, rx: 4.5, ry: 2.8, fill: seat.color, opacity: 0.3 }),
+      (0, import_react3.createElement)("circle", { cx, cy, r: BODY_R, fill: seat.color }),
+      (0, import_react3.createElement)("circle", { cx: FACE_X, cy: FACE_Y, r: 18, fill: seat.face }),
+      (0, import_react3.createElement)("ellipse", { cx: FACE_X - 14, cy: FACE_Y + 7, rx: 4.5, ry: 2.8, fill: seat.color, opacity: 0.3 }),
+      (0, import_react3.createElement)("ellipse", { cx: FACE_X + 14, cy: FACE_Y + 7, rx: 4.5, ry: 2.8, fill: seat.color, opacity: 0.3 }),
       eyes,
       mouth,
       handL,
@@ -768,17 +778,12 @@ var __bbEntry = (() => {
       headGear(seat.head)
     );
   }
-  function Elapsed({ since, className }) {
-    useNow(Boolean(since));
-    if (!since) return null;
-    return (0, import_react2.createElement)("span", { className }, elapsed(since));
-  }
   function StationView({ row, onOpen, note, t }) {
     const { bot, status, scene, action, since, stalled, badge } = row;
     const seat = seatOf(bot);
     const label = scene === "done" ? t("status.done") : STATUS_KEY[status] ? t(STATUS_KEY[status]) : status;
     const title = `${bot.name} \xB7 ${label}${action ? ` \xB7 ${action}` : ""}${stalled ? ` \xB7 ${t("meta.stalled")}` : ""}`;
-    return (0, import_react2.createElement)(
+    return (0, import_react3.createElement)(
       "div",
       {
         className: "bb-station",
@@ -794,63 +799,63 @@ var __bbEntry = (() => {
           }
         }
       },
-      (0, import_react2.createElement)(
+      (0, import_react3.createElement)(
         "svg",
         { className: "bb-scene", viewBox: "0 0 170 132", "aria-hidden": "true" },
-        (0, import_react2.createElement)("ellipse", { cx: 88, cy: 122, rx: 42, ry: 5, fill: "rgba(0,0,0,.06)" }),
-        (0, import_react2.createElement)(
+        (0, import_react3.createElement)("ellipse", { cx: 88, cy: 122, rx: 42, ry: 5, fill: "rgba(0,0,0,.06)" }),
+        (0, import_react3.createElement)(
           "g",
           { fill: "#D9D4CB" },
-          (0, import_react2.createElement)("rect", { x: 22, y: 62, width: 11, height: 40, rx: 5 }),
-          (0, import_react2.createElement)("rect", { x: 22, y: 96, width: 38, height: 10, rx: 4 }),
-          (0, import_react2.createElement)("rect", { x: 36, y: 104, width: 7, height: 14, rx: 2 })
+          (0, import_react3.createElement)("rect", { x: 22, y: 62, width: 11, height: 40, rx: 5 }),
+          (0, import_react3.createElement)("rect", { x: 22, y: 96, width: 38, height: 10, rx: 4 }),
+          (0, import_react3.createElement)("rect", { x: 36, y: 104, width: 7, height: 14, rx: 2 })
         ),
         blobSeat(scene, seat),
-        (0, import_react2.createElement)(
+        (0, import_react3.createElement)(
           "g",
           null,
-          (0, import_react2.createElement)("rect", { x: 50, y: 88, width: 104, height: 10, rx: 3, fill: "#E8D9C0" }),
-          (0, import_react2.createElement)("rect", { x: 58, y: 98, width: 9, height: 22, rx: 2, fill: "#CBB89A" }),
-          (0, import_react2.createElement)("rect", { x: 137, y: 98, width: 9, height: 22, rx: 2, fill: "#CBB89A" })
+          (0, import_react3.createElement)("rect", { x: 50, y: 88, width: 104, height: 10, rx: 3, fill: "#E8D9C0" }),
+          (0, import_react3.createElement)("rect", { x: 58, y: 98, width: 9, height: 22, rx: 2, fill: "#CBB89A" }),
+          (0, import_react3.createElement)("rect", { x: 137, y: 98, width: 9, height: 22, rx: 2, fill: "#CBB89A" })
         ),
-        (0, import_react2.createElement)(
+        (0, import_react3.createElement)(
           "g",
           null,
-          (0, import_react2.createElement)("rect", { x: 104, y: 52, width: 52, height: 34, rx: 4, fill: "#3A3F45" }),
-          (0, import_react2.createElement)("rect", { x: 126, y: 86, width: 8, height: 3, fill: "#3A3F45" }),
+          (0, import_react3.createElement)("rect", { x: 104, y: 52, width: 52, height: 34, rx: 4, fill: "#3A3F45" }),
+          (0, import_react3.createElement)("rect", { x: 126, y: 86, width: 8, height: 3, fill: "#3A3F45" }),
           screenContent(scene)
         ),
         lampShape(scene),
         deskProp(seat.prop)
       ),
-      badge ? (0, import_react2.createElement)("span", { className: "bb-badge", title: row.failure ?? "" }, "!") : null,
-      (0, import_react2.createElement)("div", {
+      badge ? (0, import_react3.createElement)("span", { className: "bb-badge", title: row.failure ?? "" }, "!") : null,
+      (0, import_react3.createElement)("div", {
         className: "bb-station-name",
         style: NAME_INK[scene] ? { color: NAME_INK[scene] } : void 0
       }, bot.name),
-      (0, import_react2.createElement)(
+      (0, import_react3.createElement)(
         "div",
         { className: "bb-meta" },
-        action ? (0, import_react2.createElement)("span", { className: "bb-meta-act", title: action }, action) : null,
-        (0, import_react2.createElement)(Elapsed, { since, className: stalled ? "bb-meta-time bb-stalled" : "bb-meta-time" })
+        action ? (0, import_react3.createElement)("span", { className: "bb-meta-act", title: action }, action) : null,
+        (0, import_react3.createElement)(Elapsed, { since, className: stalled ? "bb-meta-time bb-stalled" : "bb-meta-time" })
       ),
-      note ? (0, import_react2.createElement)("span", { className: "bb-note" }) : null
+      note ? (0, import_react3.createElement)("span", { className: "bb-note" }) : null
     );
   }
-  var Station = (0, import_react2.memo)(StationView, (prev, next) => {
+  var Station = (0, import_react3.memo)(StationView, (prev, next) => {
     const a = prev.row;
     const b = next.row;
     return a.bot.id === b.bot.id && a.bot.name === b.bot.name && a.status === b.status && a.scene === b.scene && a.action === b.action && a.since === b.since && a.stalled === b.stalled && a.badge === b.badge && a.failure === b.failure && a.sinceKnown === b.sinceKnown && prev.note === next.note && prev.t === next.t;
   });
 
   // src/client/drawer.js
-  var import_react3 = __require("react");
+  var import_react4 = __require("react");
   function Row({ label, children }) {
-    return (0, import_react3.createElement)(
+    return (0, import_react4.createElement)(
       "div",
       { className: "bb-kv" },
-      (0, import_react3.createElement)("span", { className: "bb-k" }, label),
-      (0, import_react3.createElement)("span", { className: "bb-v" }, children)
+      (0, import_react4.createElement)("span", { className: "bb-k" }, label),
+      (0, import_react4.createElement)("span", { className: "bb-v" }, children)
     );
   }
   function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
@@ -861,13 +866,13 @@ var __bbEntry = (() => {
     const question = detail.kind === "question" ? detail : null;
     const failure = detail.kind === "error" ? detail : null;
     const hasBody = Boolean(approval || question || failure || lastResult);
-    return (0, import_react3.createElement)(
+    return (0, import_react4.createElement)(
       "div",
       { className: "bb-drawer", role: "dialog", "aria-label": bot.name },
-      (0, import_react3.createElement)(
+      (0, import_react4.createElement)(
         "div",
         { className: "bb-drawer-head" },
-        (0, import_react3.createElement)("span", {
+        (0, import_react4.createElement)("span", {
           style: {
             width: 8,
             height: 8,
@@ -877,89 +882,89 @@ var __bbEntry = (() => {
             background: LAMP[scene] ?? "#D3D1C7"
           }
         }),
-        (0, import_react3.createElement)("span", {
+        (0, import_react4.createElement)("span", {
           className: "bb-drawer-title",
           style: NAME_INK[scene] ? { color: NAME_INK[scene] } : void 0
         }, bot.name),
-        (0, import_react3.createElement)("span", { className: "bb-drawer-sub" }, label),
-        (0, import_react3.createElement)("span", { className: "bb-grow" }),
-        (0, import_react3.createElement)("button", { className: "bb-icon", type: "button", onClick: onClose, title: t("drawer.close") }, "\xD7")
+        (0, import_react4.createElement)("span", { className: "bb-drawer-sub" }, label),
+        (0, import_react4.createElement)("span", { className: "bb-grow" }),
+        (0, import_react4.createElement)("button", { className: "bb-icon", type: "button", onClick: onClose, title: t("drawer.close") }, "\xD7")
       ),
-      (0, import_react3.createElement)(
+      (0, import_react4.createElement)(
         "div",
         { className: "bb-drawer-body" },
-        bot.role ? (0, import_react3.createElement)(Row, { label: t("drawer.role") }, bot.role) : null,
-        bot.model ? (0, import_react3.createElement)(Row, { label: t("drawer.model") }, bot.model) : null,
-        (0, import_react3.createElement)(Row, { label: t("drawer.elapsed") }, since ? elapsed(since) : t("drawer.unknown")),
-        action ? (0, import_react3.createElement)(Row, { label: t("drawer.now") }, action) : null,
-        approval ? (0, import_react3.createElement)(
+        bot.role ? (0, import_react4.createElement)(Row, { label: t("drawer.role") }, bot.role) : null,
+        bot.model ? (0, import_react4.createElement)(Row, { label: t("drawer.model") }, bot.model) : null,
+        (0, import_react4.createElement)(Row, { label: t("drawer.elapsed") }, since ? (0, import_react4.createElement)(Elapsed, { since }) : t("drawer.unknown")),
+        action ? (0, import_react4.createElement)(Row, { label: t("drawer.now") }, action) : null,
+        approval ? (0, import_react4.createElement)(
           "div",
           { className: "bb-block" },
-          (0, import_react3.createElement)("div", { className: "bb-block-t" }, t("drawer.approval")),
-          approval.reason ? (0, import_react3.createElement)("div", { className: "bb-text" }, approval.reason) : null,
-          approval.code ? (0, import_react3.createElement)(
+          (0, import_react4.createElement)("div", { className: "bb-block-t" }, t("drawer.approval")),
+          approval.reason ? (0, import_react4.createElement)("div", { className: "bb-text" }, approval.reason) : null,
+          approval.code ? (0, import_react4.createElement)(
             "div",
             null,
-            (0, import_react3.createElement)("div", { className: "bb-block-t", style: { marginTop: 4 } }, t("drawer.detail")),
-            (0, import_react3.createElement)("pre", { className: "bb-code" }, approval.code)
-          ) : approval.text ? (0, import_react3.createElement)("pre", { className: "bb-code" }, approval.text) : null
+            (0, import_react4.createElement)("div", { className: "bb-block-t", style: { marginTop: 4 } }, t("drawer.detail")),
+            (0, import_react4.createElement)("pre", { className: "bb-code" }, approval.code)
+          ) : approval.text ? (0, import_react4.createElement)("pre", { className: "bb-code" }, approval.text) : null
         ) : null,
-        question ? (0, import_react3.createElement)(
+        question ? (0, import_react4.createElement)(
           "div",
           { className: "bb-block" },
-          (0, import_react3.createElement)("div", { className: "bb-block-t" }, t("drawer.question")),
-          question.text ? (0, import_react3.createElement)("div", { className: "bb-text" }, question.text) : null,
-          (question.options ?? []).length ? (0, import_react3.createElement)(
+          (0, import_react4.createElement)("div", { className: "bb-block-t" }, t("drawer.question")),
+          question.text ? (0, import_react4.createElement)("div", { className: "bb-text" }, question.text) : null,
+          (question.options ?? []).length ? (0, import_react4.createElement)(
             "div",
             { style: { marginTop: 6 } },
-            (0, import_react3.createElement)("div", { className: "bb-block-t" }, t("drawer.options")),
-            question.options.map((option, index) => (0, import_react3.createElement)(
+            (0, import_react4.createElement)("div", { className: "bb-block-t" }, t("drawer.options")),
+            question.options.map((option, index) => (0, import_react4.createElement)(
               "div",
               { className: "bb-opt", key: `${index}-${option?.label ?? ""}` },
-              (0, import_react3.createElement)("b", null, `${index + 1}. ${option?.label ?? ""}`),
-              option?.description ? (0, import_react3.createElement)("span", null, option.description) : null
+              (0, import_react4.createElement)("b", null, `${index + 1}. ${option?.label ?? ""}`),
+              option?.description ? (0, import_react4.createElement)("span", null, option.description) : null
             ))
           ) : null
         ) : null,
-        failure ? (0, import_react3.createElement)(
+        failure ? (0, import_react4.createElement)(
           "div",
           { className: "bb-block" },
-          (0, import_react3.createElement)("div", { className: "bb-block-t" }, t("drawer.failure")),
-          (0, import_react3.createElement)("div", { className: "bb-text" }, failure.message || t("drawer.none"))
+          (0, import_react4.createElement)("div", { className: "bb-block-t" }, t("drawer.failure")),
+          (0, import_react4.createElement)("div", { className: "bb-text" }, failure.message || t("drawer.none"))
         ) : null,
-        lastResult ? (0, import_react3.createElement)(
+        lastResult ? (0, import_react4.createElement)(
           "div",
           { className: "bb-block" },
-          (0, import_react3.createElement)("div", { className: "bb-block-t" }, t("drawer.lastResult")),
-          (0, import_react3.createElement)("div", { className: "bb-text" }, lastResult)
+          (0, import_react4.createElement)("div", { className: "bb-block-t" }, t("drawer.lastResult")),
+          (0, import_react4.createElement)("div", { className: "bb-text" }, lastResult)
         ) : null,
-        !hasBody && !work?.target ? (0, import_react3.createElement)("div", { className: "bb-block" }, (0, import_react3.createElement)("div", { className: "bb-text bb-dim" }, t("drawer.none"))) : null
+        !hasBody && !work?.target ? (0, import_react4.createElement)("div", { className: "bb-block" }, (0, import_react4.createElement)("div", { className: "bb-text bb-dim" }, t("drawer.none"))) : null
       ),
-      (0, import_react3.createElement)(
+      (0, import_react4.createElement)(
         "div",
         { className: "bb-drawer-foot" },
-        (0, import_react3.createElement)("button", {
+        (0, import_react4.createElement)("button", {
           className: "bb-btn",
           type: "button",
           disabled: !canOpenChat,
           title: canOpenChat ? "" : t("drawer.noOpener"),
           onClick: () => onOpenChat(row)
         }, `${t("drawer.openChat")} \u2197`),
-        (0, import_react3.createElement)("button", { className: "bb-btn bb-btn-ghost", type: "button", onClick: onClose }, t("drawer.close"))
+        (0, import_react4.createElement)("button", { className: "bb-btn bb-btn-ghost", type: "button", onClick: onClose }, t("drawer.close"))
       )
     );
   }
 
   // src/client/handoffs.js
-  var import_react4 = __require("react");
+  var import_react5 = __require("react");
   function Handoffs({ works, t, onPick }) {
     const open = (works ?? []).filter((work) => work.open > 0).slice(0, 3);
     if (!open.length) return null;
-    return (0, import_react4.createElement)(
+    return (0, import_react5.createElement)(
       "div",
       { className: "bb-handoffs" },
-      (0, import_react4.createElement)("div", { className: "bb-ho-title" }, t("handoff.title")),
-      open.map((work) => (0, import_react4.createElement)(
+      (0, import_react5.createElement)("div", { className: "bb-ho-title" }, t("handoff.title")),
+      open.map((work) => (0, import_react5.createElement)(
         "div",
         {
           className: "bb-handoff",
@@ -967,17 +972,17 @@ var __bbEntry = (() => {
           onClick: () => onPick?.(work),
           title: work.last ?? ""
         },
-        (0, import_react4.createElement)("span", { className: "bb-ho-name" }, work.from || "\uFF1F"),
-        (0, import_react4.createElement)("span", { className: "bb-ho-arrow" }, "\u2192"),
-        (0, import_react4.createElement)("span", { className: "bb-ho-name" }, work.to || "\uFF1F"),
-        (0, import_react4.createElement)("span", { className: "bb-ho-count" }, `${work.open} ${t("handoff.open")}`),
-        (0, import_react4.createElement)("span", { className: "bb-ho-time" }, ago(work.at, Date.now(), t))
+        (0, import_react5.createElement)("span", { className: "bb-ho-name" }, work.from || "\uFF1F"),
+        (0, import_react5.createElement)("span", { className: "bb-ho-arrow" }, "\u2192"),
+        (0, import_react5.createElement)("span", { className: "bb-ho-name" }, work.to || "\uFF1F"),
+        (0, import_react5.createElement)("span", { className: "bb-ho-count" }, `${work.open} ${t("handoff.open")}`),
+        (0, import_react5.createElement)("span", { className: "bb-ho-time" }, ago(work.at, Date.now(), t))
       ))
     );
   }
 
   // src/client/poll.js
-  var import_react5 = __require("react");
+  var import_react6 = __require("react");
 
   // src/client/pollLoop.js
   function pollDelay(base, { active, hidden, misses }) {
@@ -1074,7 +1079,7 @@ var __bbEntry = (() => {
     return response.json();
   }
   function usePoll({ base, run, onValue, onError, activeRef, wakeRef }) {
-    (0, import_react5.useEffect)(() => {
+    (0, import_react6.useEffect)(() => {
       const loop = createPollLoop({
         base,
         run,
@@ -1098,15 +1103,15 @@ var __bbEntry = (() => {
     }, []);
   }
   function useTeam({ active }) {
-    const [view, setView] = (0, import_react5.useState)(null);
-    const [board, setBoard] = (0, import_react5.useState)(null);
-    const [error, setError] = (0, import_react5.useState)(null);
-    const activeRef = (0, import_react5.useRef)(active);
-    const liveWake = (0, import_react5.useRef)(null);
-    const boardWake = (0, import_react5.useRef)(null);
-    const sinceRef = (0, import_react5.useRef)(void 0);
-    const modelsRef = (0, import_react5.useRef)(void 0);
-    (0, import_react5.useEffect)(() => {
+    const [view, setView] = (0, import_react6.useState)(null);
+    const [board, setBoard] = (0, import_react6.useState)(null);
+    const [error, setError] = (0, import_react6.useState)(null);
+    const activeRef = (0, import_react6.useRef)(active);
+    const liveWake = (0, import_react6.useRef)(null);
+    const boardWake = (0, import_react6.useRef)(null);
+    const sinceRef = (0, import_react6.useRef)(void 0);
+    const modelsRef = (0, import_react6.useRef)(void 0);
+    (0, import_react6.useEffect)(() => {
       activeRef.current = active;
       if (!active) return;
       liveWake.current?.();
@@ -1307,60 +1312,77 @@ var __bbEntry = (() => {
     }
   }
   function Dot({ tone, busy }) {
-    return (0, import_react6.createElement)("span", {
+    return (0, import_react7.createElement)("span", {
       className: busy ? "bb-dot bb-pulse" : "bb-dot",
       style: { background: tone, boxShadow: busy ? `0 0 0 3px ${tone}33` : "none" }
     });
   }
+  var readSize = () => {
+    try {
+      const raw = readRaw(SIZE_KEY, "");
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && parsed.w && parsed.h) {
+        return {
+          w: Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, parsed.w)),
+          h: Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, parsed.h))
+        };
+      }
+    } catch {
+    }
+    return { ...SIZE_DEFAULT };
+  };
+  var readPos = () => {
+    try {
+      const raw = readRaw(POS_KEY, "");
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+  function clampPos(value, size) {
+    if (!value || !Number.isFinite(value.left) || !Number.isFinite(value.top)) return null;
+    if (typeof window === "undefined") return { left: value.left, top: value.top };
+    const width = size?.w ?? SIZE_DEFAULT.w;
+    return {
+      left: Math.min(Math.max(6, value.left), Math.max(6, (window.innerWidth || 0) - width - 6)),
+      top: Math.min(Math.max(6, value.top), Math.max(6, (window.innerHeight || 0) - 60))
+    };
+  }
   function Board(props) {
     const t = (typeof props?.t === "function" ? props.t : null) ?? defaultT;
-    const [collapsed, setCollapsed] = (0, import_react6.useState)(() => readRaw(COLLAPSE_KEY, "0") === "1");
-    const [pos, setPos] = (0, import_react6.useState)(() => {
-      try {
-        const raw = readRaw(POS_KEY, "");
-        return raw ? JSON.parse(raw) : null;
-      } catch {
-        return null;
-      }
-    });
-    const [size, setSize] = (0, import_react6.useState)(() => {
-      try {
-        const raw = readRaw(SIZE_KEY, "");
-        const parsed = raw ? JSON.parse(raw) : null;
-        if (parsed && parsed.w && parsed.h) {
-          return {
-            w: Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, parsed.w)),
-            h: Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, parsed.h))
-          };
-        }
-      } catch {
-      }
-      return { ...SIZE_DEFAULT };
-    });
-    const [drawerId, setDrawerId] = (0, import_react6.useState)(null);
-    const [waveMap, setWaveMap] = (0, import_react6.useState)({});
-    const [noteMap, setNoteMap] = (0, import_react6.useState)({});
-    const wrapRef = (0, import_react6.useRef)(null);
-    const dragRef = (0, import_react6.useRef)(null);
-    const rzRef = (0, import_react6.useRef)(null);
-    const posRef = (0, import_react6.useRef)(pos);
-    const sizeRef = (0, import_react6.useRef)(size);
-    const seenRef = (0, import_react6.useRef)(/* @__PURE__ */ new Set());
-    const primedRef = (0, import_react6.useRef)(false);
-    const openRef = (0, import_react6.useRef)(/* @__PURE__ */ new Map());
-    const waveTimers = (0, import_react6.useRef)(/* @__PURE__ */ new Map());
-    const noteTimers = (0, import_react6.useRef)(/* @__PURE__ */ new Map());
+    const [collapsed, setCollapsed] = (0, import_react7.useState)(() => readRaw(COLLAPSE_KEY, "0") === "1");
+    const [size, setSize] = (0, import_react7.useState)(readSize);
+    const [pos, setPos] = (0, import_react7.useState)(() => clampPos(readPos(), readSize()));
+    const [drawerId, setDrawerId] = (0, import_react7.useState)(null);
+    const [waveMap, setWaveMap] = (0, import_react7.useState)({});
+    const [noteMap, setNoteMap] = (0, import_react7.useState)({});
+    const wrapRef = (0, import_react7.useRef)(null);
+    const dragRef = (0, import_react7.useRef)(null);
+    const rzRef = (0, import_react7.useRef)(null);
+    const posRef = (0, import_react7.useRef)(pos);
+    const sizeRef = (0, import_react7.useRef)(size);
+    const seenRef = (0, import_react7.useRef)(/* @__PURE__ */ new Set());
+    const primedRef = (0, import_react7.useRef)(false);
+    const openRef = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+    const waveTimers = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+    const noteTimers = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
     const { view, board, error } = useTeam({ active: !collapsed });
-    (0, import_react6.useEffect)(() => {
+    (0, import_react7.useEffect)(() => {
       ensureStyle();
     }, []);
-    (0, import_react6.useEffect)(() => {
+    (0, import_react7.useEffect)(() => {
       posRef.current = pos;
     }, [pos]);
-    (0, import_react6.useEffect)(() => {
+    (0, import_react7.useEffect)(() => {
       sizeRef.current = size;
     }, [size]);
-    const flip = (0, import_react6.useCallback)((value) => {
+    (0, import_react7.useEffect)(() => {
+      if (typeof window === "undefined" || typeof window.addEventListener !== "function") return void 0;
+      const onResize = () => setPos((previous) => previous ? clampPos(previous, sizeRef.current) : previous);
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }, []);
+    const flip = (0, import_react7.useCallback)((value) => {
       setCollapsed(value);
       writeRaw(COLLAPSE_KEY, value ? "1" : "0");
     }, []);
@@ -1373,8 +1395,8 @@ var __bbEntry = (() => {
     const errors = Array.isArray(board?.errors) ? board.errors : [];
     const works = Array.isArray(board?.works) ? board.works : [];
     const rooms = board?.rooms ?? {};
-    const nameOf = (0, import_react6.useCallback)((id) => bots.find((bot) => bot.id === id)?.name ?? id, [bots]);
-    const rows = (0, import_react6.useMemo)(() => buildRows({
+    const nameOf = (0, import_react7.useCallback)((id) => bots.find((bot) => bot.id === id)?.name ?? id, [bots]);
+    const rows = (0, import_react7.useMemo)(() => buildRows({
       bots,
       activity,
       workBots,
@@ -1389,24 +1411,24 @@ var __bbEntry = (() => {
       t,
       nameOf
     }), [bots, activity, workBots, waiting, approvals, questions, errors, works, rooms, waveMap, noteMap, nameOf, t]);
-    const counts = (0, import_react6.useMemo)(() => {
+    const counts = (0, import_react7.useMemo)(() => {
       const tally = { busy: 0, alert: 0, waiting: 0, error: 0, idle: 0, done: 0 };
       for (const row of rows) tally[row.scene] = (tally[row.scene] ?? 0) + 1;
       return tally;
     }, [rows]);
-    const longest = (0, import_react6.useMemo)(() => {
+    const longest = (0, import_react7.useMemo)(() => {
       const now = Date.now();
       const live = rows.filter((row) => row.since > 0 && row.scene === "busy");
       if (!live.length) return "";
       return elapsed(Math.min(...live.map((row) => row.since)), now);
     }, [rows]);
-    const openDrawer = (0, import_react6.useCallback)((row) => setDrawerId(row?.bot?.id ?? null), []);
-    const openChat = (0, import_react6.useCallback)((row) => {
+    const openDrawer = (0, import_react7.useCallback)((row) => setDrawerId(row?.bot?.id ?? null), []);
+    const openChat = (0, import_react7.useCallback)((row) => {
       const id = row?.bot?.sessionId ?? row?.bot?.id;
       if (id) openSession(id);
     }, []);
     const alertSig = JSON.stringify(approvals.map((item) => item?.id)) + "|" + JSON.stringify(errors.map((item) => `${item.botId}:${item.at}`));
-    (0, import_react6.useEffect)(() => {
+    (0, import_react7.useEffect)(() => {
       const keys = [
         ...approvals.map((item) => `a:${item?.id}`),
         ...errors.map((item) => `e:${item.botId}:${item.at}`)
@@ -1436,7 +1458,7 @@ var __bbEntry = (() => {
         seenRef.current = /* @__PURE__ */ new Set([...kept, ...keys]);
       }
     }, [alertSig]);
-    (0, import_react6.useEffect)(() => {
+    (0, import_react7.useEffect)(() => {
       for (const work of works) {
         const key = work.id ?? `${work.from}-${work.at}`;
         const previous = openRef.current.get(key);
@@ -1474,7 +1496,7 @@ var __bbEntry = (() => {
         }
       }
     }, [works]);
-    (0, import_react6.useEffect)(() => () => {
+    (0, import_react7.useEffect)(() => () => {
       for (const timer2 of waveTimers.current.values()) clearTimeout(timer2);
       for (const timer2 of noteTimers.current.values()) clearTimeout(timer2);
       waveTimers.current.clear();
@@ -1515,6 +1537,12 @@ var __bbEntry = (() => {
       if (!rzRef.current) return;
       rzRef.current = null;
       writeRaw(SIZE_KEY, JSON.stringify(sizeRef.current));
+      const next = clampPos(posRef.current, sizeRef.current);
+      if (next) {
+        posRef.current = next;
+        setPos(next);
+        writeRaw(POS_KEY, JSON.stringify(next));
+      }
     };
     const wrapStyle = pos ? { left: pos.left, top: pos.top, right: "auto", bottom: "auto" } : void 0;
     const tone = counts.error ? LAMP.error : counts.alert ? LAMP.alert : counts.waiting ? LAMP.waiting : counts.busy ? LAMP.busy : LAMP.idle;
@@ -1522,10 +1550,10 @@ var __bbEntry = (() => {
     const loading = !view && !board && !error;
     const reason = board && board.ok === false ? board.reason === "no-state" ? t("panel.noState") : board.reason === "unreadable" ? t("panel.unreadable") : board.reason ?? "" : "";
     if (collapsed) {
-      return (0, import_react6.createElement)(
+      return (0, import_react7.createElement)(
         "div",
         { className: "bb-wrap", style: wrapStyle },
-        (0, import_react6.createElement)(
+        (0, import_react7.createElement)(
           "button",
           {
             className: "bb-pill",
@@ -1533,21 +1561,21 @@ var __bbEntry = (() => {
             onClick: () => flip(false),
             title: t("panel.expand")
           },
-          (0, import_react6.createElement)(Dot, { tone, busy: counts.busy > 0 }),
-          (0, import_react6.createElement)("b", null, `${counts.busy} ${t("legend.busy")}`),
-          counts.alert ? (0, import_react6.createElement)("span", { style: { fontWeight: 600 } }, `${counts.alert} ${t("legend.alert")}`) : null,
-          counts.waiting ? (0, import_react6.createElement)("span", null, `${counts.waiting} ${t("legend.waiting")}`) : null,
-          counts.error ? (0, import_react6.createElement)("span", { style: { fontWeight: 600 } }, `${counts.error} ${t("legend.error")}`) : null
+          (0, import_react7.createElement)(Dot, { tone, busy: counts.busy > 0 }),
+          (0, import_react7.createElement)("b", null, `${counts.busy} ${t("legend.busy")}`),
+          counts.alert ? (0, import_react7.createElement)("span", { style: { fontWeight: 600 } }, `${counts.alert} ${t("legend.alert")}`) : null,
+          counts.waiting ? (0, import_react7.createElement)("span", null, `${counts.waiting} ${t("legend.waiting")}`) : null,
+          counts.error ? (0, import_react7.createElement)("span", { style: { fontWeight: 600 } }, `${counts.error} ${t("legend.error")}`) : null
         )
       );
     }
-    return (0, import_react6.createElement)(
+    return (0, import_react7.createElement)(
       "div",
       { className: "bb-wrap", style: wrapStyle, ref: wrapRef },
-      (0, import_react6.createElement)(
+      (0, import_react7.createElement)(
         "div",
         { className: "bb-panel", style: { width: size.w, height: size.h } },
-        (0, import_react6.createElement)(
+        (0, import_react7.createElement)(
           "div",
           {
             className: "bb-head",
@@ -1557,44 +1585,44 @@ var __bbEntry = (() => {
             onPointerCancel: onPointerUp,
             title: t("panel.drag")
           },
-          (0, import_react6.createElement)(Dot, { tone, busy: counts.busy > 0 }),
-          (0, import_react6.createElement)("span", { className: "bb-title" }, t("panel.title")),
-          (0, import_react6.createElement)("span", { className: "bb-grow" }),
-          (0, import_react6.createElement)(
+          (0, import_react7.createElement)(Dot, { tone, busy: counts.busy > 0 }),
+          (0, import_react7.createElement)("span", { className: "bb-title" }, t("panel.title")),
+          (0, import_react7.createElement)("span", { className: "bb-grow" }),
+          (0, import_react7.createElement)(
             "span",
             { className: "bb-sum" },
-            (0, import_react6.createElement)("span", null, `${counts.busy} ${t("legend.busy")}`),
-            counts.alert ? (0, import_react6.createElement)("span", { className: "bb-sum-hot" }, `${counts.alert} ${t("legend.alert")}`) : null,
-            counts.waiting ? (0, import_react6.createElement)("span", null, `${counts.waiting} ${t("legend.waiting")}`) : null,
-            counts.error ? (0, import_react6.createElement)("span", { className: "bb-sum-hot" }, `${counts.error} ${t("legend.error")}`) : null,
-            longest ? (0, import_react6.createElement)("span", null, `${t("panel.mostly")} ${longest}`) : null
+            (0, import_react7.createElement)("span", null, `${counts.busy} ${t("legend.busy")}`),
+            counts.alert ? (0, import_react7.createElement)("span", { className: "bb-sum-hot" }, `${counts.alert} ${t("legend.alert")}`) : null,
+            counts.waiting ? (0, import_react7.createElement)("span", null, `${counts.waiting} ${t("legend.waiting")}`) : null,
+            counts.error ? (0, import_react7.createElement)("span", { className: "bb-sum-hot" }, `${counts.error} ${t("legend.error")}`) : null,
+            longest ? (0, import_react7.createElement)("span", null, `${t("panel.mostly")} ${longest}`) : null
           ),
-          (0, import_react6.createElement)("button", { className: "bb-icon", type: "button", onClick: () => flip(true), title: t("panel.collapse") }, "\xD7")
+          (0, import_react7.createElement)("button", { className: "bb-icon", type: "button", onClick: () => flip(true), title: t("panel.collapse") }, "\xD7")
         ),
-        (0, import_react6.createElement)(
+        (0, import_react7.createElement)(
           "div",
           { className: "bb-legend" },
-          LEGEND.map(([key, labelKey]) => (0, import_react6.createElement)(
+          LEGEND.map(([key, labelKey]) => (0, import_react7.createElement)(
             "span",
             { className: "bb-lg", key },
-            (0, import_react6.createElement)("i", { className: `bb-lg-${key}`, style: { background: LAMP[key] } }),
+            (0, import_react7.createElement)("i", { className: `bb-lg-${key}`, style: { background: LAMP[key] } }),
             t(labelKey)
           ))
         ),
-        (0, import_react6.createElement)(
+        (0, import_react7.createElement)(
           "div",
           { className: "bb-body" },
-          error ? (0, import_react6.createElement)("div", { className: "bb-notice" }, `${t("panel.offline")}\uFF1A${error}`) : null,
-          board?.boardError ? (0, import_react6.createElement)("div", { className: "bb-notice" }, `${t("panel.boardError")}\uFF1A${board.boardError}`) : null,
-          reason ? (0, import_react6.createElement)("div", { className: "bb-notice bb-notice-warn" }, reason) : null,
-          board?.stale ? (0, import_react6.createElement)("div", { className: "bb-notice bb-notice-warn" }, t("panel.stale")) : null,
-          loading ? (0, import_react6.createElement)("div", { className: "bb-text", style: { color: "#6B6558" } }, t("panel.loading")) : rows.length ? (0, import_react6.createElement)(
+          error ? (0, import_react7.createElement)("div", { className: "bb-notice" }, `${t("panel.offline")}\uFF1A${error}`) : null,
+          board?.boardError ? (0, import_react7.createElement)("div", { className: "bb-notice" }, `${t("panel.boardError")}\uFF1A${board.boardError}`) : null,
+          reason ? (0, import_react7.createElement)("div", { className: "bb-notice bb-notice-warn" }, reason) : null,
+          board?.stale ? (0, import_react7.createElement)("div", { className: "bb-notice bb-notice-warn" }, t("panel.stale")) : null,
+          loading ? (0, import_react7.createElement)("div", { className: "bb-text", style: { color: "#6B6558" } }, t("panel.loading")) : rows.length ? (0, import_react7.createElement)(
             "div",
             { className: "bb-grid" },
-            rows.map((row) => (0, import_react6.createElement)(Station, { key: row.bot.id, row, onOpen: openDrawer, note: row.note, t }))
-          ) : (0, import_react6.createElement)("div", { className: "bb-text", style: { color: "#6B6558" } }, t("panel.empty"))
+            rows.map((row) => (0, import_react7.createElement)(Station, { key: row.bot.id, row, onOpen: openDrawer, note: row.note, t }))
+          ) : (0, import_react7.createElement)("div", { className: "bb-text", style: { color: "#6B6558" } }, t("panel.empty"))
         ),
-        (0, import_react6.createElement)(Handoffs, {
+        (0, import_react7.createElement)(Handoffs, {
           works,
           t,
           onPick: (work) => {
@@ -1602,7 +1630,7 @@ var __bbEntry = (() => {
             if (target) openDrawer(target);
           }
         }),
-        drawerRow ? (0, import_react6.createElement)(Drawer, {
+        drawerRow ? (0, import_react7.createElement)(Drawer, {
           row: drawerRow,
           t,
           canOpenChat: hasOpener(),
@@ -1612,7 +1640,7 @@ var __bbEntry = (() => {
             setDrawerId(null);
           }
         }) : null,
-        (0, import_react6.createElement)("div", {
+        (0, import_react7.createElement)("div", {
           className: "bb-rz",
           title: t("panel.resize"),
           onPointerDown: onResizeDown,

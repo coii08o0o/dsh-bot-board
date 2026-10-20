@@ -39,7 +39,11 @@ export function sceneOf(status, done) {
   if (status === 'alert') return 'alert'
   if (status === 'waiting') return 'waiting'
   if (status === 'error') return 'error'
-  if (done) return 'done'
+  // `done` celebrates a clean hand-off, but only for a Bot that has nothing else
+  // to show. A Bot that picked up its next turn the same second is working, and
+  // painting it 干完 for seven seconds hides the thing the board exists to show.
+  // Same rule as above: live work outranks everything that is merely recent.
+  if (done && status === 'idle') return 'done'
   if (status === 'idle') return 'idle'
   return 'busy'
 }

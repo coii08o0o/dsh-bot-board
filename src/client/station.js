@@ -2,8 +2,7 @@
 // the one-line meta strip that answers "what is it doing and for how long".
 import { memo, createElement as h } from 'react'
 import { LAMP, NAME_INK, STATUS_KEY, seatOf } from './const.js'
-import { elapsed } from './format.js'
-import { useNow } from './clock.js'
+import { Elapsed } from './elapsed.js'
 
 const DARK = '#2C2C2A'
 const FACE_X = 86
@@ -220,13 +219,8 @@ function blobSeat(scene, seat) {
     headGear(seat.head))
 }
 
-// Only this node re-renders once a second; the SVG above stays put.
-function Elapsed({ since, className }) {
-  useNow(Boolean(since))
-  if (!since) return null
-  return h('span', { className }, elapsed(since))
-}
-
+// Only this node re-renders once a second; the SVG above stays put. (Moved to
+// elapsed.js so the drawer shares it and ticks too.)
 function StationView({ row, onOpen, note, t }) {
   const { bot, status, scene, action, since, stalled, badge } = row
   const seat = seatOf(bot)
