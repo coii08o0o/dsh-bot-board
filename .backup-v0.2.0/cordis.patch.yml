@@ -1,0 +1,5 @@
+# Mounts the Bot board host half. The browser half is discovered through
+# package.json's dsh.client manifest and the ./client export.
+- insert:
+    - id: bot-board
+      name: dsh-bot-board
