@@ -31,7 +31,7 @@ function questionOf(bot, questions) {
   return undefined
 }
 
-function describe({ approval, question, failure, wait, t, nameOf, rooms }) {
+function describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms }) {
   if (approval) {
     return {
       kind: 'approval',
@@ -49,7 +49,14 @@ function describe({ approval, question, failure, wait, t, nameOf, rooms }) {
       kind: 'question',
       action: `${t('meta.question')} ${clip(question.question, 20)}`.trim(),
       text: question.question,
+      // The one-line context ds-bot shows under the question. Without it a
+      // question like "这段用哪个语气？" has no way to be answered confidently.
+      hint: question.detail ?? '',
       options: Array.isArray(question.options) ? question.options : [],
+      // Both change what the numbered list means: several picks are allowed, and
+      // there is a free-text field the card cannot show.
+      multiSelect: question.multiSelect === true,
+      allowCustom: question.allowCustom === true,
     }
   }
   if (failure) {
@@ -76,6 +83,12 @@ function describe({ approval, question, failure, wait, t, nameOf, rooms }) {
       patrons,
     }
   }
+  // A Bot created without a model holds its setup greeting and never speaks until
+  // the user picks one. ds-bot exposes that as `bot.waiting`; it is not the same
+  // `waiting` as "waiting for another Bot to hand work back".
+  if (kickoff) {
+    return { kind: 'kickoff', action: t('meta.kickoff') }
+  }
   return { kind: null, action: '' }
 }
 
@@ -96,6 +109,10 @@ export function buildRows({
       const wait = waiting[bot.id]
       const work = workBots[bot.id]
       const since = Number(work?.since) || 0
+      // A held setup greeting: the Bot exists but will not speak until the user
+      // picks its model. It looks idle from every other angle, so it has to be
+      // read from `bot.waiting` explicitly.
+      const kickoff = bot.waiting === true
       const recorded = failureOf(bot)
       // A failure older than the current turn belongs to a turn the Bot already
       // moved past. Keeping it would leave the "!" badge up for the whole
@@ -108,10 +125,10 @@ export function buildRows({
         activity: activity[bot.id],
         waiting: Boolean(wait),
         failed: Boolean(failure),
-        alerting: Boolean(approval || question),
+        alerting: Boolean(approval || question || kickoff),
       })
       const scene = sceneOf(status, Boolean(waveMap[bot.id]))
-      const detail = describe({ approval, question, failure, wait, t, nameOf, rooms })
+      const detail = describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms })
       const live = work?.tool
         ? `${t('meta.tool')} ${work.tool}`
         : clip(work?.said || work?.note || work?.target || '', PHRASE)
@@ -120,6 +137,12 @@ export function buildRows({
         : scene === 'error' || scene === 'waiting'
           ? detail.action
           : (live || detail.action)
+      // A work's results[] holds one entry per Bot that handed something back, so
+      // its last entry belongs to whoever finished last — not necessarily this Bot.
+      // Prefer the entry that names it; fall back to the work's own last line.
+      const handed = works.find(item => item.toId === bot.id)
+      const own = (handed?.results ?? []).filter(item => item?.name && item.name === bot.name).at(-1)
+      const roomId = work?.roomId
       return {
         bot,
         status,
@@ -133,7 +156,10 @@ export function buildRows({
         failure: failure?.message ?? '',
         detail,
         work: work ?? null,
-        lastResult: works.find(item => item.toId === bot.id)?.last ?? null,
+        // A turn running in a group, not in the Bot's own chat. Worth saying: the
+        // Bot appears to be talking to nobody in particular otherwise.
+        place: roomId ? (rooms[roomId] ? `${t('meta.room')} ${rooms[roomId]}` : t('meta.room')) : '',
+        lastResult: own?.text ?? handed?.last ?? null,
         note: Boolean(noteMap[bot.id]),
       }
     })

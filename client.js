@@ -42,6 +42,8 @@ var __bbEntry = (() => {
   var BOARD_MS = 5e3;
   var SLOW_POLL_MS = 3e4;
   var STALL_MS = 5 * 60 * 1e3;
+  var IDLE_POLL_MS = 6e3;
+  var ACTIVE_TAIL_MS = 90 * 1e3;
   var COLLAPSE_KEY = "dsh-bot-board:collapsed:v5";
   var POS_KEY = "dsh-bot-board:pos:v5";
   var SIZE_KEY = "dsh-bot-board:size:v5";
@@ -168,15 +170,19 @@ var __bbEntry = (() => {
     "meta.stalled": "\u53EF\u80FD\u5361\u4F4F\u4E86",
     "meta.room": "\u7FA4",
     "meta.for": "\u66FF",
+    "meta.kickoff": "\u7B49\u4F60\u9009\u6A21\u578B",
     "handoff.title": "\u6B63\u5728\u4EA4\u63A5",
     "handoff.open": "\u9879\u5F85\u4EA4",
     "drawer.role": "\u89D2\u8272",
     "drawer.model": "\u6A21\u578B",
     "drawer.elapsed": "\u5DF2\u8DD1",
     "drawer.now": "\u5F53\u524D",
+    "drawer.place": "\u5728\u54EA",
     "drawer.approval": "\u7B49\u4F60\u5BA1\u6279",
     "drawer.question": "\u7B49\u4F60\u56DE\u7B54",
     "drawer.options": "\u53EF\u9009\u9879",
+    "drawer.optionsMulti": "\u53EF\u9009\u9879\uFF08\u53EF\u591A\u9009\uFF09",
+    "drawer.allowCustom": "\u4E5F\u53EF\u4EE5\u81EA\u5DF1\u8BF4",
     "drawer.failure": "\u6700\u8FD1\u7684\u62A5\u9519",
     "drawer.lastResult": "\u6700\u8FD1\u4E00\u6B21\u4EA4\u6D3B\u7ED3\u679C",
     "drawer.detail": "\u5177\u4F53\u5185\u5BB9",
@@ -233,15 +239,19 @@ var __bbEntry = (() => {
     "meta.stalled": "Possibly stuck",
     "meta.room": "group",
     "meta.for": "for",
+    "meta.kickoff": "Pick a model",
     "handoff.title": "In flight",
     "handoff.open": "open",
     "drawer.role": "Role",
     "drawer.model": "Model",
     "drawer.elapsed": "Running",
     "drawer.now": "Now",
+    "drawer.place": "Where",
     "drawer.approval": "Waiting for your approval",
     "drawer.question": "Waiting for your answer",
     "drawer.options": "Options",
+    "drawer.optionsMulti": "Options (pick any)",
+    "drawer.allowCustom": "Or answer in your own words",
     "drawer.failure": "Last failure",
     "drawer.lastResult": "Last hand-off result",
     "drawer.detail": "Details",
@@ -359,7 +369,7 @@ var __bbEntry = (() => {
     }
     return void 0;
   }
-  function describe({ approval, question, failure, wait, t, nameOf, rooms }) {
+  function describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms }) {
     if (approval) {
       return {
         kind: "approval",
@@ -377,7 +387,14 @@ var __bbEntry = (() => {
         kind: "question",
         action: `${t("meta.question")} ${clip(question.question, 20)}`.trim(),
         text: question.question,
-        options: Array.isArray(question.options) ? question.options : []
+        // The one-line context ds-bot shows under the question. Without it a
+        // question like "这段用哪个语气？" has no way to be answered confidently.
+        hint: question.detail ?? "",
+        options: Array.isArray(question.options) ? question.options : [],
+        // Both change what the numbered list means: several picks are allowed, and
+        // there is a free-text field the card cannot show.
+        multiSelect: question.multiSelect === true,
+        allowCustom: question.allowCustom === true
       };
     }
     if (failure) {
@@ -402,6 +419,9 @@ var __bbEntry = (() => {
         names,
         patrons
       };
+    }
+    if (kickoff) {
+      return { kind: "kickoff", action: t("meta.kickoff") };
     }
     return { kind: null, action: "" };
   }
@@ -430,6 +450,7 @@ var __bbEntry = (() => {
       const wait = waiting[bot.id];
       const work = workBots[bot.id];
       const since = Number(work?.since) || 0;
+      const kickoff = bot.waiting === true;
       const recorded = failureOf(bot);
       const isWorking = isLive(activity[bot.id]);
       const stale = recorded && (since > 0 && recorded.at < since || isWorking && now - recorded.at > RECOVERED_MS);
@@ -438,12 +459,15 @@ var __bbEntry = (() => {
         activity: activity[bot.id],
         waiting: Boolean(wait),
         failed: Boolean(failure),
-        alerting: Boolean(approval || question)
+        alerting: Boolean(approval || question || kickoff)
       });
       const scene = sceneOf(status, Boolean(waveMap[bot.id]));
-      const detail = describe({ approval, question, failure, wait, t, nameOf, rooms });
+      const detail = describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms });
       const live = work?.tool ? `${t("meta.tool")} ${work.tool}` : clip(work?.said || work?.note || work?.target || "", PHRASE);
       const action = detail.kind === "approval" || detail.kind === "question" ? detail.action : scene === "error" || scene === "waiting" ? detail.action : live || detail.action;
+      const handed = works.find((item) => item.toId === bot.id);
+      const own = (handed?.results ?? []).filter((item) => item?.name && item.name === bot.name).at(-1);
+      const roomId = work?.roomId;
       return {
         bot,
         status,
@@ -457,7 +481,10 @@ var __bbEntry = (() => {
         failure: failure?.message ?? "",
         detail,
         work: work ?? null,
-        lastResult: works.find((item) => item.toId === bot.id)?.last ?? null,
+        // A turn running in a group, not in the Bot's own chat. Worth saying: the
+        // Bot appears to be talking to nobody in particular otherwise.
+        place: roomId ? rooms[roomId] ? `${t("meta.room")} ${rooms[roomId]}` : t("meta.room") : "",
+        lastResult: own?.text ?? handed?.last ?? null,
         note: Boolean(noteMap[bot.id])
       };
     }).sort((a, b) => seatOrder(a.bot) - seatOrder(b.bot) || String(a.bot.id).localeCompare(String(b.bot.id)));
@@ -860,7 +887,7 @@ var __bbEntry = (() => {
   }
   function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
     if (!row) return null;
-    const { bot, status, scene, detail, work, lastResult, since, action } = row;
+    const { bot, status, scene, detail, work, lastResult, since, action, place } = row;
     const label = scene === "done" ? t("status.done") : STATUS_KEY[status] ? t(STATUS_KEY[status]) : status;
     const approval = detail.kind === "approval" ? detail : null;
     const question = detail.kind === "question" ? detail : null;
@@ -897,6 +924,7 @@ var __bbEntry = (() => {
         bot.model ? (0, import_react4.createElement)(Row, { label: t("drawer.model") }, bot.model) : null,
         (0, import_react4.createElement)(Row, { label: t("drawer.elapsed") }, since ? (0, import_react4.createElement)(Elapsed, { since }) : t("drawer.unknown")),
         action ? (0, import_react4.createElement)(Row, { label: t("drawer.now") }, action) : null,
+        place ? (0, import_react4.createElement)(Row, { label: t("drawer.place") }, place) : null,
         approval ? (0, import_react4.createElement)(
           "div",
           { className: "bb-block" },
@@ -914,16 +942,24 @@ var __bbEntry = (() => {
           { className: "bb-block" },
           (0, import_react4.createElement)("div", { className: "bb-block-t" }, t("drawer.question")),
           question.text ? (0, import_react4.createElement)("div", { className: "bb-text" }, question.text) : null,
+          question.hint ? (0, import_react4.createElement)("div", { className: "bb-text bb-dim" }, question.hint) : null,
           (question.options ?? []).length ? (0, import_react4.createElement)(
             "div",
             { style: { marginTop: 6 } },
-            (0, import_react4.createElement)("div", { className: "bb-block-t" }, t("drawer.options")),
+            (0, import_react4.createElement)(
+              "div",
+              { className: "bb-block-t" },
+              question.multiSelect ? t("drawer.optionsMulti") : t("drawer.options")
+            ),
+            // Numbering reads as "pick one". A multi-select question gets empty
+            // boxes instead, so the shape of the answer matches the question.
             question.options.map((option, index) => (0, import_react4.createElement)(
               "div",
               { className: "bb-opt", key: `${index}-${option?.label ?? ""}` },
-              (0, import_react4.createElement)("b", null, `${index + 1}. ${option?.label ?? ""}`),
+              (0, import_react4.createElement)("b", null, question.multiSelect ? `\u2610 ${option?.label ?? ""}` : `${index + 1}. ${option?.label ?? ""}`),
               option?.description ? (0, import_react4.createElement)("span", null, option.description) : null
-            ))
+            )),
+            question.allowCustom ? (0, import_react4.createElement)("div", { className: "bb-opt bb-dim" }, t("drawer.allowCustom")) : null
           ) : null
         ) : null,
         failure ? (0, import_react4.createElement)(
@@ -984,6 +1020,24 @@ var __bbEntry = (() => {
   // src/client/poll.js
   var import_react6 = __require("react");
 
+  // src/client/cadence.js
+  function teamActive(view) {
+    if (!view || typeof view !== "object") return false;
+    for (const value of Object.values(view.activity ?? {})) {
+      if (value && value !== "idle") return true;
+    }
+    const work = view.work ?? {};
+    if ((work.approvals ?? []).length) return true;
+    if (Object.keys(work.waiting ?? {}).length) return true;
+    if (Object.keys(work.bots ?? {}).length) return true;
+    return false;
+  }
+  function liveCadence({ active, lastActiveAt, now = Date.now() }) {
+    if (active) return POLL_MS;
+    if (Number(lastActiveAt) > 0 && now - Number(lastActiveAt) < ACTIVE_TAIL_MS) return POLL_MS;
+    return IDLE_POLL_MS;
+  }
+
   // src/client/pollLoop.js
   function pollDelay(base, { active, hidden, misses }) {
     const slow = hidden || !active;
@@ -1006,7 +1060,7 @@ var __bbEntry = (() => {
     let misses = 0;
     function arm() {
       if (stopped) return;
-      timer2 = timers.setTimeout(fire, delayFor(base, {
+      timer2 = timers.setTimeout(fire, delayFor(typeof base === "function" ? base() : base, {
         active: isActive(),
         hidden: isHidden(),
         misses
@@ -1056,6 +1110,7 @@ var __bbEntry = (() => {
   }
 
   // src/client/poll.js
+  var jitter = (ms) => Math.max(250, Math.round(ms * (0.9 + Math.random() * 0.2)));
   async function callBot(endpoint, payload) {
     const response = await fetch("api/bot", {
       method: "POST",
@@ -1085,7 +1140,8 @@ var __bbEntry = (() => {
         run,
         onValue,
         onError,
-        delayFor: pollDelay,
+        // `value` is the resolved base — a number, even when `base` is a function.
+        delayFor: (value, state) => jitter(pollDelay(value, state)),
         isActive: () => activeRef.current,
         isHidden: () => typeof document !== "undefined" && document.hidden
       });
@@ -1111,6 +1167,8 @@ var __bbEntry = (() => {
     const boardWake = (0, import_react6.useRef)(null);
     const sinceRef = (0, import_react6.useRef)(void 0);
     const modelsRef = (0, import_react6.useRef)(void 0);
+    const busyRef = (0, import_react6.useRef)(false);
+    const lastActiveRef = (0, import_react6.useRef)(0);
     (0, import_react6.useEffect)(() => {
       activeRef.current = active;
       if (!active) return;
@@ -1118,13 +1176,17 @@ var __bbEntry = (() => {
       boardWake.current?.();
     }, [active]);
     usePoll({
-      base: POLL_MS,
+      // An idle team is asked far less often; `unchanged` answers still carry the
+      // live half, so a Bot starting work shows up on the very next tick.
+      base: () => liveCadence({ active: busyRef.current, lastActiveAt: lastActiveRef.current }),
       activeRef,
       wakeRef: liveWake,
       run: () => callBot("state", { since: sinceRef.current, models: modelsRef.current }),
       onValue: (value) => {
         sinceRef.current = value.revision ?? sinceRef.current;
         modelsRef.current = value.modelsKey ?? modelsRef.current;
+        busyRef.current = teamActive(value);
+        if (busyRef.current) lastActiveRef.current = Date.now();
         setView((previous) => value.unchanged && previous ? { ...previous, ...value } : value);
         setError(null);
       },

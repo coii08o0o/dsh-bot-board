@@ -5,8 +5,8 @@
 复审时间：2026-10-20
 基线：`REVIEW.md`（针对 v0.2.0 的 23 项）已基本落地，本文件**只报 0.3.1 现存的问题**，不重复旧账。
 
-> **落地状态**：批次 1（`git init` + 清杂项）与批次 2（D1 / D3 / D4）已随 v0.3.2 完成，见文末「已修」。
-> 剩余待做：D2、D5、D6、D7、D8、第二节的上游字段、第三节的自适应轮询、E4/E5。
+> **落地状态**：批次 1（`git init` + 清杂项）、批次 2（D1 / D3 / D4）、批次 3（D2 / D7 / D8 + 上游字段）、批次 4（自适应轮询）已完成，见文末「已修」。
+> 剩余待做：D5（抽屉/交接行键盘可达）、D6（红灯 15 分钟衰减）、E4（`sinceKnown` 死字段）、E5（失败表淘汰序、未知 activity 兜底）。
 
 ---
 
@@ -166,7 +166,9 @@
 
 ---
 
-## 六、已修（v0.3.2）
+## 六、已修
+
+### v0.3.2（批次 1 + 2）
 
 | 项 | 改动 | 位置 |
 |---|---|---|
@@ -177,11 +179,23 @@
 | D4 | 新增 `clampPos()`：恢复位置时夹回视口、`window.resize` 时重新夹、拖拽缩放结束时也夹一次 | `panel.js:44-62,92-99,262-273` |
 | E3 | README 删掉逐字重复的段落、`pollLoop.js` 不再列两遍、开发文件清单补齐缺的 5 个模块 | `README.md` |
 
-新增回归断言 4 条（`smoke` 2 条 + `render-check` 6 条，合计 164 条全绿）：
+### v0.3.3（批次 3 + 4）
 
-- `sceneOf('working', true) === 'busy'` / `sceneOf('thinking', true) === 'busy'`
+| 项 | 改动 | 位置 |
+|---|---|---|
+| D2 | `bot.waiting`（`state.json` 里是 `kickoff`）接入 `alerting`，新建 Bot 等你选模型时亮黄灯、写明「等你选模型」；宿主快照也补了这个字段 | `rows.js:110-116,34-92`、`host/index.js:175-180` |
+| D7 | `work.results[]` 带 `name` 下发（最多 6 条），抽屉按 Bot 名挑自己那条，挑不到才退回 `last` | `host/index.js:148-172`、`rows.js:138-141` |
+| D8 | works 先按 `open > 0` 分区再截断，老但没交完的活不会被新的已结束记录挤掉 | `host/index.js:173-178` |
+| 上游字段 | `question.detail`（说明行）、`multiSelect`（编号换 `☐`）、`allowCustom`（「也可以自己说」）、`work.bots[].roomId`（抽屉「在哪」） | `rows.js:47-64`、`drawer.js:45,56-72` |
+| 第三节 | 轮询节奏改为状态的函数：有活在跑 1.5s，全队闲着 90s 后 6s，`pollLoop` 支持函数式 `base`，加 ±10% 抖动 | `cadence.js`（新）、`pollLoop.js:25-32`、`poll.js:8-14,65-95` |
+
+断言从 156 条增到 **193 条**，全部绿：
+
+- `sceneOf('working', true) === 'busy'` / `thinking`
 - `clampPos` 四边界 + 空值 + 脏值
 - 抽屉会订阅时钟（`Drawer` 自身没有 effect，所以"排进了一个 effect"就证明计时器接上了）
+- 宿主快照：`waiting` 字段、`results[].name`、`open` 优先于 `at` 排序（`w1,w3,w4,w2`）
+- `teamActive` 七例、`liveCadence` 五例、函数式 `base` 每次 arm 都重读
 
 ---
 

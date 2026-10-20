@@ -24,7 +24,9 @@ export function createPollLoop({
 
   function arm() {
     if (stopped) return
-    timer = timers.setTimeout(fire, delayFor(base, {
+    // `base` may be a function: the interval is a property of what the board is
+    // currently showing, so it has to be re-read every time the loop arms.
+    timer = timers.setTimeout(fire, delayFor(typeof base === 'function' ? base() : base, {
       active: isActive(), hidden: isHidden(), misses,
     }))
   }

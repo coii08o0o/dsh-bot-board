@@ -13,7 +13,7 @@ function Row({ label, children }) {
 
 export function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
   if (!row) return null
-  const { bot, status, scene, detail, work, lastResult, since, action } = row
+  const { bot, status, scene, detail, work, lastResult, since, action, place } = row
   const label = scene === 'done' ? t('status.done') : (STATUS_KEY[status] ? t(STATUS_KEY[status]) : status)
   const approval = detail.kind === 'approval' ? detail : null
   const question = detail.kind === 'question' ? detail : null
@@ -41,6 +41,7 @@ export function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
       bot.model ? h(Row, { label: t('drawer.model') }, bot.model) : null,
       h(Row, { label: t('drawer.elapsed') }, since ? h(Elapsed, { since }) : t('drawer.unknown')),
       action ? h(Row, { label: t('drawer.now') }, action) : null,
+      place ? h(Row, { label: t('drawer.place') }, place) : null,
 
       approval ? h('div', { className: 'bb-block' },
         h('div', { className: 'bb-block-t' }, t('drawer.approval')),
@@ -56,12 +57,17 @@ export function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
       question ? h('div', { className: 'bb-block' },
         h('div', { className: 'bb-block-t' }, t('drawer.question')),
         question.text ? h('div', { className: 'bb-text' }, question.text) : null,
+        question.hint ? h('div', { className: 'bb-text bb-dim' }, question.hint) : null,
         (question.options ?? []).length
           ? h('div', { style: { marginTop: 6 } },
-              h('div', { className: 'bb-block-t' }, t('drawer.options')),
+              h('div', { className: 'bb-block-t' },
+                question.multiSelect ? t('drawer.optionsMulti') : t('drawer.options')),
+              // Numbering reads as "pick one". A multi-select question gets empty
+              // boxes instead, so the shape of the answer matches the question.
               question.options.map((option, index) => h('div', { className: 'bb-opt', key: `${index}-${option?.label ?? ''}` },
-                h('b', null, `${index + 1}. ${option?.label ?? ''}`),
-                option?.description ? h('span', null, option.description) : null)))
+                h('b', null, question.multiSelect ? `☐ ${option?.label ?? ''}` : `${index + 1}. ${option?.label ?? ''}`),
+                option?.description ? h('span', null, option.description) : null)),
+              question.allowCustom ? h('div', { className: 'bb-opt bb-dim' }, t('drawer.allowCustom')) : null)
           : null) : null,
 
       failure ? h('div', { className: 'bb-block' },

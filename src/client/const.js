@@ -3,6 +3,12 @@ export const POLL_MS = 1500
 export const BOARD_MS = 5000
 export const SLOW_POLL_MS = 30000
 export const STALL_MS = 5 * 60 * 1000
+// A team where nothing moves does not need a 1.5s feed: `api/bot`'s `state` runs
+// refresh + bootstrap + catalog + loadSecrets before it answers, so an idle board
+// is still paying for ~40 of those a minute. After a turn ends the feed stays fast
+// for a while, so the tail of the work is not missed, then backs off.
+export const IDLE_POLL_MS = 6000
+export const ACTIVE_TAIL_MS = 90 * 1000
 
 export const COLLAPSE_KEY = 'dsh-bot-board:collapsed:v5'
 export const POS_KEY = 'dsh-bot-board:pos:v5'

@@ -1,9 +1,15 @@
 // Two pollers sharing one loop implementation. Both slow down when the panel is
 // collapsed or the window is hidden, because /api/bot is not a pure read: ds-bot
-// runs refresh + bootstrap + catalog + loadSecrets before answering.
+// runs refresh + bootstrap + catalog + loadSecrets before answering. The live feed
+// additionally slows down when the whole team is idle — see cadence.js.
 import { useEffect, useRef, useState } from 'react'
-import { BOARD_MS, POLL_MS } from './const.js'
+import { BOARD_MS } from './const.js'
+import { liveCadence, teamActive } from './cadence.js'
 import { createPollLoop, pollDelay } from './pollLoop.js'
+
+// ±10%: DS Bot's own front end polls the same endpoint, and two fixed intervals
+// beat in lockstep. A little jitter spreads the peaks.
+const jitter = ms => Math.max(250, Math.round(ms * (0.9 + Math.random() * 0.2)))
 
 async function callBot(endpoint, payload) {
   const response = await fetch('api/bot', {
@@ -36,7 +42,8 @@ function usePoll({ base, run, onValue, onError, activeRef, wakeRef }) {
       run,
       onValue,
       onError,
-      delayFor: pollDelay,
+      // `value` is the resolved base — a number, even when `base` is a function.
+      delayFor: (value, state) => jitter(pollDelay(value, state)),
       isActive: () => activeRef.current,
       isHidden: () => typeof document !== 'undefined' && document.hidden,
     })
@@ -61,6 +68,9 @@ export function useTeam({ active }) {
   const boardWake = useRef(null)
   const sinceRef = useRef(undefined)
   const modelsRef = useRef(undefined)
+  // Cadence state: what the last answer said, and when the team last moved.
+  const busyRef = useRef(false)
+  const lastActiveRef = useRef(0)
 
   useEffect(() => {
     activeRef.current = active
@@ -74,13 +84,17 @@ export function useTeam({ active }) {
   // decides the language of new Bot greetings and memory — a read-only board must
   // not change that.
   usePoll({
-    base: POLL_MS,
+    // An idle team is asked far less often; `unchanged` answers still carry the
+    // live half, so a Bot starting work shows up on the very next tick.
+    base: () => liveCadence({ active: busyRef.current, lastActiveAt: lastActiveRef.current }),
     activeRef,
     wakeRef: liveWake,
     run: () => callBot('state', { since: sinceRef.current, models: modelsRef.current }),
     onValue: value => {
       sinceRef.current = value.revision ?? sinceRef.current
       modelsRef.current = value.modelsKey ?? modelsRef.current
+      busyRef.current = teamActive(value)
+      if (busyRef.current) lastActiveRef.current = Date.now()
       setView(previous => (value.unchanged && previous ? { ...previous, ...value } : value))
       setError(null)
     },

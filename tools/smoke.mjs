@@ -39,13 +39,16 @@ section('host: snapshot')
           id: 'session-aaa', name: 'Chief', role: 'captain', model: 'deepseek-v4',
           sessionId: 'session-bbb', segments: [{ sessionId: 'session-ccc' }],
         },
-        'session-ddd': { id: 'session-ddd', name: '数学', role: '', model: null, segments: [] },
+        // A Bot created without a model holds its setup greeting in `kickoff`.
+        'session-ddd': { id: 'session-ddd', name: '数学', role: '', model: null, segments: [], kickoff: { text: 'hi' } },
       },
       works: {
-        w1: { from: 'session-aaa', to: 'session-ddd', at: 1792490000000, open: ['x', 'y'], results: [{ text: 'done one' }] },
+        w1: { from: 'session-aaa', to: 'session-ddd', at: 1792490000000, open: ['x', 'y'], results: [{ name: '数学', text: 'done one' }] },
         w2: { from: 'session-ddd', to: 'session-aaa', at: 1792480000000, open: [], results: [] },
         // A Bot that rolled over a part hands work over as its CURRENT part id.
         w3: { from: 'session-bbb', to: 'session-ddd', at: 1792470000000, open: ['z'], results: [] },
+        // Older than w2 but still open: the strip must show it before the closed one.
+        w4: { from: 'session-aaa', to: 'session-ddd', at: 1792400000000, open: ['q'], results: [] },
       },
       rooms: { r1: { id: 'r1', name: '群聊', sessions: { 'session-ddd': 'session-room' }, segments: {} } },
     }
@@ -84,9 +87,22 @@ section('host: snapshot')
     check(body.works.every(work => !('room' in work)), 'works carry no room field (the wrong-table lookup is gone)')
     check(body.works[0].id === 'w1' && body.works[0].open === 2, 'works are sorted by recency with open counts')
     check(body.works[0].last === 'done one', 'work carries its last result text')
+    check(body.works[0].results?.[0]?.name === '数学', 'work results carry the name of the Bot that handed back')
     const rolled = body.works.find(work => work.id === 'w3')
     check(rolled?.from === 'Chief' && rolled?.fromId === 'session-aaa',
       'a hand-off sent from the current part resolves to its Bot')
+
+    // A Bot whose setup greeting is still held will not speak until the user picks
+    // a model; the snapshot has to say so, or the card reads as merely idle.
+    check(body.bots.find(bot => bot.id === 'session-ddd')?.waiting === true,
+      'a held setup greeting is exposed as waiting')
+    check(body.bots.find(bot => bot.id === 'session-aaa')?.waiting === false,
+      'a Bot that has spoken is not waiting')
+
+    // An old hand-off that is still open must outrank a newer closed record.
+    const order = body.works.map(work => work.id)
+    check(order.indexOf('w4') >= 0 && order.indexOf('w4') < order.indexOf('w2'),
+      `an older open hand-off outranks a newer closed one (${order.join(',')})`)
 
     // P0-7: a failure raised in the CURRENT part must map back to the Bot, even
     // though that sessionId is not in segments[] yet.
@@ -199,10 +215,12 @@ section('poll loop: single flight')
   const fakeClock = () => {
     let next = 1
     const jobs = new Map()
+    const delays = []
     return {
-      setTimeout: fn => { const id = next; next += 1; jobs.set(id, fn); return id },
+      setTimeout: (fn, ms) => { delays.push(ms); const id = next; next += 1; jobs.set(id, fn); return id },
       clearTimeout: id => { jobs.delete(id) },
       pending: () => jobs.size,
+      delays,
     }
   }
 
@@ -263,6 +281,51 @@ section('poll loop: single flight')
   await flush()
   check(attempts === 1 && failClock.pending() === 1, 'a failed request still arms the next tick')
   failing.stop()
+
+  // The live interval is a property of what the board is showing, so it arrives as
+  // a function and must be re-read on every arm — not captured once at creation.
+  const dynClock = fakeClock()
+  let dynBase = 1000
+  const dynamic = createPollLoop({
+    base: () => dynBase, timers: dynClock,
+    isActive: () => true, isHidden: () => false,
+    run: async () => 1, onValue: () => {}, onError: () => {},
+  })
+  dynamic.start()
+  await flush()
+  check(dynClock.delays.at(-1) === 1000, 'a function base is read when the loop arms')
+  dynBase = 6000
+  dynamic.wake()
+  await flush()
+  check(dynClock.delays.at(-1) === 6000, 'and it is re-read once the interval changes')
+  dynamic.stop()
+}
+
+// ------------------------------------------------------------- cadence --
+section('cadence: an idle team is asked less often')
+{
+  const { liveCadence, teamActive } = await import(new URL('../src/client/cadence.js', import.meta.url).href)
+  const { ACTIVE_TAIL_MS, IDLE_POLL_MS, POLL_MS } = await import(new URL('../src/client/const.js', import.meta.url).href)
+
+  check(teamActive(null) === false, 'no snapshot yet is not active')
+  check(teamActive({ activity: { a: 'idle' } }) === false, 'a team where everyone is idle is not active')
+  check(teamActive({ activity: { a: 'working' } }) === true, 'a working Bot makes the team active')
+  check(teamActive({ activity: { a: 'idle', b: 'searching' } }) === true, 'one moving Bot is enough')
+  check(teamActive({ activity: {}, work: { approvals: [{ id: 'x' }] } }) === true,
+    'a pending approval counts as active (the card must turn yellow at once)')
+  check(teamActive({ activity: {}, work: { waiting: { b: {} } } }) === true, 'a hand-off wait counts as active')
+  check(teamActive({ activity: {}, work: { bots: { b: { since: 1 } } } }) === true,
+    'a turn that started before activity caught up counts as active')
+
+  const now = 1_000_000_000
+  check(liveCadence({ active: true, lastActiveAt: 0, now }) === POLL_MS, 'an active team polls at the base interval')
+  check(liveCadence({ active: false, lastActiveAt: now - 10_000, now }) === POLL_MS,
+    'the tail of a turn still polls fast, so its end is not missed')
+  check(liveCadence({ active: false, lastActiveAt: now - ACTIVE_TAIL_MS - 1, now }) === IDLE_POLL_MS,
+    'a team that has been quiet for longer backs off')
+  check(liveCadence({ active: false, lastActiveAt: 0, now }) === IDLE_POLL_MS,
+    'a board that never saw activity starts out slow')
+  check(IDLE_POLL_MS > POLL_MS, 'backing off means a longer interval, not a shorter one')
 }
 
 // ---------------------------------------------------------------- bundle --

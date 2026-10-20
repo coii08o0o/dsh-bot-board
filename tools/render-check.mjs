@@ -139,6 +139,72 @@ console.log('\n-- rows: recovered failures and stale question keys --')
   check(rolled[0].scene === 'alert', 'and it still raises the alert state')
 }
 
+console.log('\n-- upstream fields --')
+{
+  const base = {
+    activity: {}, workBots: {}, waiting: {}, approvals: [], works: [], questions: {},
+    t, nameOf, now,
+  }
+
+  // A Bot created without a model holds its setup greeting and never speaks. Every
+  // other signal says "idle", so this has to be read from bot.waiting explicitly.
+  const held = buildRows({ ...base, bots: [{ id: 'b1', name: '化学', waiting: true }], errors: [] })
+  check(held[0].scene === 'alert', 'a Bot holding its setup greeting asks for you')
+  check(held[0].action === '等你选模型', 'and says what it is waiting for')
+
+  // ds-bot's question cards carry a detail line, multiSelect and allowCustom; the
+  // board used to keep only the question text and a numbered option list.
+  const asked = buildRows({
+    ...base,
+    bots: [{ id: 'b2', name: '语文' }],
+    errors: [],
+    questions: {
+      b2: {
+        question: '这段用哪个语气？',
+        detail: '正文会读给用户听',
+        options: [{ label: '正式' }, { label: '轻松' }],
+        multiSelect: true,
+        allowCustom: true,
+      },
+    },
+  })
+  check(asked[0].detail.hint === '正文会读给用户听', 'the question keeps its detail line')
+  check(asked[0].detail.multiSelect === true, 'the question keeps multiSelect')
+  check(asked[0].detail.allowCustom === true, 'the question keeps allowCustom')
+
+  // results[] holds one entry per Bot that handed something back, so its last entry
+  // may belong to somebody else entirely.
+  const handed = buildRows({
+    ...base,
+    bots: [{ id: 'b3', name: '数学' }],
+    errors: [],
+    works: [{
+      id: 'w1', toId: 'b3', open: 0, at: now, last: '物理交回：三种叶型',
+      results: [{ name: '数学', text: '数学交回：四则运算' }, { name: '物理', text: '物理交回：三种叶型' }],
+    }],
+  })
+  check(handed[0].lastResult === '数学交回：四则运算',
+    'the hand-off result is the one this Bot handed back, not the last in the list')
+
+  // A turn running in a group, not in the Bot's own chat.
+  const placed = buildRows({
+    ...base,
+    bots: [{ id: 'b4', name: '英语' }],
+    activity: { b4: 'working' },
+    workBots: { b4: { since: now - 1000, tool: 'Bash', roomId: 'r1' } },
+    rooms: { r1: '群聊' },
+    errors: [],
+  })
+  check(placed[0].place === '群 群聊', 'a turn running in a group says where it runs')
+
+  const rich = render(Drawer({ row: asked[0], t, onClose: () => {}, onOpenChat: () => {} }))
+  check(textOf(rich).includes('正文会读给用户听'), 'the drawer shows the question detail')
+  check(textOf(rich).includes('可多选'), 'the drawer marks a multi-select question')
+  check(textOf(rich).includes('也可以自己说'), 'the drawer mentions the free-text answer')
+  const placedDrawer = render(Drawer({ row: placed[0], t, onClose: () => {}, onOpenChat: () => {} }))
+  check(textOf(placedDrawer).includes('群 群聊'), 'the drawer says where the turn runs')
+}
+
 console.log('\n-- panel position --')
 // The harness pins the viewport at 1440x900 (see globalThis.window above).
 check(clampPos({ left: 120, top: 80 }, { w: 560, h: 480 })?.left === 120, 'an on-screen position is kept as-is')

@@ -145,7 +145,7 @@ export function apply(ctx) {
     // the card never shows a raw session id and the click-through still matches.
     const botOf = id => owners.get(id) ?? id
 
-    const works = Object.entries(state.works ?? {})
+    const listed = Object.entries(state.works ?? {})
       .map(([workId, work]) => {
         const results = Array.isArray(work.results) ? work.results : []
         return {
@@ -158,10 +158,21 @@ export function apply(ctx) {
           open: Array.isArray(work.open) ? work.open.length : 0,
           done: results.length,
           last: text(results.at(-1)?.text).slice(0, 240) || null,
+          // results[] holds one entry per Bot that handed something back, each
+          // tagged with that Bot's name. `last` is whoever finished last, which is
+          // not necessarily the Bot whose card is being read, so send the names.
+          results: results.slice(-6).map(result => ({
+            name: text(result?.name).slice(0, 40),
+            text: text(result?.text).slice(0, 240),
+          })),
         }
       })
       .sort((a, b) => b.at - a.at)
-      .slice(0, WORKS_MAX)
+    // The strip only ever lists works with open items, so an old-but-still-open
+    // hand-off must never be cut in favour of a newer closed record.
+    const openWorks = listed.filter(work => work.open > 0)
+    const works = [...openWorks, ...listed.filter(work => work.open === 0)]
+      .slice(0, Math.max(WORKS_MAX, openWorks.length))
 
     const data = {
       ok: true,
@@ -172,6 +183,10 @@ export function apply(ctx) {
         role: text(bot.role).slice(0, 120),
         model: bot.model ?? null,
         sessionId: bot.sessionId ?? null,
+        // A held setup greeting: the Bot will not speak until the user picks its
+        // model. `view()` exposes the same thing as `waiting`, so the browser half
+        // reads one field whichever source it got its Bot list from.
+        waiting: bot.kickoff !== undefined,
       })),
       works,
       // Only the names: `work.waiting[botId].rooms` carries room ids, and showing
