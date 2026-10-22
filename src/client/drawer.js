@@ -3,7 +3,8 @@
 // showed the tool name, so you still had to jump into the chat to find out.
 import { createElement as h } from 'react'
 import { Elapsed } from './elapsed.js'
-import { LAMP, NAME_INK, statusLabel } from './const.js'
+import { NAME_INK, statusLabel } from './const.js'
+import { Lamp } from './station.js'
 
 function Row({ label, children }) {
   return h('div', { className: 'bb-kv' },
@@ -30,12 +31,10 @@ export function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
     'aria-label': bot.name,
   },
     h('div', { className: 'bb-drawer-head' },
-      h('span', {
-        style: {
-          width: 8, height: 8, borderRadius: '50%', flex: 'none', display: 'inline-block',
-          background: LAMP[scene] ?? '#D3D1C7',
-        },
-      }),
+      // The same lamp as the floor and the legend, at 14. It used to be an 8px
+      // flat colour dot, which carried no shape — so the drawer named a state the
+      // reader could not match against anything they had learned to recognise.
+      h('span', { className: 'bb-drawer-lamp' }, h(Lamp, { scene, size: 14 })),
       h('span', {
         className: 'bb-drawer-title',
         style: NAME_INK[scene] ? { color: NAME_INK[scene] } : undefined,

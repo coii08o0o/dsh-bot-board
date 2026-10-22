@@ -1,14 +1,17 @@
-// The floating panel: header + summary, legend, the workstation grid, the
-// in-flight hand-off list, and the detail drawer.
+// The floating panel: header + three-layer body (需要你 / 在动 / 闲着) + the
+// detail sheet, which doubles as the legend.
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  COLLAPSE_KEY, LEGEND, LAMP, POS_KEY, SIZE_DEFAULT, SIZE_KEY, SIZE_MAX, SIZE_MIN,
+  COLLAPSE_KEY, LAMP, LAYER_STABLE_MS, POS_KEY, SIZE_DEFAULT, SIZE_KEY, SIZE_MAX, SIZE_MIN,
 } from './const.js'
 import { clip, elapsed } from './format.js'
 import { buildRows } from './rows.js'
 import { Station } from './station.js'
 import { Drawer } from './drawer.js'
+import { LegendSheet } from './legend.js'
+import { Attention, IdleLine } from './attention.js'
 import { Handoffs } from './handoffs.js'
+import { LAYER_ATTENTION, LAYER_IDLE, LAYER_RUNNING, attentionOf, idleLine, layerOf } from './layers.js'
 import { useTeam } from './poll.js'
 import { ensureStyle } from './style.js'
 import { defaultT } from './locale.js'
@@ -81,12 +84,129 @@ export function clampPos(value, size) {
   }
 }
 
+// ── Layer membership, with a stability window ────────────────────────────────
+// The point of the three layers is that a Bot only moves between them when
+// something real happened — it started or finished a turn. A status that flips
+// for a single tick must not relocate anybody, because relocating a workstation
+// is exactly the "movement unrelated to what I care about" that change blindness
+// is about.
+//
+// So each Bot's layer is committed only after it has held for LAYER_STABLE_MS,
+// which is shorter than POLL_MS: one bad tick is ignored, a real transition lands
+// on the next poll. The bookkeeping lives in a ref and is evaluated during render
+// — it never schedules a render of its own, so a quiet board stays completely
+// still (no timer, no reflow, nothing).
+function useStableLayers(rows) {
+  const ref = useRef(null)
+  if (!ref.current) ref.current = new Map()
+  const map = ref.current
+  const now = Date.now()
+  for (const row of rows) {
+    const id = row.bot.id
+    const target = layerOf(row)
+    const entry = map.get(id)
+    if (!entry) {
+      map.set(id, { layer: target, pending: null, since: now })
+      continue
+    }
+    if (entry.layer === target) {
+      entry.pending = null
+      continue
+    }
+    if (entry.pending !== target) {
+      entry.pending = target
+      entry.since = now
+      continue
+    }
+    if (now - entry.since >= LAYER_STABLE_MS) {
+      entry.layer = target
+      entry.pending = null
+    }
+  }
+  // Nine Bots is the whole roster; anything beyond that is a stale id from a
+  // previous session and must not accumulate forever.
+  if (map.size > 32) {
+    const alive = new Set(rows.map(row => row.bot.id))
+    for (const id of [...map.keys()]) if (!alive.has(id)) map.delete(id)
+  }
+  return map
+}
+
+// The three bands. Split out of Board so the structure can be asserted on
+// directly: the check harness renders once and runs no effects, so a panel that
+// only builds its body from a poll result would be untestable.
+export function Body({ rows = [], works = [], notices = [], empty = null, t, onOpen, onPick, sceneOf }) {
+  const layers = useStableLayers(rows)
+  const [expanded, setExpanded] = useState(false)
+
+  const hot = []
+  const moving = []
+  const resting = []
+  for (const row of rows) {
+    const layer = layers.get(row.bot.id)?.layer ?? layerOf(row)
+    if (layer === LAYER_ATTENTION) hot.push(row)
+    else if (layer === LAYER_RUNNING) moving.push(row)
+    else resting.push(row)
+  }
+
+  if (!rows.length) {
+    return h('div', { className: 'bb-body' },
+      notices.length ? h('div', { className: 'bb-notices' }, notices) : null,
+      empty)
+  }
+
+  const attention = attentionOf(hot)
+  // `+N` is a one-way reveal (design: the only path that may make layer 3 grow),
+  // so the expanded line is the *untrimmed* roster — otherwise expanding would
+  // open 20px of empty space and still hide the names it promised.
+  const idle = idleLine(resting, expanded ? Number.POSITIVE_INFINITY : undefined)
+  // The hand-off table explains the people above it, so it lives inside the same
+  // scroll area as them. It is also the only reason the running band might exist
+  // when nobody is running: open debts with no owner at work are still worth
+  // showing.
+  const showRun = moving.length > 0 || (works ?? []).some(work => Number(work?.open) > 0)
+
+  return h('div', { className: 'bb-body' },
+    notices.length ? h('div', { className: 'bb-notices' }, notices) : null,
+
+    // Layer 1 — 需要你. Always rendered: an empty list is one summary line, never
+    // blank, because "I looked and there is nothing" is the answer to the
+    // question this panel exists for.
+    h(Attention, { items: attention.items, overflow: attention.overflow, t, onOpen }),
+
+    // Layer 2 — 在动. The only scroll area in the panel; layers 1 and 3 are
+    // always inside the viewport, so "is anything waiting on me" and "who is
+    // free" never need a scroll.
+    showRun
+      ? h('div', { className: 'bb-run' },
+          moving.length
+            ? h('div', { className: 'bb-run-grid' },
+                moving.map(row => h(Station, {
+                  key: row.bot.id, row, onOpen, note: row.note, t, compact: true,
+                })))
+            : null,
+          h(Handoffs, { works, t, onPick, sceneOf }))
+      : null,
+
+    // Layer 3 — 闲着. No image, no surface, no lamp: names only.
+    h(IdleLine, {
+      items: idle.items,
+      overflow: idle.overflow,
+      expanded,
+      t,
+      onOpen,
+      onExpand: () => setExpanded(true),
+    }))
+}
+
 function Board(props) {
   const t = (typeof props?.t === 'function' ? props.t : null) ?? defaultT
   const [collapsed, setCollapsed] = useState(() => readRaw(COLLAPSE_KEY, '0') === '1')
   const [size, setSize] = useState(readSize)
   const [pos, setPos] = useState(() => clampPos(readPos(), readSize()))
-  const [drawerId, setDrawerId] = useState(null)
+  // One sheet, not two: `{kind:'bot', id}` | `{kind:'legend'}` | null. A second
+  // drawer instance would fight this one over `previous.focus()` and Tab.
+  const [sheet, setSheet] = useState(null)
   const [waveMap, setWaveMap] = useState({})
   const [noteMap, setNoteMap] = useState({})
 
@@ -115,12 +235,14 @@ function Board(props) {
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
-  // Keyboard handling for the drawer. Without it the drawer is a visual overlay
-  // the keyboard walks straight past: focus stays on the workstation underneath,
-  // Tab keeps moving through the grid behind it, and there is no way out but the
-  // mouse. Move focus in, keep Tab inside, close on Escape, hand focus back.
+  // Keyboard handling for the sheet — the bot drawer and the legend drawer share
+  // it, because there is exactly one `.bb-drawer` in the tree at a time. Without
+  // it the sheet is a visual overlay the keyboard walks straight past: focus stays
+  // on the row underneath, Tab keeps moving through the layers behind it, and
+  // there is no way out but the mouse. Move focus in, keep Tab inside, close on
+  // Escape, hand focus back to whatever opened it (a `?` button or a list row).
   useEffect(() => {
-    if (!drawerId) return undefined
+    if (!sheet) return undefined
     if (typeof document === 'undefined') return undefined
     const host = wrapRef.current
     if (!host?.querySelector) return undefined
@@ -133,7 +255,7 @@ function Board(props) {
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
-        setDrawerId(null)
+        setSheet(null)
         return
       }
       if (event.key !== 'Tab') return
@@ -152,10 +274,10 @@ function Board(props) {
     host.addEventListener('keydown', onKeyDown)
     return () => {
       host.removeEventListener('keydown', onKeyDown)
-      // Back to the workstation that opened it, not to the top of the page.
+      // Back to the row that opened it, not to the top of the page.
       previous?.focus?.()
     }
-  }, [drawerId])
+  }, [sheet])
 
   const flip = useCallback(value => {
     setCollapsed(value)
@@ -192,7 +314,10 @@ function Board(props) {
     return elapsed(Math.min(...live.map(row => row.since)), now)
   }, [rows])
 
-  const openDrawer = useCallback(row => setDrawerId(row?.bot?.id ?? null), [])
+  const openDrawer = useCallback(row => {
+    const id = row?.bot?.id
+    if (id) setSheet({ kind: 'bot', id })
+  }, [])
   const openChat = useCallback(row => {
     const id = row?.bot?.sessionId ?? row?.bot?.id
     if (id) openSession(id)
@@ -330,13 +455,25 @@ function Board(props) {
 
   const wrapStyle = pos ? { left: pos.left, top: pos.top, right: 'auto', bottom: 'auto' } : undefined
   const tone = counts.error ? LAMP.error : counts.alert ? LAMP.alert : counts.waiting ? LAMP.waiting : counts.busy ? LAMP.busy : LAMP.idle
-  const drawerRow = drawerId ? rows.find(row => row.bot.id === drawerId) ?? null : null
+  const drawerRow = sheet?.kind === 'bot' ? rows.find(row => row.bot.id === sheet.id) ?? null : null
   const loading = !view && !board && !error
   const reason = board && board.ok === false
     ? (board.reason === 'no-state' ? t('panel.noState')
       : board.reason === 'unreadable' ? t('panel.unreadable')
         : board.reason ?? '')
     : ''
+
+  // How many items are still owed across every open record. Lifted into the head
+  // so "is anything in flight at all" stays on the first line even when the table
+  // itself has scrolled below the fold.
+  const openHandoffs = works.reduce((sum, work) => sum + (Number(work?.open) || 0), 0)
+  const sceneOf = id => rows.find(row => row.bot.id === id)?.scene
+
+  const notices = []
+  if (error) notices.push(h('div', { className: 'bb-notice', key: 'offline' }, `${t('panel.offline')}：${error}`))
+  if (board?.boardError) notices.push(h('div', { className: 'bb-notice', key: 'board' }, `${t('panel.boardError')}：${board.boardError}`))
+  if (reason) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'reason' }, reason))
+  if (board?.stale) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'stale' }, t('panel.stale')))
 
   if (collapsed) {
     return h('div', { className: 'bb-wrap', style: wrapStyle },
@@ -362,38 +499,47 @@ function Board(props) {
         h(Dot, { tone, busy: counts.busy > 0 }),
         h('span', { className: 'bb-title' }, t('panel.title')),
         h('span', { className: 'bb-grow' }),
+        // Counts report 需要你 first. The old order led with 干活, which is the
+        // one number that never needs the user; emphasis is weight, not colour,
+        // because the header follows the host theme and a hard-coded colour goes
+        // invisible in a dark one. Both zeroes are shown on purpose: a quiet board
+        // has to be able to say "0 waiting, 0 stuck" rather than say nothing.
         h('span', { className: 'bb-sum' },
-          h('span', null, `${counts.busy} ${t('legend.busy')}`),
-          counts.alert ? h('span', { className: 'bb-sum-hot' }, `${counts.alert} ${t('legend.alert')}`) : null,
-          counts.waiting ? h('span', null, `${counts.waiting} ${t('legend.waiting')}`) : null,
-          counts.error ? h('span', { className: 'bb-sum-hot' }, `${counts.error} ${t('legend.error')}`) : null,
-          longest ? h('span', null, `${t('panel.mostly')} ${longest}`) : null),
+          h('span', { className: counts.alert ? 'bb-sum-hot' : 'bb-sum-quiet' },
+            `${counts.alert} ${t('legend.alert')}`),
+          h('span', { className: counts.error ? 'bb-sum-hot' : 'bb-sum-quiet' },
+            `${counts.error} ${t('legend.error')}`),
+          h('span', { className: 'bb-sum-quiet' }, `${counts.busy} ${t('legend.busy')}`),
+          h('span', { className: 'bb-sum-quiet' }, `${counts.waiting} ${t('legend.waiting')}`),
+          openHandoffs
+            ? h('span', { className: 'bb-sum-quiet' }, t('panel.sumHandoff').replace('{n}', String(openHandoffs)))
+            : null,
+          longest ? h('span', { className: 'bb-sum-quiet' }, `${t('panel.mostly')} ${longest}`) : null),
+        // The legend used to be a permanent 27px strip here — six swatches that
+        // never changed, at the eye's first landing point. It is now one 24px
+        // button that costs nothing until you ask.
+        h('button', {
+          className: 'bb-icon',
+          type: 'button',
+          onClick: () => setSheet(previous => (previous?.kind === 'legend' ? null : { kind: 'legend' })),
+          title: t('legend.help'),
+          'aria-label': t('legend.help'),
+        }, '?'),
         h('button', { className: 'bb-icon', type: 'button', onClick: () => flip(true), title: t('panel.collapse') }, '×')),
 
-      h('div', { className: 'bb-legend' },
-        LEGEND.map(([key, labelKey]) => h('span', { className: 'bb-lg', key },
-          h('i', { className: `bb-lg-${key}`, style: { background: LAMP[key] } }),
-          t(labelKey)))),
-
-      h('div', { className: 'bb-body' },
-        error ? h('div', { className: 'bb-notice' }, `${t('panel.offline')}：${error}`) : null,
-        board?.boardError ? h('div', { className: 'bb-notice' }, `${t('panel.boardError')}：${board.boardError}`) : null,
-        reason ? h('div', { className: 'bb-notice bb-notice-warn' }, reason) : null,
-        board?.stale ? h('div', { className: 'bb-notice bb-notice-warn' }, t('panel.stale')) : null,
-        loading
-          ? h('div', { className: 'bb-text', style: { color: '#6B6558' } }, t('panel.loading'))
-          : rows.length
-            ? h('div', { className: 'bb-grid' },
-                rows.map(row => h(Station, { key: row.bot.id, row, onOpen: openDrawer, note: row.note, t })))
-            : h('div', { className: 'bb-text', style: { color: '#6B6558' } }, t('panel.empty'))),
-
-      h(Handoffs, {
+      h(Body, {
+        rows,
         works,
+        notices,
+        empty: h('div', { className: 'bb-text', style: { color: '#6B6558' } },
+          loading ? t('panel.loading') : t('panel.empty')),
         t,
-        onPick: work => {
-          const target = rows.find(row => row.bot.id === work.toId)
+        onOpen: openDrawer,
+        onPick: edge => {
+          const target = rows.find(row => row.bot.id === edge.toId)
           if (target) openDrawer(target)
         },
+        sceneOf,
       }),
 
       drawerRow
@@ -401,9 +547,13 @@ function Board(props) {
             row: drawerRow,
             t,
             canOpenChat: hasOpener(),
-            onClose: () => setDrawerId(null),
-            onOpenChat: row => { openChat(row); setDrawerId(null) },
+            onClose: () => setSheet(null),
+            onOpenChat: row => { openChat(row); setSheet(null) },
           })
+        : null,
+
+      sheet?.kind === 'legend'
+        ? h(LegendSheet, { t, onClose: () => setSheet(null) })
         : null,
 
       h('div', {

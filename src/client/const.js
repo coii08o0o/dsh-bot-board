@@ -15,6 +15,24 @@ export const ACTIVE_TAIL_MS = 90 * 1000
 // host's 15-minute failure TTL, which only exists to bound the store.
 export const ERROR_LAMP_MS = 3 * 60 * 1000
 
+// ── Three-layer attention axis (v0.4.0) ──────────────────────────────────────
+// Height budget constants, not measurements: the check harness has no layout
+// engine, so "fits in 320px" is asserted as arithmetic over these numbers (see
+// the C4a/b/c assertions in tools/smoke.mjs). They are the contract the CSS has
+// to honour — a row that grows past ATTENTION_ROW_H breaks the budget silently.
+export const HEAD_H = 39              // 7 + 24 (icon) + 7 + 1 (border)
+export const ATTENTION_ROW_H = 44     // also the WCAG 2.5.5 pointer target
+export const ATTENTION_GAP = 3
+export const ATTENTION_PAD_V = 10     // 6 top + 4 bottom
+export const IDLE_ROW_H = 24
+export const RUNNING_CELL_W = 148
+export const RUNNING_CELL_H = 134     // 115 (scene) + 18 (name) + 1 (pad)
+export const RUNNING_MIN_H = 96       // visible floor: the dumpling's face + the desk
+// How long a Bot has to hold a new layer before it moves there. Shorter than
+// POLL_MS on purpose: a status that flips for one tick must not relocate anybody,
+// while a real "started / finished a turn" still lands on the next poll.
+export const LAYER_STABLE_MS = 1200
+
 export const COLLAPSE_KEY = 'dsh-bot-board:collapsed:v5'
 export const POS_KEY = 'dsh-bot-board:pos:v5'
 export const SIZE_KEY = 'dsh-bot-board:size:v5'

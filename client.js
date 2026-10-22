@@ -35,7 +35,7 @@ var __bbEntry = (() => {
   });
 
   // src/client/panel.js
-  var import_react7 = __require("react");
+  var import_react9 = __require("react");
 
   // src/client/const.js
   var POLL_MS = 1500;
@@ -45,6 +45,7 @@ var __bbEntry = (() => {
   var IDLE_POLL_MS = 6e3;
   var ACTIVE_TAIL_MS = 90 * 1e3;
   var ERROR_LAMP_MS = 3 * 60 * 1e3;
+  var LAYER_STABLE_MS = 1200;
   var COLLAPSE_KEY = "dsh-bot-board:collapsed:v5";
   var POS_KEY = "dsh-bot-board:pos:v5";
   var SIZE_KEY = "dsh-bot-board:size:v5";
@@ -148,12 +149,29 @@ var __bbEntry = (() => {
     "panel.mostly": "\u6700\u4E45",
     "panel.noState": "\u6CA1\u627E\u5230 DS Bot \u7684\u72B6\u6001\u6587\u4EF6",
     "panel.unreadable": "\u72B6\u6001\u6587\u4EF6\u8BFB\u4E0D\u4E86",
+    "panel.sumHandoff": "{n} \u9879\u5728\u4EA4\u63A5",
     "legend.busy": "\u5E72\u6D3B",
     "legend.alert": "\u7B49\u4F60",
     "legend.waiting": "\u7B49\u4EA4\u6D3B",
     "legend.error": "\u5361\u4F4F",
     "legend.idle": "\u95F2\u7740",
     "legend.done": "\u5E72\u5B8C",
+    "legend.help": "\u516D\u6001\u8BF4\u660E",
+    "legend.hint.busy": "\u6B63\u5728\u8DD1\u4E00\u8F6E\uFF0C\u4E0D\u7528\u4F60\u7BA1",
+    "legend.hint.alert": "\u7B49\u4F60\u6279\u6216\u7B49\u4F60\u7B54",
+    "legend.hint.waiting": "\u5728\u7B49\u53E6\u4E00\u4E2A Bot \u4EA4\u6D3B",
+    "legend.hint.error": "\u51FA\u9519\u4E86\uFF0C\u8DD1\u4E0D\u52A8",
+    "legend.hint.idle": "\u95F2\u7740\uFF0C\u6CA1\u6709\u6D3B",
+    "legend.hint.done": "\u521A\u4EA4\u5B8C\u6D3B\uFF087 \u79D2\u540E\u56DE\u843D\u5230\u95F2\u7740\uFF09",
+    "attention.empty": "\u6CA1\u6709\u9700\u8981\u4F60\u7684\u4E8B",
+    "attention.overflow": "\u8FD8\u6709 {n} \u4E2A",
+    "layer.idle": "\u95F2\u7740",
+    "ho.groupTotal": "\u5171 {n} \u9879",
+    "ho.blocked": "\u88AB\u5835",
+    "ho.notStarted": "\u672A\u5F00\u5DE5",
+    "ho.mutual": "\u4E92\u76F8\u7B49",
+    "ho.morePeople": "\u8FD8\u6709 {n} \u4EBA",
+    "ho.moreItems": "\u8FD8\u6709 {n} \u9879",
     "status.working": "\u5E72\u6D3B\u4E2D",
     "status.thinking": "\u601D\u8003\u4E2D",
     "status.searching": "\u67E5\u8D44\u6599",
@@ -217,12 +235,29 @@ var __bbEntry = (() => {
     "panel.mostly": "Longest",
     "panel.noState": "DS Bot has no state file yet",
     "panel.unreadable": "The state file cannot be read",
+    "panel.sumHandoff": "{n} open hand-offs",
     "legend.busy": "Working",
     "legend.alert": "Needs you",
     "legend.waiting": "Waiting",
     "legend.error": "Stuck",
     "legend.idle": "Idle",
     "legend.done": "Done",
+    "legend.help": "What the six states mean",
+    "legend.hint.busy": "Running a turn \u2014 nothing for you",
+    "legend.hint.alert": "Waiting for your approval or answer",
+    "legend.hint.waiting": "Waiting for another Bot to hand back",
+    "legend.hint.error": "Failed \u2014 it cannot continue",
+    "legend.hint.idle": "Idle, nothing running",
+    "legend.hint.done": "Just handed back (idle after 7s)",
+    "attention.empty": "Nothing needs you",
+    "attention.overflow": "{n} more",
+    "layer.idle": "Idle",
+    "ho.groupTotal": "{n} open",
+    "ho.blocked": "blocked",
+    "ho.notStarted": "not started",
+    "ho.mutual": "waiting on each other",
+    "ho.morePeople": "{n} more",
+    "ho.moreItems": "{n} more",
     "status.working": "Working",
     "status.thinking": "Thinking",
     "status.searching": "Searching",
@@ -480,6 +515,11 @@ var __bbEntry = (() => {
         stalled: stalledOf(since, scene, now),
         badge: badgeOf(scene, Boolean(failure)),
         failure: failure?.message ?? "",
+        // When the failure was recorded. The 「需要你」 list sorts by `since ||
+        // failureAt` — a Bot that broke without ever starting a turn has no
+        // `since`, and its own timestamp is the honest "how long has it been
+        // broken". Not used for ordering rows (that stays roster order).
+        failureAt: failure?.at ?? 0,
         detail,
         work: work ?? null,
         // A turn running in a group, not in the Bot's own chat. Worth saying: the
@@ -676,7 +716,7 @@ var __bbEntry = (() => {
   }
   function lampShape(scene) {
     const fill = LAMP[scene] ?? LAMP.idle;
-    const common = { fill, stroke: "#5B5648", strokeWidth: 0.8 };
+    const common = { fill, stroke: "#5B5648", strokeWidth: 1.2 };
     if (scene === "error") {
       return (0, import_react3.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, transform: "rotate(45 151 85)", ...common });
     }
@@ -684,6 +724,34 @@ var __bbEntry = (() => {
       return (0, import_react3.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, rx: 1, ...common });
     }
     return (0, import_react3.createElement)("circle", { cx: 151, cy: 85, r: 2.9, ...common });
+  }
+  var LAMP_SHAPE = {
+    circle: { tag: "circle", props: { cx: 6, cy: 6, r: 4.5 } },
+    square: { tag: "rect", props: { x: 1.7, y: 1.7, width: 8.6, height: 8.6, rx: 1.3 } },
+    // 7.2 × 1.414 + 1.5 = 11.68 units of diagonal, so the diamond stays inside 12.
+    diamond: {
+      tag: "rect",
+      props: { x: 2.4, y: 2.4, width: 7.2, height: 7.2, rx: 0.8, transform: "rotate(45 6 6)" }
+    }
+  };
+  function Lamp({ scene, size = 12 }) {
+    const kind = scene === "error" ? "diamond" : scene === "alert" ? "square" : "circle";
+    const shape = LAMP_SHAPE[kind];
+    return (0, import_react3.createElement)("svg", {
+      className: "bb-lamp",
+      width: size,
+      height: size,
+      viewBox: "0 0 12 12",
+      // Decorative: every call site prints the state as a word next to it, and a
+      // second announcement of the same fact is noise in a screen reader.
+      "aria-hidden": "true",
+      focusable: "false"
+    }, (0, import_react3.createElement)(shape.tag, {
+      ...shape.props,
+      fill: LAMP[scene] ?? LAMP.idle,
+      stroke: "#5B5648",
+      strokeWidth: 1.5
+    }));
   }
   function screenContent(scene) {
     if (scene === "error") {
@@ -806,7 +874,7 @@ var __bbEntry = (() => {
       headGear(seat.head)
     );
   }
-  function StationView({ row, onOpen, note, t }) {
+  function StationView({ row, onOpen, note, t, compact = false }) {
     const { bot, status, scene, action, since, stalled, badge } = row;
     const seat = seatOf(bot);
     const label = scene === "done" ? t("status.done") : statusLabel(status, t);
@@ -857,11 +925,22 @@ var __bbEntry = (() => {
         deskProp(seat.prop)
       ),
       badge ? (0, import_react3.createElement)("span", { className: "bb-badge", title: row.failure ?? "" }, "!") : null,
-      (0, import_react3.createElement)("div", {
-        className: "bb-station-name",
-        style: NAME_INK[scene] ? { color: NAME_INK[scene] } : void 0
-      }, bot.name),
       (0, import_react3.createElement)(
+        "div",
+        {
+          className: "bb-station-name",
+          style: NAME_INK[scene] ? { color: NAME_INK[scene] } : void 0
+        },
+        compact ? [
+          (0, import_react3.createElement)("span", { className: "bb-station-nm", key: "nm" }, bot.name),
+          (0, import_react3.createElement)(Elapsed, {
+            key: "time",
+            since,
+            className: stalled ? "bb-station-time bb-stalled" : "bb-station-time"
+          })
+        ] : bot.name
+      ),
+      compact ? null : (0, import_react3.createElement)(
         "div",
         { className: "bb-meta" },
         action ? (0, import_react3.createElement)("span", { className: "bb-meta-act", title: action }, action) : null,
@@ -908,16 +987,10 @@ var __bbEntry = (() => {
       (0, import_react4.createElement)(
         "div",
         { className: "bb-drawer-head" },
-        (0, import_react4.createElement)("span", {
-          style: {
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            flex: "none",
-            display: "inline-block",
-            background: LAMP[scene] ?? "#D3D1C7"
-          }
-        }),
+        // The same lamp as the floor and the legend, at 14. It used to be an 8px
+        // flat colour dot, which carried no shape — so the drawer named a state the
+        // reader could not match against anything they had learned to recognise.
+        (0, import_react4.createElement)("span", { className: "bb-drawer-lamp" }, (0, import_react4.createElement)(Lamp, { scene, size: 14 })),
         (0, import_react4.createElement)("span", {
           className: "bb-drawer-title",
           style: NAME_INK[scene] ? { color: NAME_INK[scene] } : void 0
@@ -1000,44 +1073,315 @@ var __bbEntry = (() => {
     );
   }
 
-  // src/client/handoffs.js
+  // src/client/legend.js
   var import_react5 = __require("react");
-  function Handoffs({ works, t, onPick }) {
-    const open = (works ?? []).filter((work) => work.open > 0).slice(0, 3);
-    if (!open.length) return null;
+  function LegendSheet({ t, onClose }) {
     return (0, import_react5.createElement)(
       "div",
-      { className: "bb-handoffs" },
-      (0, import_react5.createElement)("div", { className: "bb-ho-title" }, t("handoff.title")),
-      open.map((work) => (0, import_react5.createElement)(
+      {
+        className: "bb-drawer",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": t("legend.help")
+      },
+      (0, import_react5.createElement)(
+        "div",
+        { className: "bb-drawer-head" },
+        (0, import_react5.createElement)("span", { className: "bb-drawer-title" }, t("legend.help")),
+        (0, import_react5.createElement)("span", { className: "bb-grow" }),
+        (0, import_react5.createElement)("button", {
+          className: "bb-icon",
+          type: "button",
+          onClick: onClose,
+          title: t("drawer.close")
+        }, "\xD7")
+      ),
+      (0, import_react5.createElement)(
+        "div",
+        { className: "bb-drawer-body" },
+        LEGEND.map(([key, labelKey]) => (0, import_react5.createElement)(
+          "div",
+          { className: "bb-lg-row", key },
+          (0, import_react5.createElement)("span", { className: "bb-lg-lamp" }, (0, import_react5.createElement)(Lamp, { scene: key, size: 16 })),
+          (0, import_react5.createElement)("span", { className: "bb-lg-name" }, t(labelKey)),
+          (0, import_react5.createElement)("span", { className: "bb-lg-hint" }, t(`legend.hint.${key}`))
+        ))
+      )
+    );
+  }
+
+  // src/client/attention.js
+  var import_react6 = __require("react");
+  function Avatar({ scene, bot }) {
+    return (0, import_react6.createElement)(
+      "span",
+      { className: "bb-att-avatar" },
+      (0, import_react6.createElement)(
+        "svg",
+        { width: 30, height: 30, viewBox: "56 24 60 60", "aria-hidden": "true", focusable: "false" },
+        blobSeat(scene, seatOf(bot))
+      )
+    );
+  }
+  function Attention({ items, overflow = 0, t, onOpen }) {
+    const rows = items ?? [];
+    if (!rows.length) {
+      return (0, import_react6.createElement)(
+        "div",
+        { className: "bb-attention" },
+        (0, import_react6.createElement)(
+          "div",
+          { className: "bb-att-empty" },
+          (0, import_react6.createElement)("b", null, "\u2713"),
+          (0, import_react6.createElement)("span", null, t("attention.empty"))
+        )
+      );
+    }
+    return (0, import_react6.createElement)(
+      "div",
+      { className: "bb-attention" },
+      rows.map((row) => (0, import_react6.createElement)(
         "div",
         {
-          className: "bb-handoff",
-          key: work.id,
-          // The workstations are reachable by keyboard; the strip used to be a plain
-          // clickable div, so a keyboard user could not open a hand-off at all.
+          className: "bb-attention-row",
+          key: row.bot.id,
           role: "button",
           tabIndex: 0,
-          onClick: () => onPick?.(work),
+          "data-scene": row.scene,
+          title: row.action || row.bot.name,
+          onClick: () => onOpen(row),
           onKeyDown: (event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              onPick?.(work);
+              onOpen(row);
             }
-          },
-          title: work.last ?? ""
+          }
         },
-        (0, import_react5.createElement)("span", { className: "bb-ho-name" }, work.from || "\uFF1F"),
-        (0, import_react5.createElement)("span", { className: "bb-ho-arrow" }, "\u2192"),
-        (0, import_react5.createElement)("span", { className: "bb-ho-name" }, work.to || "\uFF1F"),
-        (0, import_react5.createElement)("span", { className: "bb-ho-count" }, `${work.open} ${t("handoff.open")}`),
-        (0, import_react5.createElement)("span", { className: "bb-ho-time" }, ago(work.at, Date.now(), t))
-      ))
+        (0, import_react6.createElement)(Avatar, { scene: row.scene, bot: row.bot }),
+        // No NAME_INK here on purpose: in this layer the alert/error split is
+        // already carried by the 3px left bar, the lamp's shape and the words of the
+        // action. A coloured name would be a fourth copy of the same fact, and it
+        // would break the vertical rail into two colours to compare.
+        (0, import_react6.createElement)("span", { className: "bb-att-name" }, row.bot.name),
+        (0, import_react6.createElement)("span", { className: "bb-att-act" }, row.action),
+        // Always rendered, even when there is no turn start to count from: the
+        // column keeps its 44px so the lamps stay on one vertical rail.
+        (0, import_react6.createElement)("span", { className: "bb-att-time" }, (0, import_react6.createElement)(Elapsed, { since: row.since })),
+        (0, import_react6.createElement)("span", { className: "bb-att-lamp" }, (0, import_react6.createElement)(Lamp, { scene: row.scene, size: 12 }))
+      )),
+      overflow > 0 ? (0, import_react6.createElement)("div", { className: "bb-att-more" }, t("attention.overflow").replace("{n}", String(overflow))) : null
+    );
+  }
+  function IdleLine({ items, overflow = 0, expanded = false, t, onOpen, onExpand }) {
+    const rows = items ?? [];
+    if (!rows.length && !overflow) return null;
+    return (0, import_react6.createElement)(
+      "div",
+      {
+        className: "bb-idle",
+        "data-expanded": expanded ? "true" : "false"
+      },
+      (0, import_react6.createElement)("span", { className: "bb-idle-k" }, t("layer.idle")),
+      rows.map((row) => (0, import_react6.createElement)(
+        "span",
+        {
+          className: "bb-idle-name",
+          key: row.bot.id,
+          role: "button",
+          tabIndex: 0,
+          title: row.bot.name,
+          onClick: () => onOpen(row),
+          onKeyDown: (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onOpen(row);
+            }
+          }
+        },
+        (0, import_react6.createElement)("span", null, row.bot.name),
+        // The badge travels with the name in every compressed form. 0.3.4 made a
+        // quiet failure a badge instead of a red lamp; dropping it here would
+        // silently revert that.
+        row.badge ? (0, import_react6.createElement)("span", { className: "bb-badge bb-badge-inline", title: row.failure ?? "" }, "!") : null
+      )),
+      overflow > 0 ? (0, import_react6.createElement)("span", {
+        className: "bb-idle-more",
+        role: "button",
+        tabIndex: 0,
+        title: t("attention.overflow").replace("{n}", String(overflow)),
+        onClick: () => onExpand?.(),
+        onKeyDown: (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onExpand?.();
+          }
+        }
+      }, `+${overflow}`) : null
+    );
+  }
+
+  // src/client/handoffs.js
+  var import_react7 = __require("react");
+
+  // src/client/layers.js
+  var LAYER_ATTENTION = "attention";
+  var LAYER_RUNNING = "running";
+  var LAYER_IDLE = "idle";
+  function layerOf(row) {
+    const scene = row?.scene;
+    if (scene === "alert" || scene === "error") return LAYER_ATTENTION;
+    if (scene === "busy" || scene === "waiting" || scene === "done") return LAYER_RUNNING;
+    return LAYER_IDLE;
+  }
+  var ATTENTION_MAX = 3;
+  var waitKey = (row) => Number(row?.since) || Number(row?.failureAt) || 0;
+  var groupRank = (row) => row?.scene === "alert" ? 0 : 1;
+  function attentionOf(rows, max = ATTENTION_MAX) {
+    const hot = (rows ?? []).filter((row) => row.scene === "alert" || row.scene === "error");
+    const sorted = [...hot].sort((a, b) => {
+      const rank = groupRank(a) - groupRank(b);
+      return rank !== 0 ? rank : waitKey(b) - waitKey(a);
+    });
+    return { items: sorted.slice(0, max), overflow: Math.max(0, sorted.length - max) };
+  }
+  function topologyOf(works) {
+    const open = (works ?? []).filter((work) => Number(work?.open) > 0);
+    if (!open.length) return [];
+    const idOf = (work) => String(work.fromId ?? work.from ?? "");
+    const toOf = (work) => String(work.toId ?? work.to ?? "");
+    const keyOf = (from, to) => `${from}\0${to}`;
+    const byPair = /* @__PURE__ */ new Map();
+    for (const work of open) byPair.set(keyOf(idOf(work), toOf(work)), work);
+    const groups = /* @__PURE__ */ new Map();
+    for (const work of open) {
+      const fromId = idOf(work);
+      const toId = toOf(work);
+      const reverse = byPair.get(keyOf(toId, fromId));
+      const mutual = Boolean(reverse) && reverse !== work;
+      const edge = {
+        id: work.id ?? keyOf(fromId, toId),
+        fromId,
+        toId,
+        from: work.from || fromId,
+        to: work.to || toId,
+        open: Number(work.open) || 0,
+        at: Number(work.at) || 0,
+        last: work.last ?? null,
+        mutual,
+        pair: mutual ? [fromId, toId].sort().join("\0") : null
+      };
+      if (!groups.has(fromId)) {
+        groups.set(fromId, { fromId, from: edge.from, total: 0, edges: [] });
+      }
+      const group = groups.get(fromId);
+      group.edges.push(edge);
+      group.total += edge.open;
+    }
+    for (const group of groups.values()) {
+      group.edges.sort((a, b) => b.open - a.open || a.at - b.at);
+    }
+    return [...groups.values()].sort((a, b) => b.total - a.total || a.fromId.localeCompare(b.fromId));
+  }
+  var IDLE_BUDGET = 380;
+  var CJK = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/;
+  var nameWidth = (name) => {
+    let width = 0;
+    for (const char of String(name ?? "")) width += CJK.test(char) ? 11 : 6.2;
+    return width;
+  };
+  var itemWidth = (row) => nameWidth(row?.bot?.name) + (row?.badge ? 14 : 0);
+  function idleLine(rows, budget = IDLE_BUDGET) {
+    const kept = [...rows ?? []];
+    let overflow = 0;
+    const total = (items) => {
+      if (!items.length) return 0;
+      return 28 + items.reduce((sum, row) => sum + itemWidth(row) + 6, 0);
+    };
+    while (kept.length && total(kept) > budget) {
+      let index = -1;
+      for (let i = kept.length - 1; i >= 0; i -= 1) {
+        if (!kept[i].badge) {
+          index = i;
+          break;
+        }
+      }
+      if (index < 0) index = kept.length - 1;
+      kept.splice(index, 1);
+      overflow += 1;
+    }
+    return { items: kept, overflow };
+  }
+
+  // src/client/handoffs.js
+  var GROUPS_MAX = 3;
+  var EDGES_MAX = 3;
+  var blockedOf = (scene) => {
+    if (scene === "alert" || scene === "error") return "true";
+    if (!scene || scene === "idle") return "idle";
+    return "false";
+  };
+  function Handoffs({ works, t, onPick, sceneOf: sceneOf2 }) {
+    const groups = topologyOf(works);
+    if (!groups.length) return null;
+    const shown = groups.slice(0, GROUPS_MAX);
+    const hiddenGroups = groups.length - shown.length;
+    return (0, import_react7.createElement)(
+      "div",
+      { className: "bb-handoffs", role: "group", "aria-label": t("handoff.title") },
+      shown.map((group) => {
+        const edges = group.edges.slice(0, EDGES_MAX);
+        const hiddenItems = group.edges.slice(EDGES_MAX).reduce((sum, edge) => sum + edge.open, 0);
+        return (0, import_react7.createElement)(
+          "div",
+          { className: "bb-ho-group", key: group.fromId },
+          (0, import_react7.createElement)(
+            "div",
+            { className: "bb-ho-group-head" },
+            (0, import_react7.createElement)("span", { className: "bb-ho-from" }, group.from || "\uFF1F"),
+            (0, import_react7.createElement)("span", { className: "bb-ho-total" }, t("ho.groupTotal").replace("{n}", String(group.total)))
+          ),
+          edges.map((edge) => {
+            const blocked = blockedOf(sceneOf2?.(edge.toId));
+            return (0, import_react7.createElement)(
+              "div",
+              {
+                className: "bb-handoff",
+                key: edge.id,
+                // Keyboard parity with the workstations: this used to be a plain
+                // clickable div, so a keyboard user could not open a hand-off at all.
+                role: "button",
+                tabIndex: 0,
+                "data-blocked": blocked,
+                "data-mutual": edge.mutual ? "true" : void 0,
+                onClick: () => onPick?.(edge),
+                onKeyDown: (event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onPick?.(edge);
+                  }
+                },
+                title: edge.last ?? ""
+              },
+              // Shape change *and* a word: `⇄` alone is a riddle, so the mutual
+              // case also prints 互相等.
+              (0, import_react7.createElement)("span", { className: "bb-ho-arrow" }, edge.mutual ? "\u21C4" : "\u2192"),
+              (0, import_react7.createElement)("span", { className: "bb-ho-name" }, edge.to || "\uFF1F"),
+              (0, import_react7.createElement)("span", { className: "bb-ho-count" }, `${edge.open} ${t("handoff.open")}`),
+              blocked === "true" ? (0, import_react7.createElement)("span", { className: "bb-ho-flag" }, t("ho.blocked")) : null,
+              blocked === "idle" ? (0, import_react7.createElement)("span", { className: "bb-ho-flag" }, t("ho.notStarted")) : null,
+              edge.mutual ? (0, import_react7.createElement)("span", { className: "bb-ho-flag" }, t("ho.mutual")) : null,
+              (0, import_react7.createElement)("span", { className: "bb-ho-time" }, ago(edge.at, Date.now(), t))
+            );
+          }),
+          hiddenItems > 0 ? (0, import_react7.createElement)("div", { className: "bb-ho-more" }, t("ho.moreItems").replace("{n}", String(hiddenItems))) : null
+        );
+      }),
+      hiddenGroups > 0 ? (0, import_react7.createElement)("div", { className: "bb-ho-more" }, t("ho.morePeople").replace("{n}", String(hiddenGroups))) : null
     );
   }
 
   // src/client/poll.js
-  var import_react6 = __require("react");
+  var import_react8 = __require("react");
 
   // src/client/cadence.js
   function teamActive(view) {
@@ -1153,7 +1497,7 @@ var __bbEntry = (() => {
     return response.json();
   }
   function usePoll({ base, run, onValue, onError, activeRef, wakeRef }) {
-    (0, import_react6.useEffect)(() => {
+    (0, import_react8.useEffect)(() => {
       const loop = createPollLoop({
         base,
         run,
@@ -1178,17 +1522,17 @@ var __bbEntry = (() => {
     }, []);
   }
   function useTeam({ active }) {
-    const [view, setView] = (0, import_react6.useState)(null);
-    const [board, setBoard] = (0, import_react6.useState)(null);
-    const [error, setError] = (0, import_react6.useState)(null);
-    const activeRef = (0, import_react6.useRef)(active);
-    const liveWake = (0, import_react6.useRef)(null);
-    const boardWake = (0, import_react6.useRef)(null);
-    const sinceRef = (0, import_react6.useRef)(void 0);
-    const modelsRef = (0, import_react6.useRef)(void 0);
-    const busyRef = (0, import_react6.useRef)(false);
-    const lastActiveRef = (0, import_react6.useRef)(0);
-    (0, import_react6.useEffect)(() => {
+    const [view, setView] = (0, import_react8.useState)(null);
+    const [board, setBoard] = (0, import_react8.useState)(null);
+    const [error, setError] = (0, import_react8.useState)(null);
+    const activeRef = (0, import_react8.useRef)(active);
+    const liveWake = (0, import_react8.useRef)(null);
+    const boardWake = (0, import_react8.useRef)(null);
+    const sinceRef = (0, import_react8.useRef)(void 0);
+    const modelsRef = (0, import_react8.useRef)(void 0);
+    const busyRef = (0, import_react8.useRef)(false);
+    const lastActiveRef = (0, import_react8.useRef)(0);
+    (0, import_react8.useEffect)(() => {
       activeRef.current = active;
       if (!active) return;
       liveWake.current?.();
@@ -1239,33 +1583,146 @@ var __bbEntry = (() => {
 .bb-panel{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;position:relative;
   background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,rgba(0,0,0,.12));
   box-shadow:0 14px 38px rgba(0,0,0,.18)}
-.bb-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(0,0,0,.06);
+/* Head: 39px = 7 + 24 (icon) + 7 + 1 (border). Counts report \u9700\u8981\u4F60 first. */
+.bb-head{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid rgba(0,0,0,.06);
   cursor:grab;user-select:none;touch-action:none}
 .bb-head:active{cursor:grabbing}
 .bb-title{font-weight:600;font-size:12px;white-space:nowrap}
-.bb-sum{display:flex;gap:9px;font-size:11px;opacity:.75;white-space:nowrap;overflow:hidden}
-.bb-sum-hot{font-weight:700;opacity:.95}
+.bb-sum{display:flex;gap:7px;font-size:11px;opacity:.75;white-space:nowrap;overflow:hidden}
+/* Emphasis is weight only: the header follows the host theme, and a hard-coded
+   colour would go invisible in a dark one. */
+.bb-sum-hot{font-weight:700;opacity:1}
+.bb-sum-quiet{font-weight:400;opacity:.55}
 .bb-grow{flex:1}
 .bb-icon{width:24px;height:24px;border-radius:8px;border:0;background:transparent;color:inherit;opacity:.55;
   cursor:pointer;font-size:14px;line-height:1;flex:none}
 .bb-icon:hover{opacity:1;background:rgba(0,0,0,.05)}
-.bb-legend{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:5px 12px;
-  background:#F3EDE2;color:#3A352C;border-bottom:1px solid rgba(0,0,0,.06)}
-.bb-lg{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:#3A352C}
-.bb-lg i{width:8px;height:8px;display:inline-block;flex:none;border-radius:50%;
-  box-shadow:0 0 0 1px #5B5648}
-.bb-lg-error i{border-radius:1px;transform:rotate(45deg)}
-.bb-lg-alert i{border-radius:1px}
-.bb-body{flex:1;min-height:0;overflow:auto;padding:9px 12px 10px;background:#FAF7F1;color:#2C2C2A}
-.bb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,200px));gap:8px;justify-content:center}
+
+/* Body: three bands, and only the middle one scrolls. */
+.bb-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+  padding:0;background:#FAF7F1;color:#2C2C2A}
+.bb-notices{flex:none;max-height:64px;overflow:auto;padding:6px 10px 0}
+
+/* \u2500\u2500 Layer 1 \xB7 \u9700\u8981\u4F60 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* #FFFFFF against #FAF7F1 is only 1.07:1, so the card's surface encodes nothing.
+   What carries the layer is the 44px rhythm, the 3px status bar (5.02 / 6.47:1)
+   and the right-hand rail of lamps. Do not "fix" the weak white. */
+.bb-attention{flex:none;display:flex;flex-direction:column;gap:3px;padding:6px 10px 4px}
+.bb-attention-row{position:relative;display:flex;align-items:center;gap:8px;height:44px;
+  padding:0 8px 0 7px;border-left:3px solid transparent;border-radius:9px;
+  background:#FFFFFF;box-shadow:0 1px 2px rgba(44,44,42,.10);
+  cursor:pointer;outline:none;overflow:hidden}
+.bb-attention-row[data-scene="alert"]{border-left-color:#B45309}
+.bb-attention-row[data-scene="error"]{border-left-color:#B91C1C}
+/* Hover is a 1px inner ring, not a tint: a tint on cream measures 1.06:1, i.e.
+   no feedback at all. */
+.bb-attention-row:hover{box-shadow:0 1px 2px rgba(44,44,42,.10),inset 0 0 0 1px #8F8776}
+.bb-att-avatar{flex:0 0 30px;width:30px;height:30px;border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;background:#FAF7F1}
+.bb-att-avatar svg{display:block;width:30px;height:30px}
+.bb-att-name{flex:0 0 auto;max-width:68px;font-size:12.5px;font-weight:600;color:#2C2C2A;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The only flexible, and the only clippable, column: prose yields, structure does
+   not. Long prose has the drawer as its exit; identity and duration do not. */
+.bb-att-act{flex:1 1 auto;min-width:0;font-size:12px;color:#4A4438;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bb-att-time{flex:0 0 auto;min-width:44px;font-size:11px;color:#6B6558;text-align:right;
+  font-variant-numeric:tabular-nums}
+.bb-att-lamp{flex:0 0 12px;width:12px;height:12px;display:grid;place-items:center}
+/* Empty state: one summary line, never blank. "I looked and there is nothing" is
+   the answer this panel exists to give. */
+.bb-att-empty{display:flex;align-items:center;gap:6px;height:28px;padding:0 2px;
+  font-size:11.5px;color:#6B6558}
+.bb-att-empty b{color:#0F766E;font-weight:600}
+.bb-att-more{flex:none;font-size:11px;color:#6B6558;text-align:right;padding:0 2px 1px}
+
+/* \u2500\u2500 Layer 2 \xB7 \u5728\u52A8 (the only scroll area) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px 4px}
+.bb-run-grid{display:grid;grid-template-columns:repeat(auto-fit,148px);gap:8px;justify-content:center}
+/* The classroom is not a card grid: no white fill, no drop shadow. A hover ring
+   is the only surface change, so the cream room survives. */
+.bb-run .bb-station{padding:0 0 1px;border-radius:8px}
+.bb-run .bb-station:hover{background:rgba(44,44,42,.05);box-shadow:inset 0 0 0 1px #8F8776}
+/* Name and duration on one line, pinned to 18px: the height budget is arithmetic,
+   so nothing here may drift with the font family. */
+.bb-run .bb-station-name{display:flex;align-items:baseline;justify-content:center;gap:4px;
+  margin-top:1px;font-size:12px;font-weight:500;line-height:18px;color:#2C2C2A}
+.bb-run .bb-station-nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bb-run .bb-station-time{flex:none;font-size:10.5px;line-height:18px;font-weight:400;color:#6B6558;
+  font-variant-numeric:tabular-nums}
+
+/* \u2500\u2500 Layer 2 internal \xB7 hand-offs, grouped by sender \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* A hairline means "below is a note", not "here is a panel". No fill, no border
+   box, and no max-height: two scrollbars inside a 420px column fight each other,
+   so the list is bounded by rows (3 groups \xD7 3 edges + a count) instead. */
+.bb-handoffs{flex:none;margin-top:8px;padding-top:6px;border-top:1px solid #DDD6C8;
+  font-size:11px;color:#2C2C2A}
+.bb-ho-group{margin-top:6px}
+.bb-ho-group:first-child{margin-top:0}
+/* 600 + deep ink = structural: this is who the bottleneck is. Same size as an
+   edge, so the only difference is weight and colour. */
+.bb-ho-group-head{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:600;
+  line-height:16px;color:#4A4438;padding:2px 0}
+.bb-ho-from{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Amber is reserved for quantities. "\u5171 N \u9879" is the answer of the whole table:
+   the biggest group is the bottleneck. */
+.bb-ho-total{flex:none;color:#8A5B00;font-variant-numeric:tabular-nums}
+/* 14px indent = subordinate: more than 1em, so the left edge clearly steps in,
+   and less than the arrow's advance, so the arrow never hangs outside. */
+.bb-handoff{display:flex;align-items:center;gap:6px;height:18px;padding:0 0 0 14px;
+  font-size:11px;border-radius:6px;cursor:pointer;outline:none}
+.bb-handoff:hover{background:rgba(44,44,42,.05)}
+/* A character, not a drawn line: it carries the direction (dispatch), it never
+   breaks at any width, and it is already in the DOM. */
+.bb-ho-arrow{flex:none;font-size:12px;line-height:1;color:#8A8577}
+.bb-ho-name{flex:0 0 auto;max-width:72px;color:#2C2C2A;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.bb-ho-count{flex:none;color:#6B6558;font-variant-numeric:tabular-nums}
+.bb-ho-time{margin-left:auto;flex:none;min-width:56px;text-align:right;color:#6B6558;
+  font-variant-numeric:tabular-nums}
+.bb-ho-flag{flex:none;color:#6B6558}
+/* \u88AB\u5835 is the only branch that adds pixels. busy/waiting fall through to the
+   default, which is why the laziest implementation is also the correct one. */
+.bb-handoff[data-blocked="true"] .bb-ho-count{color:#8A5B00;font-weight:600}
+.bb-handoff[data-blocked="true"] .bb-ho-flag{color:#B45309;font-weight:600}
+.bb-handoff[data-mutual="true"] .bb-ho-arrow{color:#B45309}
+.bb-ho-more{padding:0 0 0 14px;color:#6B6558;font-size:11px;line-height:16px}
+
+/* \u2500\u2500 Layer 3 \xB7 \u95F2\u7740: one line, no image, no surface, no lamp \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* height is pinned and wrapping is off: a second line breaks the 480px budget by
+   its 1px margin. Overflow degrades to +N, never to a wrap. */
+.bb-idle{flex:none;height:24px;display:flex;align-items:center;gap:6px;overflow:hidden;
+  padding:0 10px;border-top:1px solid #DDD6C8;font-size:11px;background:transparent}
+.bb-idle-k{flex:none;font-weight:600;color:#6B6558}
+.bb-idle-name{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;padding:1px 2px;
+  border-radius:4px;color:#5F594D;white-space:nowrap;cursor:pointer;outline:none}
+.bb-idle-name:hover{color:#2C2C2A;background:rgba(44,44,42,.06)}
+.bb-idle-more{flex:none;padding:1px 3px;border-radius:4px;font-weight:600;color:#6B6558;
+  cursor:pointer;outline:none}
+.bb-idle-more:hover{background:rgba(44,44,42,.06)}
+/* The inline badge keeps the bb-badge class name (that is what D1 asserts) and
+   only changes its position: the badge must survive every compressed form. */
+.bb-badge-inline{position:static;flex:none;width:12px;height:12px;line-height:12px;font-size:9px;
+  margin-left:2px}
+/* The one path that may grow layer 3 \u2014 and only because the user asked for it. */
+.bb-idle[data-expanded="true"]{height:auto;max-height:44px;flex-wrap:wrap;padding:4px 10px}
+
+/* \u2500\u2500 Lamps \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.bb-lamp{display:block}
+.bb-drawer-lamp{flex:none;display:grid;place-items:center}
+
+/* \u2500\u2500 Legend, demoted to a drawer \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+.bb-lg-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:11.5px;
+  border-bottom:1px solid rgba(0,0,0,.05)}
+.bb-lg-row:last-child{border-bottom:0}
+.bb-lg-lamp{flex:none;width:16px;height:16px;display:grid;place-items:center}
+.bb-lg-name{flex:0 0 62px;font-weight:600;color:#2C2C2A}
+.bb-lg-hint{flex:1;min-width:0;color:#6B6558}
+
+/* \u2500\u2500 Workstation (layer 2 card; compact=false is still the default) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .bb-station{position:relative;border-radius:10px;padding:2px 2px 4px;cursor:pointer;background:transparent;
   transition:background-color .12s ease;outline:none}
 .bb-station:hover{background:rgba(0,0,0,.045)}
-.bb-station:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
-/* Every other control is reachable by keyboard too; without a ring you cannot
-   tell where you are. */
-.bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible{
-  outline:2px solid #378ADD;outline-offset:1px}
 .bb-scene{display:block;width:100%;height:auto}
 .bb-station-name{margin-top:1px;text-align:center;font-size:12px;font-weight:500;color:#2C2C2A;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1276,6 +1733,14 @@ var __bbEntry = (() => {
 .bb-stalled{color:#B45309;font-weight:600}
 .bb-badge{position:absolute;top:1px;right:3px;width:14px;height:14px;border-radius:50%;background:#B91C1C;
   color:#fff;font-size:10px;font-weight:700;line-height:14px;text-align:center;pointer-events:none}
+
+/* Every control is reachable by Tab; without a ring you cannot tell where you
+   are. This list is extended, never replaced. */
+.bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible,
+.bb-station:focus-visible,.bb-attention-row:focus-visible,.bb-idle-name:focus-visible,
+.bb-idle-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+
+/* \u2500\u2500 Motion: unchanged set, unchanged budgets \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .bb-blob{transform-box:fill-box;transform-origin:center bottom;animation:bb-breathe 2.6s ease-in-out infinite}
 .bb-eyes{transform-box:fill-box;transform-origin:center;animation:bb-blink 3s step-end infinite}
 .bb-eyes-slow{animation-duration:6s}
@@ -1286,19 +1751,15 @@ var __bbEntry = (() => {
   border:1px solid rgba(0,0,0,.28);border-radius:2px;pointer-events:none;
   animation:bb-note 2s step-end 1 both}
 .bb-pulse{animation:bb-pulse 1.6s ease-in-out infinite}
+/* Layer 1 is where you *read*: breathing and blinking in the three rows that
+   matter compete with the action text, and the lamp already encodes activity.
+   These overrides sit after the base rules they cancel, on purpose. */
+.bb-att-avatar .bb-blob,.bb-att-avatar .bb-eyes{animation:none}
 .bb-notice{margin:0 0 8px;padding:5px 8px;border-radius:8px;font-size:11px;background:#FDF2F2;color:#9B1C1C;
   border:1px solid rgba(185,28,28,.18)}
 .bb-notice-warn{background:#FEF7E6;color:#8A5B00;border-color:rgba(138,91,0,.18)}
-.bb-handoffs{border-top:1px solid rgba(0,0,0,.07);background:#F6F1E7;color:#3A352C;padding:6px 12px 7px;
-  flex:none;max-height:92px;overflow:auto}
-.bb-ho-title{font-size:11px;font-weight:600;color:#6B6558;margin-bottom:3px}
-.bb-handoff{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0;cursor:pointer;
-  border-radius:6px}
-.bb-handoff:hover{background:rgba(0,0,0,.05)}
-.bb-ho-arrow{color:#8A8577;flex:none}
-.bb-ho-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32%}
-.bb-ho-count{flex:none;color:#8A5B00}
-.bb-ho-time{margin-left:auto;flex:none;color:#6B6558;font-variant-numeric:tabular-nums}
+
+/* \u2500\u2500 The sheet (bot detail + legend share one .bb-drawer) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .bb-drawer{position:absolute;inset:0;display:flex;flex-direction:column;background:#FFFDF8;color:#2C2C2A;
   z-index:2}
 .bb-drawer-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(0,0,0,.08);
@@ -1397,7 +1858,7 @@ var __bbEntry = (() => {
     }
   }
   function Dot({ tone, busy }) {
-    return (0, import_react7.createElement)("span", {
+    return (0, import_react9.createElement)("span", {
       className: busy ? "bb-dot bb-pulse" : "bb-dot",
       style: { background: tone, boxShadow: busy ? `0 0 0 3px ${tone}33` : "none" }
     });
@@ -1433,42 +1894,137 @@ var __bbEntry = (() => {
       top: Math.min(Math.max(6, value.top), Math.max(6, (window.innerHeight || 0) - 60))
     };
   }
+  function useStableLayers(rows) {
+    const ref = (0, import_react9.useRef)(null);
+    if (!ref.current) ref.current = /* @__PURE__ */ new Map();
+    const map = ref.current;
+    const now = Date.now();
+    for (const row of rows) {
+      const id = row.bot.id;
+      const target = layerOf(row);
+      const entry = map.get(id);
+      if (!entry) {
+        map.set(id, { layer: target, pending: null, since: now });
+        continue;
+      }
+      if (entry.layer === target) {
+        entry.pending = null;
+        continue;
+      }
+      if (entry.pending !== target) {
+        entry.pending = target;
+        entry.since = now;
+        continue;
+      }
+      if (now - entry.since >= LAYER_STABLE_MS) {
+        entry.layer = target;
+        entry.pending = null;
+      }
+    }
+    if (map.size > 32) {
+      const alive = new Set(rows.map((row) => row.bot.id));
+      for (const id of [...map.keys()]) if (!alive.has(id)) map.delete(id);
+    }
+    return map;
+  }
+  function Body({ rows = [], works = [], notices = [], empty = null, t, onOpen, onPick, sceneOf: sceneOf2 }) {
+    const layers = useStableLayers(rows);
+    const [expanded, setExpanded] = (0, import_react9.useState)(false);
+    const hot = [];
+    const moving = [];
+    const resting = [];
+    for (const row of rows) {
+      const layer = layers.get(row.bot.id)?.layer ?? layerOf(row);
+      if (layer === LAYER_ATTENTION) hot.push(row);
+      else if (layer === LAYER_RUNNING) moving.push(row);
+      else resting.push(row);
+    }
+    if (!rows.length) {
+      return (0, import_react9.createElement)(
+        "div",
+        { className: "bb-body" },
+        notices.length ? (0, import_react9.createElement)("div", { className: "bb-notices" }, notices) : null,
+        empty
+      );
+    }
+    const attention = attentionOf(hot);
+    const idle = idleLine(resting, expanded ? Number.POSITIVE_INFINITY : void 0);
+    const showRun = moving.length > 0 || (works ?? []).some((work) => Number(work?.open) > 0);
+    return (0, import_react9.createElement)(
+      "div",
+      { className: "bb-body" },
+      notices.length ? (0, import_react9.createElement)("div", { className: "bb-notices" }, notices) : null,
+      // Layer 1 — 需要你. Always rendered: an empty list is one summary line, never
+      // blank, because "I looked and there is nothing" is the answer to the
+      // question this panel exists for.
+      (0, import_react9.createElement)(Attention, { items: attention.items, overflow: attention.overflow, t, onOpen }),
+      // Layer 2 — 在动. The only scroll area in the panel; layers 1 and 3 are
+      // always inside the viewport, so "is anything waiting on me" and "who is
+      // free" never need a scroll.
+      showRun ? (0, import_react9.createElement)(
+        "div",
+        { className: "bb-run" },
+        moving.length ? (0, import_react9.createElement)(
+          "div",
+          { className: "bb-run-grid" },
+          moving.map((row) => (0, import_react9.createElement)(Station, {
+            key: row.bot.id,
+            row,
+            onOpen,
+            note: row.note,
+            t,
+            compact: true
+          }))
+        ) : null,
+        (0, import_react9.createElement)(Handoffs, { works, t, onPick, sceneOf: sceneOf2 })
+      ) : null,
+      // Layer 3 — 闲着. No image, no surface, no lamp: names only.
+      (0, import_react9.createElement)(IdleLine, {
+        items: idle.items,
+        overflow: idle.overflow,
+        expanded,
+        t,
+        onOpen,
+        onExpand: () => setExpanded(true)
+      })
+    );
+  }
   function Board(props) {
     const t = (typeof props?.t === "function" ? props.t : null) ?? defaultT;
-    const [collapsed, setCollapsed] = (0, import_react7.useState)(() => readRaw(COLLAPSE_KEY, "0") === "1");
-    const [size, setSize] = (0, import_react7.useState)(readSize);
-    const [pos, setPos] = (0, import_react7.useState)(() => clampPos(readPos(), readSize()));
-    const [drawerId, setDrawerId] = (0, import_react7.useState)(null);
-    const [waveMap, setWaveMap] = (0, import_react7.useState)({});
-    const [noteMap, setNoteMap] = (0, import_react7.useState)({});
-    const wrapRef = (0, import_react7.useRef)(null);
-    const dragRef = (0, import_react7.useRef)(null);
-    const rzRef = (0, import_react7.useRef)(null);
-    const posRef = (0, import_react7.useRef)(pos);
-    const sizeRef = (0, import_react7.useRef)(size);
-    const seenRef = (0, import_react7.useRef)(/* @__PURE__ */ new Set());
-    const primedRef = (0, import_react7.useRef)(false);
-    const openRef = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
-    const waveTimers = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
-    const noteTimers = (0, import_react7.useRef)(/* @__PURE__ */ new Map());
+    const [collapsed, setCollapsed] = (0, import_react9.useState)(() => readRaw(COLLAPSE_KEY, "0") === "1");
+    const [size, setSize] = (0, import_react9.useState)(readSize);
+    const [pos, setPos] = (0, import_react9.useState)(() => clampPos(readPos(), readSize()));
+    const [sheet, setSheet] = (0, import_react9.useState)(null);
+    const [waveMap, setWaveMap] = (0, import_react9.useState)({});
+    const [noteMap, setNoteMap] = (0, import_react9.useState)({});
+    const wrapRef = (0, import_react9.useRef)(null);
+    const dragRef = (0, import_react9.useRef)(null);
+    const rzRef = (0, import_react9.useRef)(null);
+    const posRef = (0, import_react9.useRef)(pos);
+    const sizeRef = (0, import_react9.useRef)(size);
+    const seenRef = (0, import_react9.useRef)(/* @__PURE__ */ new Set());
+    const primedRef = (0, import_react9.useRef)(false);
+    const openRef = (0, import_react9.useRef)(/* @__PURE__ */ new Map());
+    const waveTimers = (0, import_react9.useRef)(/* @__PURE__ */ new Map());
+    const noteTimers = (0, import_react9.useRef)(/* @__PURE__ */ new Map());
     const { view, board, error } = useTeam({ active: !collapsed });
-    (0, import_react7.useEffect)(() => {
+    (0, import_react9.useEffect)(() => {
       ensureStyle();
     }, []);
-    (0, import_react7.useEffect)(() => {
+    (0, import_react9.useEffect)(() => {
       posRef.current = pos;
     }, [pos]);
-    (0, import_react7.useEffect)(() => {
+    (0, import_react9.useEffect)(() => {
       sizeRef.current = size;
     }, [size]);
-    (0, import_react7.useEffect)(() => {
+    (0, import_react9.useEffect)(() => {
       if (typeof window === "undefined" || typeof window.addEventListener !== "function") return void 0;
       const onResize = () => setPos((previous) => previous ? clampPos(previous, sizeRef.current) : previous);
       window.addEventListener("resize", onResize);
       return () => window.removeEventListener("resize", onResize);
     }, []);
-    (0, import_react7.useEffect)(() => {
-      if (!drawerId) return void 0;
+    (0, import_react9.useEffect)(() => {
+      if (!sheet) return void 0;
       if (typeof document === "undefined") return void 0;
       const host = wrapRef.current;
       if (!host?.querySelector) return void 0;
@@ -1480,7 +2036,7 @@ var __bbEntry = (() => {
         if (event.key === "Escape") {
           event.preventDefault();
           event.stopPropagation();
-          setDrawerId(null);
+          setSheet(null);
           return;
         }
         if (event.key !== "Tab") return;
@@ -1501,8 +2057,8 @@ var __bbEntry = (() => {
         host.removeEventListener("keydown", onKeyDown);
         previous?.focus?.();
       };
-    }, [drawerId]);
-    const flip = (0, import_react7.useCallback)((value) => {
+    }, [sheet]);
+    const flip = (0, import_react9.useCallback)((value) => {
       setCollapsed(value);
       writeRaw(COLLAPSE_KEY, value ? "1" : "0");
     }, []);
@@ -1515,8 +2071,8 @@ var __bbEntry = (() => {
     const errors = Array.isArray(board?.errors) ? board.errors : [];
     const works = Array.isArray(board?.works) ? board.works : [];
     const rooms = board?.rooms ?? {};
-    const nameOf = (0, import_react7.useCallback)((id) => bots.find((bot) => bot.id === id)?.name ?? id, [bots]);
-    const rows = (0, import_react7.useMemo)(() => buildRows({
+    const nameOf = (0, import_react9.useCallback)((id) => bots.find((bot) => bot.id === id)?.name ?? id, [bots]);
+    const rows = (0, import_react9.useMemo)(() => buildRows({
       bots,
       activity,
       workBots,
@@ -1531,24 +2087,27 @@ var __bbEntry = (() => {
       t,
       nameOf
     }), [bots, activity, workBots, waiting, approvals, questions, errors, works, rooms, waveMap, noteMap, nameOf, t]);
-    const counts = (0, import_react7.useMemo)(() => {
+    const counts = (0, import_react9.useMemo)(() => {
       const tally = { busy: 0, alert: 0, waiting: 0, error: 0, idle: 0, done: 0 };
       for (const row of rows) tally[row.scene] = (tally[row.scene] ?? 0) + 1;
       return tally;
     }, [rows]);
-    const longest = (0, import_react7.useMemo)(() => {
+    const longest = (0, import_react9.useMemo)(() => {
       const now = Date.now();
       const live = rows.filter((row) => row.since > 0 && row.scene === "busy");
       if (!live.length) return "";
       return elapsed(Math.min(...live.map((row) => row.since)), now);
     }, [rows]);
-    const openDrawer = (0, import_react7.useCallback)((row) => setDrawerId(row?.bot?.id ?? null), []);
-    const openChat = (0, import_react7.useCallback)((row) => {
+    const openDrawer = (0, import_react9.useCallback)((row) => {
+      const id = row?.bot?.id;
+      if (id) setSheet({ kind: "bot", id });
+    }, []);
+    const openChat = (0, import_react9.useCallback)((row) => {
       const id = row?.bot?.sessionId ?? row?.bot?.id;
       if (id) openSession(id);
     }, []);
     const alertSig = JSON.stringify(approvals.map((item) => item?.id)) + "|" + JSON.stringify(errors.map((item) => `${item.botId}:${item.at}`));
-    (0, import_react7.useEffect)(() => {
+    (0, import_react9.useEffect)(() => {
       const keys = [
         ...approvals.map((item) => `a:${item?.id}`),
         ...errors.map((item) => `e:${item.botId}:${item.at}`)
@@ -1578,7 +2137,7 @@ var __bbEntry = (() => {
         seenRef.current = /* @__PURE__ */ new Set([...kept, ...keys]);
       }
     }, [alertSig]);
-    (0, import_react7.useEffect)(() => {
+    (0, import_react9.useEffect)(() => {
       for (const work of works) {
         const key = work.id ?? `${work.from}-${work.at}`;
         const previous = openRef.current.get(key);
@@ -1616,7 +2175,7 @@ var __bbEntry = (() => {
         }
       }
     }, [works]);
-    (0, import_react7.useEffect)(() => () => {
+    (0, import_react9.useEffect)(() => () => {
       for (const timer2 of waveTimers.current.values()) clearTimeout(timer2);
       for (const timer2 of noteTimers.current.values()) clearTimeout(timer2);
       waveTimers.current.clear();
@@ -1666,14 +2225,21 @@ var __bbEntry = (() => {
     };
     const wrapStyle = pos ? { left: pos.left, top: pos.top, right: "auto", bottom: "auto" } : void 0;
     const tone = counts.error ? LAMP.error : counts.alert ? LAMP.alert : counts.waiting ? LAMP.waiting : counts.busy ? LAMP.busy : LAMP.idle;
-    const drawerRow = drawerId ? rows.find((row) => row.bot.id === drawerId) ?? null : null;
+    const drawerRow = sheet?.kind === "bot" ? rows.find((row) => row.bot.id === sheet.id) ?? null : null;
     const loading = !view && !board && !error;
     const reason = board && board.ok === false ? board.reason === "no-state" ? t("panel.noState") : board.reason === "unreadable" ? t("panel.unreadable") : board.reason ?? "" : "";
+    const openHandoffs = works.reduce((sum, work) => sum + (Number(work?.open) || 0), 0);
+    const sceneOf2 = (id) => rows.find((row) => row.bot.id === id)?.scene;
+    const notices = [];
+    if (error) notices.push((0, import_react9.createElement)("div", { className: "bb-notice", key: "offline" }, `${t("panel.offline")}\uFF1A${error}`));
+    if (board?.boardError) notices.push((0, import_react9.createElement)("div", { className: "bb-notice", key: "board" }, `${t("panel.boardError")}\uFF1A${board.boardError}`));
+    if (reason) notices.push((0, import_react9.createElement)("div", { className: "bb-notice bb-notice-warn", key: "reason" }, reason));
+    if (board?.stale) notices.push((0, import_react9.createElement)("div", { className: "bb-notice bb-notice-warn", key: "stale" }, t("panel.stale")));
     if (collapsed) {
-      return (0, import_react7.createElement)(
+      return (0, import_react9.createElement)(
         "div",
         { className: "bb-wrap", style: wrapStyle },
-        (0, import_react7.createElement)(
+        (0, import_react9.createElement)(
           "button",
           {
             className: "bb-pill",
@@ -1681,21 +2247,21 @@ var __bbEntry = (() => {
             onClick: () => flip(false),
             title: t("panel.expand")
           },
-          (0, import_react7.createElement)(Dot, { tone, busy: counts.busy > 0 }),
-          (0, import_react7.createElement)("b", null, `${counts.busy} ${t("legend.busy")}`),
-          counts.alert ? (0, import_react7.createElement)("span", { style: { fontWeight: 600 } }, `${counts.alert} ${t("legend.alert")}`) : null,
-          counts.waiting ? (0, import_react7.createElement)("span", null, `${counts.waiting} ${t("legend.waiting")}`) : null,
-          counts.error ? (0, import_react7.createElement)("span", { style: { fontWeight: 600 } }, `${counts.error} ${t("legend.error")}`) : null
+          (0, import_react9.createElement)(Dot, { tone, busy: counts.busy > 0 }),
+          (0, import_react9.createElement)("b", null, `${counts.busy} ${t("legend.busy")}`),
+          counts.alert ? (0, import_react9.createElement)("span", { style: { fontWeight: 600 } }, `${counts.alert} ${t("legend.alert")}`) : null,
+          counts.waiting ? (0, import_react9.createElement)("span", null, `${counts.waiting} ${t("legend.waiting")}`) : null,
+          counts.error ? (0, import_react9.createElement)("span", { style: { fontWeight: 600 } }, `${counts.error} ${t("legend.error")}`) : null
         )
       );
     }
-    return (0, import_react7.createElement)(
+    return (0, import_react9.createElement)(
       "div",
       { className: "bb-wrap", style: wrapStyle, ref: wrapRef },
-      (0, import_react7.createElement)(
+      (0, import_react9.createElement)(
         "div",
         { className: "bb-panel", style: { width: size.w, height: size.h } },
-        (0, import_react7.createElement)(
+        (0, import_react9.createElement)(
           "div",
           {
             className: "bb-head",
@@ -1705,62 +2271,73 @@ var __bbEntry = (() => {
             onPointerCancel: onPointerUp,
             title: t("panel.drag")
           },
-          (0, import_react7.createElement)(Dot, { tone, busy: counts.busy > 0 }),
-          (0, import_react7.createElement)("span", { className: "bb-title" }, t("panel.title")),
-          (0, import_react7.createElement)("span", { className: "bb-grow" }),
-          (0, import_react7.createElement)(
+          (0, import_react9.createElement)(Dot, { tone, busy: counts.busy > 0 }),
+          (0, import_react9.createElement)("span", { className: "bb-title" }, t("panel.title")),
+          (0, import_react9.createElement)("span", { className: "bb-grow" }),
+          // Counts report 需要你 first. The old order led with 干活, which is the
+          // one number that never needs the user; emphasis is weight, not colour,
+          // because the header follows the host theme and a hard-coded colour goes
+          // invisible in a dark one. Both zeroes are shown on purpose: a quiet board
+          // has to be able to say "0 waiting, 0 stuck" rather than say nothing.
+          (0, import_react9.createElement)(
             "span",
             { className: "bb-sum" },
-            (0, import_react7.createElement)("span", null, `${counts.busy} ${t("legend.busy")}`),
-            counts.alert ? (0, import_react7.createElement)("span", { className: "bb-sum-hot" }, `${counts.alert} ${t("legend.alert")}`) : null,
-            counts.waiting ? (0, import_react7.createElement)("span", null, `${counts.waiting} ${t("legend.waiting")}`) : null,
-            counts.error ? (0, import_react7.createElement)("span", { className: "bb-sum-hot" }, `${counts.error} ${t("legend.error")}`) : null,
-            longest ? (0, import_react7.createElement)("span", null, `${t("panel.mostly")} ${longest}`) : null
+            (0, import_react9.createElement)(
+              "span",
+              { className: counts.alert ? "bb-sum-hot" : "bb-sum-quiet" },
+              `${counts.alert} ${t("legend.alert")}`
+            ),
+            (0, import_react9.createElement)(
+              "span",
+              { className: counts.error ? "bb-sum-hot" : "bb-sum-quiet" },
+              `${counts.error} ${t("legend.error")}`
+            ),
+            (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, `${counts.busy} ${t("legend.busy")}`),
+            (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, `${counts.waiting} ${t("legend.waiting")}`),
+            openHandoffs ? (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, t("panel.sumHandoff").replace("{n}", String(openHandoffs))) : null,
+            longest ? (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, `${t("panel.mostly")} ${longest}`) : null
           ),
-          (0, import_react7.createElement)("button", { className: "bb-icon", type: "button", onClick: () => flip(true), title: t("panel.collapse") }, "\xD7")
+          // The legend used to be a permanent 27px strip here — six swatches that
+          // never changed, at the eye's first landing point. It is now one 24px
+          // button that costs nothing until you ask.
+          (0, import_react9.createElement)("button", {
+            className: "bb-icon",
+            type: "button",
+            onClick: () => setSheet((previous) => previous?.kind === "legend" ? null : { kind: "legend" }),
+            title: t("legend.help"),
+            "aria-label": t("legend.help")
+          }, "?"),
+          (0, import_react9.createElement)("button", { className: "bb-icon", type: "button", onClick: () => flip(true), title: t("panel.collapse") }, "\xD7")
         ),
-        (0, import_react7.createElement)(
-          "div",
-          { className: "bb-legend" },
-          LEGEND.map(([key, labelKey]) => (0, import_react7.createElement)(
-            "span",
-            { className: "bb-lg", key },
-            (0, import_react7.createElement)("i", { className: `bb-lg-${key}`, style: { background: LAMP[key] } }),
-            t(labelKey)
-          ))
-        ),
-        (0, import_react7.createElement)(
-          "div",
-          { className: "bb-body" },
-          error ? (0, import_react7.createElement)("div", { className: "bb-notice" }, `${t("panel.offline")}\uFF1A${error}`) : null,
-          board?.boardError ? (0, import_react7.createElement)("div", { className: "bb-notice" }, `${t("panel.boardError")}\uFF1A${board.boardError}`) : null,
-          reason ? (0, import_react7.createElement)("div", { className: "bb-notice bb-notice-warn" }, reason) : null,
-          board?.stale ? (0, import_react7.createElement)("div", { className: "bb-notice bb-notice-warn" }, t("panel.stale")) : null,
-          loading ? (0, import_react7.createElement)("div", { className: "bb-text", style: { color: "#6B6558" } }, t("panel.loading")) : rows.length ? (0, import_react7.createElement)(
-            "div",
-            { className: "bb-grid" },
-            rows.map((row) => (0, import_react7.createElement)(Station, { key: row.bot.id, row, onOpen: openDrawer, note: row.note, t }))
-          ) : (0, import_react7.createElement)("div", { className: "bb-text", style: { color: "#6B6558" } }, t("panel.empty"))
-        ),
-        (0, import_react7.createElement)(Handoffs, {
+        (0, import_react9.createElement)(Body, {
+          rows,
           works,
+          notices,
+          empty: (0, import_react9.createElement)(
+            "div",
+            { className: "bb-text", style: { color: "#6B6558" } },
+            loading ? t("panel.loading") : t("panel.empty")
+          ),
           t,
-          onPick: (work) => {
-            const target = rows.find((row) => row.bot.id === work.toId);
+          onOpen: openDrawer,
+          onPick: (edge) => {
+            const target = rows.find((row) => row.bot.id === edge.toId);
             if (target) openDrawer(target);
-          }
+          },
+          sceneOf: sceneOf2
         }),
-        drawerRow ? (0, import_react7.createElement)(Drawer, {
+        drawerRow ? (0, import_react9.createElement)(Drawer, {
           row: drawerRow,
           t,
           canOpenChat: hasOpener(),
-          onClose: () => setDrawerId(null),
+          onClose: () => setSheet(null),
           onOpenChat: (row) => {
             openChat(row);
-            setDrawerId(null);
+            setSheet(null);
           }
         }) : null,
-        (0, import_react7.createElement)("div", {
+        sheet?.kind === "legend" ? (0, import_react9.createElement)(LegendSheet, { t, onClose: () => setSheet(null) }) : null,
+        (0, import_react9.createElement)("div", {
           className: "bb-rz",
           title: t("panel.resize"),
           onPointerDown: onResizeDown,

@@ -30,8 +30,10 @@ const { ERROR_LAMP_MS } = await import('../src/client/const.js')
 const { fallbackT } = await import('../src/client/locale.js')
 const { Station } = await import('../src/client/station.js')
 const { Drawer } = await import('../src/client/drawer.js')
-const { Board, clampPos } = await import('../src/client/panel.js')
+const { Board, Body, clampPos } = await import('../src/client/panel.js')
 const { Handoffs } = await import('../src/client/handoffs.js')
+const { LegendSheet } = await import('../src/client/legend.js')
+const { IdleLine } = await import('../src/client/attention.js')
 
 const t = fallbackT('zh')
 const now = Date.now()
@@ -340,6 +342,181 @@ check(textOf(handoffs).includes('班主任') && textOf(handoffs).includes('数�
 check(textOf(handoffs).includes('4 项待交'), 'the strip counts the open items')
 check(textOf(handoffs).includes('12 分钟前'), 'the strip says how long ago it started')
 check(render(Handoffs({ t, works: [] })) === null, 'a quiet board renders no strip at all')
+
+console.log('\n-- three layers --')
+// The harness runs no effects, so Board can never finish a poll here. The body is
+// rendered directly with a snapshot instead: that is the whole reason it is its
+// own exported component.
+const ROSTER_NAMES = ['Chief', 'Researcher', '班主任', '数学', '物理', '化学', '生物', '语文', '英语']
+const layerBots = ROSTER_NAMES.map((name, index) => ({ id: `layer-${index}`, name, sessionId: `layer-${index}` }))
+const layerName = id => layerBots.find(bot => bot.id === id)?.name ?? id
+const layerRows = signals => buildRows({
+  bots: layerBots, activity: {}, workBots: {}, waiting: {}, approvals: [], errors: [],
+  questions: {}, works: [], rooms: {}, waveMap: {}, noteMap: {}, t, nameOf: layerName, now,
+  ...signals,
+})
+const renderBody = (rows, works = [], scenes = {}) => render(Body({
+  rows, works, notices: [], empty: null, t,
+  onOpen: () => {}, onPick: () => {},
+  sceneOf: id => scenes[id],
+}))
+const bandsOf = tree => {
+  const body = findAll(tree, node => node.props?.className === 'bb-body')[0]
+  return (body?.children ?? []).filter(Boolean)
+}
+const hasClass = (tree, name) => findAll(tree, node => String(node.props?.className ?? '').split(' ').includes(name))
+
+// C1: when something needs the user, it is the first thing with text on it.
+const hotRows = layerRows({
+  activity: { 'layer-0': 'working' },
+  workBots: { 'layer-0': { since: now - 100_000, tool: 'Bash' } },
+  approvals: [{ id: 'ap', botId: 'layer-1', tool: 'Bash' }],
+})
+const hotBody = renderBody(hotRows)
+{
+  const firstWithText = bandsOf(hotBody).find(band => textOf(band).trim().length > 0)
+  check(firstWithText?.props?.className === 'bb-attention',
+    `C1 需要你 is the first band with text when it is non-empty (got ${firstWithText?.props?.className})`)
+  const rowsInBand = hasClass(hotBody, 'bb-attention-row')
+  check(rowsInBand.length === 1, `C1 only the alert/error Bots are in it (${rowsInBand.length})`)
+  check(textOf(rowsInBand[0]).includes('Researcher') && textOf(rowsInBand[0]).includes('等你批 Bash'),
+    'C1 a row is a face + a name + the action in its own words')
+  check(hasClass(rowsInBand[0], 'bb-lamp').length === 1, 'C1 the row carries exactly one lamp')
+  check(findAll(rowsInBand[0], node => node.type === 'svg' && node.props?.viewBox === '56 24 60 60').length === 1,
+    'C1 the face is a crop of the same dumpling, not a second avatar drawing')
+  check(hasClass(rowsInBand[0], 'bb-att-avatar').length === 1, 'C1 and it sits in the avatar slot')
+  check(hasClass(hotBody, 'bb-run').length === 1, 'C1 在动 still renders below it')
+}
+
+// E1: every row in the list is operable without a mouse.
+{
+  const rowsInBand = hasClass(hotBody, 'bb-attention-row')
+  check(rowsInBand.every(row => row.props?.role === 'button' && row.props?.tabIndex === 0
+    && typeof row.props?.onKeyDown === 'function'), 'E1 every 需要你 row is role=button + tabIndex=0 + onKeyDown')
+}
+
+// C3: the two degenerate ends of the axis.
+{
+  const quietBody = renderBody(layerRows({}))
+  check(bandsOf(quietBody).length <= 2, `C3 all idle leaves at most two bands (${bandsOf(quietBody).length})`)
+  check(hasClass(quietBody, 'bb-run').length === 0, 'C3 all idle draws no classroom at all')
+  check(hasClass(quietBody, 'bb-att-empty').length === 1, 'C3 the empty list is one summary line, not nothing')
+  check(textOf(quietBody).includes(t('attention.empty')), 'C3 and it says the board looked and found nothing')
+  check(hasClass(quietBody, 'bb-idle').length === 1, 'C3 闲着 is one line')
+
+  const allBusy = layerRows({ activity: Object.fromEntries(layerBots.map(bot => [bot.id, 'working'])) })
+  const allBusyBody = renderBody(allBusy)
+  check(hasClass(allBusyBody, 'bb-idle').length === 0, 'C3 all busy draws no 闲着 line')
+  check(hasClass(allBusyBody, 'bb-station').length === 9, 'C3 all busy puts all nine in the classroom')
+  check(hasClass(allBusyBody, 'bb-meta').length === 0, 'C3 the compact workstation drops the meta strip')
+}
+
+// D1: compressing a Bot into 闲着 must not drop its failure badge.
+{
+  const stale = layerRows({ errors: [{ botId: 'layer-4', at: now - ERROR_LAMP_MS - 1000, message: '模型超时' }] })
+  const staleBody = renderBody(stale)
+  const names = hasClass(staleBody, 'bb-idle-name')
+  const badged = names.filter(name => findAll(name, node => String(node.props?.className ?? '').split(' ').includes('bb-badge')).length === 1)
+  check(badged.length === 1, `D1 exactly one compressed name carries the badge (${badged.length})`)
+  check(textOf(badged[0]).includes('物理'), 'D1 and it is the Bot that failed, not somebody else')
+  check(textOf(badged[0]).includes('!'), 'D1 the badge is a glyph, so it survives without colour')
+
+  // The +N escape hatch: one click must actually reveal the names it hid, and it
+  // is the only path allowed to make layer 3 taller.
+  const cramped = render(IdleLine({
+    items: stale.slice(0, 3), overflow: 6, expanded: false, t, onOpen: () => {}, onExpand: () => {},
+  }))
+  check(cramped?.props?.['data-expanded'] === 'false' && textOf(cramped).includes('+6'),
+    'D1 +N reports how many names are hidden')
+  const opened = render(IdleLine({
+    items: stale, overflow: 0, expanded: true, t, onOpen: () => {}, onExpand: () => {},
+  }))
+  check(opened?.props?.['data-expanded'] === 'true', 'D1 expanding marks the line as expanded')
+  check(hasClass(opened, 'bb-idle-name').length === stale.length,
+    `D1 expanding shows every name, not the same trimmed set in a taller box (${hasClass(opened, 'bb-idle-name').length})`)
+  check(!textOf(opened).includes('+'), 'D1 and the +N disappears once nothing is hidden')
+}
+
+// B4: an edge must never call a working Bot "blocked".
+{
+  const edgeWorks = [{
+    id: 'w1', fromId: 'layer-2', from: '班主任', toId: 'layer-3', to: '数学', open: 4, at: now - 60_000,
+  }]
+  const rowsFor = scene => layerRows({
+    activity: scene === 'busy' ? { 'layer-3': 'working' } : {},
+    waiting: scene === 'waiting' ? { 'layer-3': { bots: ['layer-0'] } } : {},
+    approvals: scene === 'alert' ? [{ id: 'x', botId: 'layer-3', tool: 'Bash' }] : [],
+  })
+  const edgeFor = scene => findAll(
+    renderBody(rowsFor(scene), edgeWorks, { 'layer-3': scene }), node => node.props?.className === 'bb-handoff',
+  )[0]
+
+  const busyEdge = edgeFor('busy')
+  check(busyEdge?.props?.['data-blocked'] === 'false', 'B4 a busy receiver is data-blocked="false", never "true"')
+  check(!textOf(busyEdge).includes('被堵'), 'B4 and it does not print 被堵 — you do not chase somebody already paying the debt')
+  check(edgeFor('waiting')?.props?.['data-blocked'] === 'false', 'B4 a waiting receiver is not blocked either (the chain is turning)')
+  check(edgeFor('alert')?.props?.['data-blocked'] === 'true', 'B4 an alert receiver is blocked')
+  check(textOf(edgeFor('alert')).includes('被堵'), 'B4 and says so in words, not only in colour')
+  const idleEdge = edgeFor('idle')
+  check(idleEdge?.props?.['data-blocked'] === 'idle', 'B4 an idle receiver is a third state, not blocked')
+  check(textOf(idleEdge).includes('未开工'), 'B4 未开工: there is debt and nobody on it')
+  check(!textOf(idleEdge).includes('被堵'), 'B4 idle is not 被堵 — nothing is holding it up')
+}
+
+// B5: the grouped edge table.
+{
+  const groupedWorks = [
+    { id: 'g1', fromId: 'layer-2', from: '班主任', toId: 'layer-3', to: '数学', open: 4, at: now - 720_000 },
+    { id: 'g2', fromId: 'layer-2', from: '班主任', toId: 'layer-4', to: '物理', open: 3, at: now - 480_000 },
+    { id: 'g3', fromId: 'layer-3', from: '数学', toId: 'layer-2', to: '班主任', open: 2, at: now - 300_000 },
+  ]
+  const groupedBody = renderBody(layerRows({}), groupedWorks, {})
+  const groups = hasClass(groupedBody, 'bb-ho-group')
+  const edges = hasClass(groupedBody, 'bb-handoff')
+  check(groups.length === 2, `B5 one group per sender (${groups.length})`)
+  check(hasClass(groupedBody, 'bb-ho-group-head').length === 2, 'B5 every group has a head')
+  check(edges.length === 3, `B5 every open work is one edge (${edges.length})`)
+  check(textOf(groups[0]).includes('共 7 项'), 'B5 the biggest sender heads the table, with its own sum')
+  check(edges.every(edge => edge.props?.role === 'button' && edge.props?.tabIndex === 0
+    && typeof edge.props?.onKeyDown === 'function'), 'B5 every edge is reachable by keyboard, like a workstation')
+  check(textOf(groupedBody).includes('4 项待交'), 'B5 the open count keeps its wording')
+  check(textOf(groupedBody).includes('12 分钟前'), 'B5 and the edge still says how long ago it started')
+  const mutual = edges.filter(edge => edge.props?.['data-mutual'] === 'true')
+  check(mutual.length === 2, `B5 a mutually-open pair is marked on both sides (${mutual.length})`)
+  check(mutual.every(edge => textOf(edge).includes('⇄') && textOf(edge).includes('互相等')),
+    'B5 ⇄ and the word 互相等 together — the glyph alone would be a riddle')
+  check(edges.filter(edge => !edge.props?.['data-mutual']).every(edge => textOf(edge).includes('→')),
+    'B5 an ordinary edge keeps the dispatch arrow')
+  check(hasClass(renderBody(layerRows({}), [], {}), 'bb-handoffs').length === 0,
+    'B5 no open work renders no table, not an empty shell')
+}
+
+// C2: the legend left the first screen but the six states are still named.
+{
+  check(hasClass(board, 'bb-legend').length === 0 && hasClass(board, 'bb-lg').length === 0,
+    'C2 no permanent legend strip on the board any more')
+  const sheet = render(LegendSheet({ t, onClose: () => {} }))
+  for (const key of ['busy', 'alert', 'waiting', 'error', 'idle', 'done']) {
+    check(textOf(sheet).includes(t(`legend.${key}`)), `C2 ${key} is still named`)
+  }
+  for (const key of ['busy', 'alert', 'waiting', 'error', 'idle', 'done']) {
+    check(textOf(sheet).includes(t(`legend.hint.${key}`)), `C2 ${key} still explains itself in one sentence`)
+  }
+  const lamps = hasClass(sheet, 'bb-lg-lamp')
+  check(lamps.length === 6, `C2 six shape nodes in the legend (${lamps.length})`)
+  const circles = lamps.filter(lamp => findAll(lamp, node => node.type === 'circle').length === 1).length
+  const rects = lamps.filter(lamp => findAll(lamp, node => node.type === 'rect').length === 1).length
+  check(circles === 4 && rects === 2, `C2 four circles plus the square and the diamond (${circles}/${rects})`)
+  check(sheet?.props?.className === 'bb-drawer' && sheet?.props?.['aria-modal'] === 'true',
+    'C2 the legend reuses the drawer, so it inherits the focus trap instead of adding a second one')
+
+  const help = findAll(board, node => node.props?.['aria-label'] === t('legend.help'))[0]
+  check(help?.props?.className === 'bb-icon' && textOf(help) === '?',
+    'C2 the legend is one ? button in the head — 24px wide, and it replaces a 27px permanent strip')
+  const sum = findAll(board, node => node.props?.className === 'bb-sum')[0]
+  check(textOf(sum).trim().startsWith(`0 ${t('legend.alert')}`),
+    'C2 the header counts 等你 before anything else (weight, not colour, so a dark theme cannot swallow it)')
+}
 
 if (failed) {
   console.error(`\nrender-check FAILED: ${failed} assertion(s)`)

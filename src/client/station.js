@@ -113,9 +113,14 @@ function deskProp(kind) {
 // nearly identical under deuteranopia (ΔE 13.6), and green/yellow/grey sit at
 // 1.4–2.1:1 on the cream desk. So the shape carries the state too, and a thin
 // outline gives every lamp a boundary that clears 3:1.
+//
+// The outline is the *only* visible channel for `idle` (fill 1.53:1), which is
+// why it is 1.2 and not 0.8: at the 148px cell width a 0.8 stroke inside the
+// 170-unit viewBox renders as 0.70px and gets smeared into a pale grey line by
+// anti-aliasing — the lamp effectively disappeared.
 function lampShape(scene) {
   const fill = LAMP[scene] ?? LAMP.idle
-  const common = { fill, stroke: '#5B5648', strokeWidth: 0.8 }
+  const common = { fill, stroke: '#5B5648', strokeWidth: 1.2 }
   if (scene === 'error') {
     return h('rect', { x: 148.4, y: 82.4, width: 5.2, height: 5.2, transform: 'rotate(45 151 85)', ...common })
   }
@@ -123,6 +128,45 @@ function lampShape(scene) {
     return h('rect', { x: 148.4, y: 82.4, width: 5.2, height: 5.2, rx: 1, ...common })
   }
   return h('circle', { cx: 151, cy: 85, r: 2.9, ...common })
+}
+
+// The same six states, at a size the caller picks, in a 12-unit box. Three
+// call sites share it on purpose: the layer-1 rail (12), the legend drawer (16)
+// and the drawer header (14). One component means the legend can never drift
+// away from what is actually on the floor — and the legend is the user's only
+// frame of reference for the shapes.
+//
+// Drawn as SVG rather than CSS: `transform:rotate(45deg)` would grow the
+// diamond's bounding box to 17px and collide with its neighbours, and the stroke
+// width would stop being controllable.
+const LAMP_SHAPE = {
+  circle: { tag: 'circle', props: { cx: 6, cy: 6, r: 4.5 } },
+  square: { tag: 'rect', props: { x: 1.7, y: 1.7, width: 8.6, height: 8.6, rx: 1.3 } },
+  // 7.2 × 1.414 + 1.5 = 11.68 units of diagonal, so the diamond stays inside 12.
+  diamond: {
+    tag: 'rect',
+    props: { x: 2.4, y: 2.4, width: 7.2, height: 7.2, rx: 0.8, transform: 'rotate(45 6 6)' },
+  },
+}
+
+export function Lamp({ scene, size = 12 }) {
+  const kind = scene === 'error' ? 'diamond' : scene === 'alert' ? 'square' : 'circle'
+  const shape = LAMP_SHAPE[kind]
+  return h('svg', {
+    className: 'bb-lamp',
+    width: size,
+    height: size,
+    viewBox: '0 0 12 12',
+    // Decorative: every call site prints the state as a word next to it, and a
+    // second announcement of the same fact is noise in a screen reader.
+    'aria-hidden': 'true',
+    focusable: 'false',
+  }, h(shape.tag, {
+    ...shape.props,
+    fill: LAMP[scene] ?? LAMP.idle,
+    stroke: '#5B5648',
+    strokeWidth: 1.5,
+  }))
 }
 
 // Monitor screen content per scene: bars / red bar / blank / checkmark.
@@ -164,7 +208,12 @@ function screenContent(scene) {
 
 // The dumpling: one big circle body, lighter face disc, capsule eyes, arc mouth,
 // blush, two small hands. No legs. Breathing lives on .bb-blob.
-function blobSeat(scene, seat) {
+//
+// Exported because the 「需要你」 list crops this same face with
+// `viewBox="56 24 60 60"` — it must be the same drawing, or the person in the
+// list stops being the dumpling in the classroom and the user has to learn the
+// mapping twice.
+export function blobSeat(scene, seat) {
   const cx = FACE_X
   const cy = FACE_Y + 2
   const moon = scene === 'done'
@@ -221,7 +270,12 @@ function blobSeat(scene, seat) {
 
 // Only this node re-renders once a second; the SVG above stays put. (Moved to
 // elapsed.js so the drawer shares it and ticks too.)
-function StationView({ row, onOpen, note, t }) {
+//
+// `compact` is the layer-2 form: no meta strip, the elapsed time inlined into the
+// name row. It buys the 23px that lets 134px hold a whole workstation. Default
+// `false` is load-bearing — the existing render checks exercise the full card and
+// must keep passing unchanged.
+function StationView({ row, onOpen, note, t, compact = false }) {
   const { bot, status, scene, action, since, stalled, badge } = row
   const seat = seatOf(bot)
   const label = scene === 'done' ? t('status.done') : statusLabel(status, t)
@@ -258,10 +312,22 @@ function StationView({ row, onOpen, note, t }) {
     h('div', {
       className: 'bb-station-name',
       style: NAME_INK[scene] ? { color: NAME_INK[scene] } : undefined,
-    }, bot.name),
-    h('div', { className: 'bb-meta' },
-      action ? h('span', { className: 'bb-meta-act', title: action }, action) : null,
-      h(Elapsed, { since, className: stalled ? 'bb-meta-time bb-stalled' : 'bb-meta-time' })),
+    },
+      compact
+        ? [
+            h('span', { className: 'bb-station-nm', key: 'nm' }, bot.name),
+            h(Elapsed, {
+              key: 'time',
+              since,
+              className: stalled ? 'bb-station-time bb-stalled' : 'bb-station-time',
+            }),
+          ]
+        : bot.name),
+    compact
+      ? null
+      : h('div', { className: 'bb-meta' },
+          action ? h('span', { className: 'bb-meta-act', title: action }, action) : null,
+          h(Elapsed, { since, className: stalled ? 'bb-meta-time bb-stalled' : 'bb-meta-time' })),
     note ? h('span', { className: 'bb-note' }) : null)
 }
 

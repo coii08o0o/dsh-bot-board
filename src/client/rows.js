@@ -156,6 +156,11 @@ export function buildRows({
         stalled: stalledOf(since, scene, now),
         badge: badgeOf(scene, Boolean(failure)),
         failure: failure?.message ?? '',
+        // When the failure was recorded. The 「需要你」 list sorts by `since ||
+        // failureAt` — a Bot that broke without ever starting a turn has no
+        // `since`, and its own timestamp is the honest "how long has it been
+        // broken". Not used for ordering rows (that stays roster order).
+        failureAt: failure?.at ?? 0,
         detail,
         work: work ?? null,
         // A turn running in a group, not in the Bot's own chat. Worth saying: the

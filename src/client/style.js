@@ -4,6 +4,12 @@
 // text on a cream background — unreadable). Panel chrome keeps `inherit` so it
 // still follows the host theme, and anything that must be emphasised there uses
 // weight instead of a hard-coded colour.
+//
+// v0.4.0: the body is three bands, not one scrolled grid — 需要你 (flex:none) /
+// 在动 (flex:1, the only scroll area) / 闲着 (flex:none). The row heights here are
+// the numbers the height-budget assertions in tools/smoke.mjs are written against
+// (HEAD_H, ATTENTION_ROW_H, RUNNING_CELL_H in const.js); changing one without the
+// other silently breaks "fits in 420×320".
 export const CSS = `
 .bb-wrap{position:fixed;right:16px;bottom:120px;z-index:80;font-size:12px;line-height:1.5;color:inherit;
   font-family:inherit;text-align:left;max-width:calc(100vw - 32px)}
@@ -17,33 +23,146 @@ export const CSS = `
 .bb-panel{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;position:relative;
   background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,rgba(0,0,0,.12));
   box-shadow:0 14px 38px rgba(0,0,0,.18)}
-.bb-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(0,0,0,.06);
+/* Head: 39px = 7 + 24 (icon) + 7 + 1 (border). Counts report 需要你 first. */
+.bb-head{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid rgba(0,0,0,.06);
   cursor:grab;user-select:none;touch-action:none}
 .bb-head:active{cursor:grabbing}
 .bb-title{font-weight:600;font-size:12px;white-space:nowrap}
-.bb-sum{display:flex;gap:9px;font-size:11px;opacity:.75;white-space:nowrap;overflow:hidden}
-.bb-sum-hot{font-weight:700;opacity:.95}
+.bb-sum{display:flex;gap:7px;font-size:11px;opacity:.75;white-space:nowrap;overflow:hidden}
+/* Emphasis is weight only: the header follows the host theme, and a hard-coded
+   colour would go invisible in a dark one. */
+.bb-sum-hot{font-weight:700;opacity:1}
+.bb-sum-quiet{font-weight:400;opacity:.55}
 .bb-grow{flex:1}
 .bb-icon{width:24px;height:24px;border-radius:8px;border:0;background:transparent;color:inherit;opacity:.55;
   cursor:pointer;font-size:14px;line-height:1;flex:none}
 .bb-icon:hover{opacity:1;background:rgba(0,0,0,.05)}
-.bb-legend{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:5px 12px;
-  background:#F3EDE2;color:#3A352C;border-bottom:1px solid rgba(0,0,0,.06)}
-.bb-lg{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;color:#3A352C}
-.bb-lg i{width:8px;height:8px;display:inline-block;flex:none;border-radius:50%;
-  box-shadow:0 0 0 1px #5B5648}
-.bb-lg-error i{border-radius:1px;transform:rotate(45deg)}
-.bb-lg-alert i{border-radius:1px}
-.bb-body{flex:1;min-height:0;overflow:auto;padding:9px 12px 10px;background:#FAF7F1;color:#2C2C2A}
-.bb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,200px));gap:8px;justify-content:center}
+
+/* Body: three bands, and only the middle one scrolls. */
+.bb-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+  padding:0;background:#FAF7F1;color:#2C2C2A}
+.bb-notices{flex:none;max-height:64px;overflow:auto;padding:6px 10px 0}
+
+/* ── Layer 1 · 需要你 ──────────────────────────────────────────────────────── */
+/* #FFFFFF against #FAF7F1 is only 1.07:1, so the card's surface encodes nothing.
+   What carries the layer is the 44px rhythm, the 3px status bar (5.02 / 6.47:1)
+   and the right-hand rail of lamps. Do not "fix" the weak white. */
+.bb-attention{flex:none;display:flex;flex-direction:column;gap:3px;padding:6px 10px 4px}
+.bb-attention-row{position:relative;display:flex;align-items:center;gap:8px;height:44px;
+  padding:0 8px 0 7px;border-left:3px solid transparent;border-radius:9px;
+  background:#FFFFFF;box-shadow:0 1px 2px rgba(44,44,42,.10);
+  cursor:pointer;outline:none;overflow:hidden}
+.bb-attention-row[data-scene="alert"]{border-left-color:#B45309}
+.bb-attention-row[data-scene="error"]{border-left-color:#B91C1C}
+/* Hover is a 1px inner ring, not a tint: a tint on cream measures 1.06:1, i.e.
+   no feedback at all. */
+.bb-attention-row:hover{box-shadow:0 1px 2px rgba(44,44,42,.10),inset 0 0 0 1px #8F8776}
+.bb-att-avatar{flex:0 0 30px;width:30px;height:30px;border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;background:#FAF7F1}
+.bb-att-avatar svg{display:block;width:30px;height:30px}
+.bb-att-name{flex:0 0 auto;max-width:68px;font-size:12.5px;font-weight:600;color:#2C2C2A;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The only flexible, and the only clippable, column: prose yields, structure does
+   not. Long prose has the drawer as its exit; identity and duration do not. */
+.bb-att-act{flex:1 1 auto;min-width:0;font-size:12px;color:#4A4438;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bb-att-time{flex:0 0 auto;min-width:44px;font-size:11px;color:#6B6558;text-align:right;
+  font-variant-numeric:tabular-nums}
+.bb-att-lamp{flex:0 0 12px;width:12px;height:12px;display:grid;place-items:center}
+/* Empty state: one summary line, never blank. "I looked and there is nothing" is
+   the answer this panel exists to give. */
+.bb-att-empty{display:flex;align-items:center;gap:6px;height:28px;padding:0 2px;
+  font-size:11.5px;color:#6B6558}
+.bb-att-empty b{color:#0F766E;font-weight:600}
+.bb-att-more{flex:none;font-size:11px;color:#6B6558;text-align:right;padding:0 2px 1px}
+
+/* ── Layer 2 · 在动 (the only scroll area) ──────────────────────────────────── */
+.bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px 4px}
+.bb-run-grid{display:grid;grid-template-columns:repeat(auto-fit,148px);gap:8px;justify-content:center}
+/* The classroom is not a card grid: no white fill, no drop shadow. A hover ring
+   is the only surface change, so the cream room survives. */
+.bb-run .bb-station{padding:0 0 1px;border-radius:8px}
+.bb-run .bb-station:hover{background:rgba(44,44,42,.05);box-shadow:inset 0 0 0 1px #8F8776}
+/* Name and duration on one line, pinned to 18px: the height budget is arithmetic,
+   so nothing here may drift with the font family. */
+.bb-run .bb-station-name{display:flex;align-items:baseline;justify-content:center;gap:4px;
+  margin-top:1px;font-size:12px;font-weight:500;line-height:18px;color:#2C2C2A}
+.bb-run .bb-station-nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bb-run .bb-station-time{flex:none;font-size:10.5px;line-height:18px;font-weight:400;color:#6B6558;
+  font-variant-numeric:tabular-nums}
+
+/* ── Layer 2 internal · hand-offs, grouped by sender ───────────────────────── */
+/* A hairline means "below is a note", not "here is a panel". No fill, no border
+   box, and no max-height: two scrollbars inside a 420px column fight each other,
+   so the list is bounded by rows (3 groups × 3 edges + a count) instead. */
+.bb-handoffs{flex:none;margin-top:8px;padding-top:6px;border-top:1px solid #DDD6C8;
+  font-size:11px;color:#2C2C2A}
+.bb-ho-group{margin-top:6px}
+.bb-ho-group:first-child{margin-top:0}
+/* 600 + deep ink = structural: this is who the bottleneck is. Same size as an
+   edge, so the only difference is weight and colour. */
+.bb-ho-group-head{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:600;
+  line-height:16px;color:#4A4438;padding:2px 0}
+.bb-ho-from{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Amber is reserved for quantities. "共 N 项" is the answer of the whole table:
+   the biggest group is the bottleneck. */
+.bb-ho-total{flex:none;color:#8A5B00;font-variant-numeric:tabular-nums}
+/* 14px indent = subordinate: more than 1em, so the left edge clearly steps in,
+   and less than the arrow's advance, so the arrow never hangs outside. */
+.bb-handoff{display:flex;align-items:center;gap:6px;height:18px;padding:0 0 0 14px;
+  font-size:11px;border-radius:6px;cursor:pointer;outline:none}
+.bb-handoff:hover{background:rgba(44,44,42,.05)}
+/* A character, not a drawn line: it carries the direction (dispatch), it never
+   breaks at any width, and it is already in the DOM. */
+.bb-ho-arrow{flex:none;font-size:12px;line-height:1;color:#8A8577}
+.bb-ho-name{flex:0 0 auto;max-width:72px;color:#2C2C2A;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.bb-ho-count{flex:none;color:#6B6558;font-variant-numeric:tabular-nums}
+.bb-ho-time{margin-left:auto;flex:none;min-width:56px;text-align:right;color:#6B6558;
+  font-variant-numeric:tabular-nums}
+.bb-ho-flag{flex:none;color:#6B6558}
+/* 被堵 is the only branch that adds pixels. busy/waiting fall through to the
+   default, which is why the laziest implementation is also the correct one. */
+.bb-handoff[data-blocked="true"] .bb-ho-count{color:#8A5B00;font-weight:600}
+.bb-handoff[data-blocked="true"] .bb-ho-flag{color:#B45309;font-weight:600}
+.bb-handoff[data-mutual="true"] .bb-ho-arrow{color:#B45309}
+.bb-ho-more{padding:0 0 0 14px;color:#6B6558;font-size:11px;line-height:16px}
+
+/* ── Layer 3 · 闲着: one line, no image, no surface, no lamp ────────────────── */
+/* height is pinned and wrapping is off: a second line breaks the 480px budget by
+   its 1px margin. Overflow degrades to +N, never to a wrap. */
+.bb-idle{flex:none;height:24px;display:flex;align-items:center;gap:6px;overflow:hidden;
+  padding:0 10px;border-top:1px solid #DDD6C8;font-size:11px;background:transparent}
+.bb-idle-k{flex:none;font-weight:600;color:#6B6558}
+.bb-idle-name{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;padding:1px 2px;
+  border-radius:4px;color:#5F594D;white-space:nowrap;cursor:pointer;outline:none}
+.bb-idle-name:hover{color:#2C2C2A;background:rgba(44,44,42,.06)}
+.bb-idle-more{flex:none;padding:1px 3px;border-radius:4px;font-weight:600;color:#6B6558;
+  cursor:pointer;outline:none}
+.bb-idle-more:hover{background:rgba(44,44,42,.06)}
+/* The inline badge keeps the bb-badge class name (that is what D1 asserts) and
+   only changes its position: the badge must survive every compressed form. */
+.bb-badge-inline{position:static;flex:none;width:12px;height:12px;line-height:12px;font-size:9px;
+  margin-left:2px}
+/* The one path that may grow layer 3 — and only because the user asked for it. */
+.bb-idle[data-expanded="true"]{height:auto;max-height:44px;flex-wrap:wrap;padding:4px 10px}
+
+/* ── Lamps ────────────────────────────────────────────────────────────────── */
+.bb-lamp{display:block}
+.bb-drawer-lamp{flex:none;display:grid;place-items:center}
+
+/* ── Legend, demoted to a drawer ──────────────────────────────────────────── */
+.bb-lg-row{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:11.5px;
+  border-bottom:1px solid rgba(0,0,0,.05)}
+.bb-lg-row:last-child{border-bottom:0}
+.bb-lg-lamp{flex:none;width:16px;height:16px;display:grid;place-items:center}
+.bb-lg-name{flex:0 0 62px;font-weight:600;color:#2C2C2A}
+.bb-lg-hint{flex:1;min-width:0;color:#6B6558}
+
+/* ── Workstation (layer 2 card; compact=false is still the default) ───────── */
 .bb-station{position:relative;border-radius:10px;padding:2px 2px 4px;cursor:pointer;background:transparent;
   transition:background-color .12s ease;outline:none}
 .bb-station:hover{background:rgba(0,0,0,.045)}
-.bb-station:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
-/* Every other control is reachable by keyboard too; without a ring you cannot
-   tell where you are. */
-.bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible{
-  outline:2px solid #378ADD;outline-offset:1px}
 .bb-scene{display:block;width:100%;height:auto}
 .bb-station-name{margin-top:1px;text-align:center;font-size:12px;font-weight:500;color:#2C2C2A;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -54,6 +173,14 @@ export const CSS = `
 .bb-stalled{color:#B45309;font-weight:600}
 .bb-badge{position:absolute;top:1px;right:3px;width:14px;height:14px;border-radius:50%;background:#B91C1C;
   color:#fff;font-size:10px;font-weight:700;line-height:14px;text-align:center;pointer-events:none}
+
+/* Every control is reachable by Tab; without a ring you cannot tell where you
+   are. This list is extended, never replaced. */
+.bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible,
+.bb-station:focus-visible,.bb-attention-row:focus-visible,.bb-idle-name:focus-visible,
+.bb-idle-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+
+/* ── Motion: unchanged set, unchanged budgets ─────────────────────────────── */
 .bb-blob{transform-box:fill-box;transform-origin:center bottom;animation:bb-breathe 2.6s ease-in-out infinite}
 .bb-eyes{transform-box:fill-box;transform-origin:center;animation:bb-blink 3s step-end infinite}
 .bb-eyes-slow{animation-duration:6s}
@@ -64,19 +191,15 @@ export const CSS = `
   border:1px solid rgba(0,0,0,.28);border-radius:2px;pointer-events:none;
   animation:bb-note 2s step-end 1 both}
 .bb-pulse{animation:bb-pulse 1.6s ease-in-out infinite}
+/* Layer 1 is where you *read*: breathing and blinking in the three rows that
+   matter compete with the action text, and the lamp already encodes activity.
+   These overrides sit after the base rules they cancel, on purpose. */
+.bb-att-avatar .bb-blob,.bb-att-avatar .bb-eyes{animation:none}
 .bb-notice{margin:0 0 8px;padding:5px 8px;border-radius:8px;font-size:11px;background:#FDF2F2;color:#9B1C1C;
   border:1px solid rgba(185,28,28,.18)}
 .bb-notice-warn{background:#FEF7E6;color:#8A5B00;border-color:rgba(138,91,0,.18)}
-.bb-handoffs{border-top:1px solid rgba(0,0,0,.07);background:#F6F1E7;color:#3A352C;padding:6px 12px 7px;
-  flex:none;max-height:92px;overflow:auto}
-.bb-ho-title{font-size:11px;font-weight:600;color:#6B6558;margin-bottom:3px}
-.bb-handoff{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0;cursor:pointer;
-  border-radius:6px}
-.bb-handoff:hover{background:rgba(0,0,0,.05)}
-.bb-ho-arrow{color:#8A8577;flex:none}
-.bb-ho-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32%}
-.bb-ho-count{flex:none;color:#8A5B00}
-.bb-ho-time{margin-left:auto;flex:none;color:#6B6558;font-variant-numeric:tabular-nums}
+
+/* ── The sheet (bot detail + legend share one .bb-drawer) ─────────────────── */
 .bb-drawer{position:absolute;inset:0;display:flex;flex-direction:column;background:#FFFDF8;color:#2C2C2A;
   z-index:2}
 .bb-drawer-head{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(0,0,0,.08);

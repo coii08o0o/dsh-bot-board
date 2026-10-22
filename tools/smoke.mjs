@@ -215,6 +215,158 @@ section('format + roster')
     'an unknown activity reads as a sentence, not as a raw token')
 }
 
+// ------------------------------------------------- three-layer attention --
+section('layers: 需要你 / 在动 / 闲着')
+{
+  const { attentionOf, topologyOf, idleLine, layerOf } = await import(new URL('../src/client/layers.js', import.meta.url).href)
+  const {
+    HEAD_H, ATTENTION_ROW_H, ATTENTION_GAP, ATTENTION_PAD_V, IDLE_ROW_H,
+    RUNNING_CELL_H, RUNNING_MIN_H, LAYER_STABLE_MS, POLL_MS, ROSTER,
+  } = await import(new URL('../src/client/const.js', import.meta.url).href)
+  const { buildRows } = await import(new URL('../src/client/rows.js', import.meta.url).href)
+  const { fallbackT } = await import(new URL('../src/client/locale.js', import.meta.url).href)
+  const t = fallbackT('zh')
+
+  const row = (name, scene, since = 0, failureAt = 0) => ({
+    bot: { id: `session-${name}`, name }, scene, since, failureAt, badge: false,
+  })
+
+  // ── A1 · the set is exactly alert ∪ error, and the order is the rule ──────
+  const sample = [
+    row('a', 'alert', 100), row('b', 'error', 0, 500), row('c', 'busy', 900),
+    row('d', 'alert', 300), row('e', 'error', 0, 100), row('f', 'idle'),
+    row('g', 'waiting'), row('h', 'done'), row('i', 'error', 0, 900),
+  ]
+  const hot = sample.filter(item => item.scene === 'alert' || item.scene === 'error')
+  const every = attentionOf(sample, 99)
+  check(every.items.length === hot.length && every.items.every(item => hot.includes(item)),
+    `A1 需要你 = rows where scene ∈ {alert, error} (${every.items.length}/${hot.length})`)
+  check(every.items.map(item => item.bot.name).join('') === 'daibe',
+    `A1 every alert outranks every error, longest first inside a group (got ${every.items.map(i => i.bot.name).join('')})`)
+  // The invariant stated once as an ordering predicate, over all 36 pairs.
+  const ordered = every.items.every((item, index) => every.items.slice(index + 1).every(later => {
+    const rank = value => (value.scene === 'alert' ? 0 : 1)
+    if (rank(item) !== rank(later)) return rank(item) < rank(later)
+    const key = value => Number(value.since) || Number(value.failureAt) || 0
+    return key(item) >= key(later)
+  }))
+  check(ordered, 'A1 the order is a total order under (alert<error, then since||failureAt desc)')
+  check(every.items.every(item => ['alert', 'error'].includes(item.scene)), 'A1 nothing else leaks in')
+
+  // ── A3 · overflow is a count, not a loss ─────────────────────────────────
+  const capped = attentionOf(sample)
+  check(capped.items.length === 3, `A3 at most three rows (${capped.items.length})`)
+  check(capped.items.length + capped.overflow === hot.length,
+    `A3 items + overflow === n, nothing is silently dropped (${capped.items.length}+${capped.overflow}=${hot.length})`)
+  check(capped.overflow === 2, `A3 overflow counts the rest (${capped.overflow})`)
+
+  // ── A4 · a quiet board asks for nothing ──────────────────────────────────
+  const quiet = attentionOf([row('a', 'idle'), row('b', 'idle'), row('c', 'done'), row('d', 'busy'), row('e', 'waiting')])
+  check(quiet.items.length === 0 && quiet.overflow === 0, 'A4 a team with nobody blocked returns an empty list')
+
+  // ── A2 · layering is a view; the rows never reorder ──────────────────────
+  const bots = ROSTER.map((item, index) => ({ id: `session-${index}`, name: item.name, sessionId: `session-${index}` }))
+  const nameOf = id => bots.find(bot => bot.id === id)?.name ?? id
+  const base = { bots, works: [], rooms: {}, waveMap: {}, noteMap: {}, t, nameOf }
+  const scenarios = [
+    { activity: {}, workBots: {}, waiting: {}, approvals: [], errors: [], questions: {} },
+    { activity: { 'session-0': 'working', 'session-3': 'thinking' }, workBots: { 'session-0': { since: 1 } }, waiting: {}, approvals: [], errors: [], questions: {} },
+    { activity: {}, workBots: {}, waiting: { 'session-4': { bots: ['session-0'] } }, approvals: [], errors: [], questions: {} },
+    { activity: {}, workBots: {}, waiting: {}, approvals: [{ id: 'a1', botId: 'session-2', tool: 'Bash' }], errors: [], questions: {} },
+    { activity: {}, workBots: {}, waiting: {}, approvals: [], errors: [{ botId: 'session-6', at: 1, message: 'boom' }], questions: {} },
+    {
+      activity: { 'session-1': 'working' }, workBots: {},
+      waiting: { 'session-7': { bots: ['session-1'] } },
+      approvals: [{ id: 'a2', botId: 'session-5', tool: 'Read' }],
+      errors: [{ botId: 'session-8', at: 1, message: 'x' }], questions: {},
+    },
+  ]
+  const rosterNames = ROSTER.map(item => item.name).join(',')
+  const sequences = scenarios.map(scene => buildRows({ ...base, ...scene }).map(item => item.bot.name).join(','))
+  check(sequences.every(sequence => sequence === rosterNames),
+    'A2 buildRows keeps roster order under every status mix (the grid can never move)')
+  // The layer split is a filter over that same array, so each band is a
+  // subsequence of roster order — that is what keeps 位置记忆 intact.
+  const split = buildRows({ ...base, ...scenarios[5] })
+  const bands = ['attention', 'running', 'idle'].map(layer => split.filter(item => layerOf(item) === layer))
+  const isSubsequence = band => {
+    const indexes = band.map(item => split.indexOf(item))
+    return indexes.every((value, index) => index === 0 || value > indexes[index - 1])
+  }
+  check(bands.every(isSubsequence), 'A2 each band is a subsequence of the roster, not a re-sort')
+  check(bands[0].length + bands[1].length + bands[2].length === split.length,
+    'A2 every Bot lands in exactly one band')
+  check(bands[0].every(item => item.scene === 'alert' || item.scene === 'error'),
+    'A2 需要你 holds only alert/error')
+  check(bands[1].every(item => ['busy', 'waiting', 'done'].includes(item.scene)),
+    'A2 在动 holds busy ∪ waiting ∪ done — a waiting Bot is neither running nor free')
+  check(bands[2].every(item => item.scene === 'idle'), 'A2 闲着 holds only idle')
+
+  // ── B1/B2/B3 · the hand-off edge table ───────────────────────────────────
+  const works = [
+    { id: 'w1', fromId: 'chief', from: '班主任', toId: 'math', to: '数学', open: 4, at: 1000 },
+    { id: 'w2', fromId: 'chief', from: '班主任', toId: 'phy', to: '物理', open: 3, at: 2000 },
+    { id: 'w3', fromId: 'math', from: '数学', toId: 'chief', to: '班主任', open: 3, at: 3000 },
+    { id: 'w4', fromId: 'bio', from: '生物', toId: 'cn', to: '语文', open: 0, at: 4000 },
+  ]
+  const groups = topologyOf(works)
+  check(groups.reduce((sum, group) => sum + group.edges.length, 0) === works.filter(work => work.open > 0).length,
+    'B1 one edge per work with open > 0 (the closed record is not an edge)')
+  check(groups.every(group => group.total === group.edges.reduce((sum, edge) => sum + edge.open, 0)),
+    'B1 each 共 N 项 is the sum of its own edges')
+  check(groups.reduce((sum, group) => sum + group.total, 0) === works.reduce((sum, work) => sum + work.open, 0),
+    'B1 the totals add up to the open items on the board')
+  check(groups[0].fromId === 'chief' && groups[0].total === 7,
+    `B1 the biggest sender is the bottleneck and comes first (${groups[0].from}/${groups[0].total})`)
+  const mutuals = groups.flatMap(group => group.edges).filter(edge => edge.mutual)
+  check(mutuals.length === 2, `B2 A→B and B→A are both recognised as mutual (${mutuals.length})`)
+  check(new Set(mutuals.map(edge => edge.pair)).size === 1, 'B2 the pair is named identically on both sides')
+  check(mutuals.every(edge => edge.open === (edge.fromId === 'chief' ? 4 : 3)),
+    'B2 each side keeps its own count, so neither 共 N 项 lies')
+  check(mutuals.every(edge => groups.find(group => group.fromId === edge.fromId).edges.includes(edge)),
+    'B2 each mutual edge stays in its own sender group')
+  check(topologyOf([{ id: 'z', fromId: 'a', toId: 'b', open: 0, at: 1 }]).length === 0,
+    'B3 nothing open means no table at all (not an empty shell)')
+  check(topologyOf([]).length === 0 && topologyOf(null).length === 0, 'B3 no works means no table')
+
+  // ── A5 · 闲着 keeps roster order, and never loses a badge ────────────────
+  const idleRows = ROSTER.map((item, index) => ({ bot: { id: `session-${index}`, name: item.name }, badge: false }))
+  const fits = idleLine(idleRows)
+  check(fits.items.map(item => item.bot.name).join(',') === rosterNames,
+    'A5 nine names fit the 400px line without reordering')
+  check(fits.overflow === 0, 'A5 nothing overflows at nine short names')
+  const badged = idleRows.map(item => ({ ...item, badge: true }))
+  const squeezed = idleLine(badged)
+  check(squeezed.items.every(item => item.badge === true),
+    'A5 when the line is too tight, unbadged names go first — the badge never does')
+  const mixed = idleRows.map((item, index) => ({ ...item, badge: index === 8 }))
+  const trimmed = idleLine(mixed, 200)
+  check(trimmed.items.some(item => item.bot.name === ROSTER[8].name),
+    'A5 a badge at the tail survives a trim that removes everything else after it')
+  check(trimmed.items.length + trimmed.overflow === mixed.length,
+    'A5 the trim is counted, not silent')
+  check(trimmed.items.map(item => item.bot.name).join(',') ===
+      mixed.filter(item => trimmed.items.includes(item)).map(item => item.bot.name).join(','),
+    'A5 the surviving names keep roster order')
+  check(idleLine(idleRows, Number.POSITIVE_INFINITY).overflow === 0,
+    'A5 an unbounded budget keeps every name — that is the +N reveal path')
+
+  // ── C4a/b/c · height budgets (budget, not a measurement) ─────────────────
+  // The check harness has no layout engine, so "fits without scrolling" is
+  // asserted as arithmetic over the constants the CSS is written against. The
+  // requirement's original single inequality (head + 3 rows + 2 cells ≤ 320) is
+  // unsatisfiable — it needs a 61px cell, i.e. a 1.87px lamp — so it is replaced
+  // by the three scenarios that actually occur.
+  const c4a = HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V + IDLE_ROW_H + RUNNING_MIN_H
+  check(c4a <= 320, `C4a worst case: 3 need-you + the visible floor of 在动 + 闲着 = ${c4a} ≤ 320 (预算，非实测)`)
+  const c4b = HEAD_H + 2 * ATTENTION_ROW_H + ATTENTION_GAP + ATTENTION_PAD_V + RUNNING_CELL_H + IDLE_ROW_H
+  check(c4b <= 320, `C4b common case: 2 need-you + one full row of workstations + 闲着 = ${c4b} ≤ 320 (预算，非实测)`)
+  const c4c = HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V + 2 * RUNNING_CELL_H + IDLE_ROW_H
+  check(c4c <= 480, `C4c default 560×480: 3 need-you + six running + 闲着 = ${c4c} ≤ 480 (预算，非实测)`)
+  check(LAYER_STABLE_MS < POLL_MS,
+    `C4 the layer window (${LAYER_STABLE_MS}ms) is shorter than a poll (${POLL_MS}ms), so a real transition still lands`)
+}
+
 // ------------------------------------------------------------- poll loop --
 section('poll loop: single flight')
 {
@@ -461,6 +613,37 @@ section('css')
   check(reduceAt > CSS.lastIndexOf('@keyframes'), 'reduced-motion block comes after every keyframe')
   check(reduceAt > CSS.lastIndexOf('animation:bb-'), 'reduced-motion block comes after every animation rule')
   check(CSS.slice(reduceAt).includes('animation:none'), 'reduced-motion block disables the animations')
+
+  // C5: the block is still the last thing in the sheet, and the new layers did
+  // not smuggle in an animation. Both are structural: a rule appended after the
+  // block would escape the override silently, and a tenth keyframe would be a
+  // decoration nobody budgeted a repaint for.
+  const blockEnd = (() => {
+    const open = CSS.indexOf('{', reduceAt)
+    let depth = 0
+    for (let i = open; i < CSS.length; i += 1) {
+      if (CSS[i] === '{') depth += 1
+      else if (CSS[i] === '}') { depth -= 1; if (depth === 0) return i }
+    }
+    return -1
+  })()
+  check(blockEnd > reduceAt && CSS.slice(blockEnd + 1).trim() === '',
+    'C5 the reduced-motion block is the final rule in the sheet')
+  const keyframes = [...CSS.matchAll(/@keyframes\s+([\w-]+)/g)].map(match => match[1])
+  check(JSON.stringify(keyframes) === JSON.stringify(['bb-breathe', 'bb-blink', 'bb-tap', 'bb-wave', 'bb-note', 'bb-pulse']),
+    `C5 no new keyframes were introduced (${keyframes.join(',')})`)
+  // Every class that carries an animation must still be cancelled by the block.
+  const cancelled = CSS.slice(reduceAt)
+  const MOTION_OWNERS = ['bb-pulse', 'bb-blob', 'bb-eyes', 'bb-tap', 'bb-wave', 'bb-note']
+  check(MOTION_OWNERS.every(owner => cancelled.includes(`.${owner}`)),
+    'C5 the block still cancels every animated class')
+
+  // E2: the two new clickable layers are in the focus-ring selector list, not
+  // beside it. A keyboard user has to be able to see where they are.
+  const ring = CSS.match(/[^{}]*:focus-visible[^{]*\{[^}]*outline:2px solid #378ADD[^}]*\}/)?.[0] ?? ''
+  for (const name of ['bb-pill', 'bb-icon', 'bb-btn', 'bb-handoff', 'bb-station', 'bb-attention-row', 'bb-idle-name', 'bb-idle-more']) {
+    check(ring.includes(`.${name}:focus-visible`), `E2 ${name} is in the focus-ring selector list`)
+  }
 }
 
 // ---------------------------------------------------------------- locale --
@@ -471,6 +654,26 @@ section('locale')
   const enKeys = Object.keys(en).sort()
   check(zhKeys.length > 20, `dictionary has a real key set (${zhKeys.length})`)
   check(JSON.stringify(zhKeys) === JSON.stringify(enKeys), 'zh and en cover exactly the same keys')
+
+  // D3: the v0.4.0 layers added copy in both languages. Parity above catches a
+  // one-sided addition; this catches a key that was renamed on both sides and
+  // therefore silently stopped being translated.
+  const NEW_KEYS = [
+    'legend.help', 'legend.hint.busy', 'legend.hint.alert', 'legend.hint.waiting',
+    'legend.hint.error', 'legend.hint.idle', 'legend.hint.done',
+    'attention.empty', 'attention.overflow', 'layer.idle',
+    'ho.groupTotal', 'ho.blocked', 'ho.notStarted', 'ho.mutual',
+    'ho.morePeople', 'ho.moreItems', 'panel.sumHandoff',
+  ]
+  const missing = NEW_KEYS.filter(key => !(key in zh) || !(key in en))
+  check(missing.length === 0, `D3 the 17 new keys exist in both languages${missing.length ? ` (missing ${missing.join(',')})` : ''}`)
+  check(NEW_KEYS.every(key => typeof zh[key] === 'string' && typeof en[key] === 'string'
+      && zh[key].length > 0 && en[key].length > 0),
+    'D3 no new key is an empty string')
+  // Placeholders must match across languages, or one side prints {n} literally.
+  check(NEW_KEYS.filter(key => zh[key].includes('{n}')).length ===
+      NEW_KEYS.filter(key => en[key].includes('{n}')).length,
+    'D3 {n} placeholders appear on both sides of every key that has one')
 }
 
 if (failed) {
