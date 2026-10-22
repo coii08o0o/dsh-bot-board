@@ -1,4 +1,5 @@
 // GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
+// version: 0.4.2
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',
   factory: (require) => {

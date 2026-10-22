@@ -14,13 +14,17 @@
 // What it cannot settle: where the eye lands first. That needs a person.
 //
 // Run: node --import ./tools/register-shim.mjs tools/export-preview.mjs
-// Out: docs/preview-0.4.1.html
-import { mkdirSync, writeFileSync } from 'node:fs'
+// Out: docs/preview-<version>.html (version read from package.json)
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createElement as h, mount, render, resetRefs, textOf } from './react-shim.mjs'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+// Read from package.json rather than typed here: the previous version hard-coded
+// 0.4.1 in four places and kept emitting a file called preview-0.4.1.html from a
+// 0.4.2 tree, so the deliverable disagreed with the product it was previewing.
+const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
 
 // The components touch these at render time.
 globalThis.localStorage = { getItem: () => null, setItem: () => {} }
@@ -385,12 +389,12 @@ const html = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>dsh-bot-board v0.4.1 · 三层注意力轴预览</title>
+<title>dsh-bot-board v${VERSION} · 三层注意力轴预览</title>
 <style>${CSS}</style>
 <style>${SHELL}</style>
 </head>
 <body>
-<h1>dsh-bot-board v0.4.1 · 三层注意力轴</h1>
+<h1>dsh-bot-board v${VERSION} · 三层注意力轴</h1>
 <p class="pv-lead">下面每一块都是<b>真实组件渲染出来的</b>：同一个 <code>Head</code> / <code>Body</code> / <code>LegendSheet</code> / <code>Drawer</code>，同一份 <code>CSS</code> 字符串，同一套 <code>buildRows</code>。不是 mockup，所以它不会展示一个不存在的界面。</p>
 <p class="pv-warn">这份导出的用途只有一个：<b>把「装得下」这件事从算术变成看得见</b>。检查环境没有布局引擎，C4a/b/c 全是预算断言；浏览器有布局引擎，所以这里能验、也能证伪。它验不了「第一眼落在哪」——那个要人看。</p>
 ${cases.map((item, index) => `<section class="pv-sec">
@@ -405,7 +409,7 @@ ${cases.map((item, index) => `<section class="pv-sec">
 `
 
 mkdirSync(join(ROOT, 'docs'), { recursive: true })
-const out = join(ROOT, 'docs', 'preview-0.4.1.html')
+const out = join(ROOT, 'docs', `preview-${VERSION}.html`)
 writeFileSync(out, html)
 console.log(`wrote ${out}`)
 console.log(`  ${cases.length} scenarios, ${cases.reduce((sum, item) => sum + item.panels.length, 0)} panels`)

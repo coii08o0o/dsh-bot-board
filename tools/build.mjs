@@ -6,11 +6,13 @@
 // `module.exports` via __toCommonJS, which leaves any `exports` alias we declare
 // pointing at a dead object. The IIFE just returns one value.
 import { build } from 'esbuild'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+
+const pkg = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'))
 
 const result = await build({
   entryPoints: [join(ROOT, 'src/client/index.js')],
@@ -26,7 +28,11 @@ const result = await build({
 })
 
 const code = result.outputFiles[0].text
+// The version is stamped in because otherwise "is the artifact built from this
+// source?" has no answer that can be read off the artifact — the check can only
+// compare a file against itself. With it, a stale bundle is visible at a glance.
 const banner = `// GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
+// version: ${pkg.version}
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',
   factory: (require) => {
@@ -39,4 +45,7 @@ const footer = `
 
 const output = banner + code + footer
 await writeFile(join(ROOT, 'client.js'), output)
-console.log(`built client.js (${output.length} bytes)`)
+// Byte length, not string length: the bundle contains CJK, so `.length` reports
+// UTF-16 code units and under-reports the file by ~80 bytes. Anyone reconciling
+// the printed number against `ls -l` would think the write was truncated.
+console.log(`built client.js (${Buffer.byteLength(output)} bytes, v${pkg.version})`)
