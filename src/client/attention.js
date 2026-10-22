@@ -7,6 +7,7 @@
 import { createElement as h } from 'react'
 import { seatOf } from './const.js'
 import { Elapsed } from './elapsed.js'
+import { ATTENTION_MAX } from './layers.js'
 import { Lamp, blobSeat } from './station.js'
 
 // A crop of the same dumpling the classroom draws, not a second avatar style:
@@ -25,7 +26,11 @@ function Avatar({ scene, bot }) {
 // and it pushes them there), which turns them into a vertical shape rail: diamond
 // vs square becomes a comparison without moving your eyes, where in 0.3.4 they
 // were scattered across nine cells and needed nine saccades.
-export function Attention({ items, overflow = 0, t, onOpen }) {
+//
+// Overflow is a chip *inside* the last row, not a line below it: zero height, and
+// — the part that matters — it is a real control, so the 4th Bot onwards is
+// reachable instead of being a name that exists nowhere on the panel.
+export function Attention({ items, overflow = 0, expanded = false, t, onOpen, onExpand }) {
   const rows = items ?? []
   if (!rows.length) {
     // Not blank. A panel that says nothing has not told you whether it looked.
@@ -34,8 +39,12 @@ export function Attention({ items, overflow = 0, t, onOpen }) {
         h('b', null, '✓'),
         h('span', null, t('attention.empty'))))
   }
+  const last = rows.length - 1
+  // Expanded with nothing left to hide (the count dropped) draws no chip at all,
+  // so the state heals itself instead of leaving a stray control behind.
+  const chip = overflow > 0 || (expanded && rows.length > ATTENTION_MAX)
   return h('div', { className: 'bb-attention' },
-    rows.map(row => h('div', {
+    rows.map((row, index) => h('div', {
       className: 'bb-attention-row',
       key: row.bot.id,
       role: 'button',
@@ -54,13 +63,30 @@ export function Attention({ items, overflow = 0, t, onOpen }) {
       // would break the vertical rail into two colours to compare.
       h('span', { className: 'bb-att-name' }, row.bot.name),
       h('span', { className: 'bb-att-act' }, row.action),
+      chip && index === last
+        ? h('span', {
+            className: 'bb-att-more',
+            role: 'button',
+            tabIndex: 0,
+            'data-expanded': expanded ? 'true' : 'false',
+            title: expanded
+              ? t('attention.collapse')
+              : t('attention.overflow').replace('{n}', String(overflow)),
+            onClick: () => onExpand?.(),
+            onKeyDown: event => {
+              if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onExpand?.() }
+            },
+          }, expanded ? '−' : `+${overflow}`)
+        : null,
       // Always rendered, even when there is no turn start to count from: the
       // column keeps its 44px so the lamps stay on one vertical rail.
-      h('span', { className: 'bb-att-time' }, h(Elapsed, { since: row.since })),
-      h('span', { className: 'bb-att-lamp' }, h(Lamp, { scene: row.scene, size: 12 })))),
-    overflow > 0
-      ? h('div', { className: 'bb-att-more' }, t('attention.overflow').replace('{n}', String(overflow)))
-      : null)
+      // `since || failureAt`: a Bot that broke without ever starting a turn has no
+      // `since`, and its own timestamp is the honest "how long has it been broken".
+      // For an `alert` this column is the length of the *turn*, not of the wait —
+      // approvals carry no timestamp of their own, so it can overstate the wait.
+      // Wrong in the safe direction; the drawer is where the exact text lives.
+      h('span', { className: 'bb-att-time' }, h(Elapsed, { since: row.since || row.failureAt })),
+      h('span', { className: 'bb-att-lamp' }, h(Lamp, { scene: row.scene, size: 12 })))))
 }
 
 // One line of names. No separators (eight of them would cost 128px and blow the

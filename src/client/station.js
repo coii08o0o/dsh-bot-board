@@ -334,6 +334,12 @@ function StationView({ row, onOpen, note, t, compact = false }) {
 // A station only repaints when its own row actually changed. The 1.5s poll
 // rebuilds the row objects, so comparing the fields (not the identity) is what
 // keeps nine SVGs from being rebuilt on every tick.
+//
+// `compact` and `onOpen` are compared too. Neither can change today (only layer 2
+// passes compact, and openDrawer is a useCallback with no deps), but "cannot
+// change today" is exactly the kind of assumption that quietly rots: a same-key
+// instance switching compact would keep the old render, and a re-created onOpen
+// would leave the card wired to a stale closure.
 export const Station = memo(StationView, (prev, next) => {
   const a = prev.row
   const b = next.row
@@ -348,4 +354,6 @@ export const Station = memo(StationView, (prev, next) => {
     && a.failure === b.failure
     && prev.note === next.note
     && prev.t === next.t
+    && prev.compact === next.compact
+    && prev.onOpen === next.onOpen
 })

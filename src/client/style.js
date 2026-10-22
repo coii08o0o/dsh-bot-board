@@ -6,10 +6,14 @@
 // weight instead of a hard-coded colour.
 //
 // v0.4.0: the body is three bands, not one scrolled grid — 需要你 (flex:none) /
-// 在动 (flex:1, the only scroll area) / 闲着 (flex:none). The row heights here are
-// the numbers the height-budget assertions in tools/smoke.mjs are written against
-// (HEAD_H, ATTENTION_ROW_H, RUNNING_CELL_H in const.js); changing one without the
-// other silently breaks "fits in 420×320".
+// 在动 (flex:1, the only scroll area) / 闲着 (flex:none).
+//
+// v0.4.1: the five numbers the height budget depends on are interpolated from
+// const.js instead of typed twice. The budget used to be "constant against
+// constant" with the CSS joined to it by a comment, so `.bb-attention-row{40px}`
+// left C4a green and lying. Now the CSS *is* the constant.
+import { ATTENTION_GAP, ATTENTION_ROW_H, IDLE_ROW_H, RUN_GRID_GAP, RUN_PAD_B, RUNNING_CELL_W } from './const.js'
+
 export const CSS = `
 .bb-wrap{position:fixed;right:16px;bottom:120px;z-index:80;font-size:12px;line-height:1.5;color:inherit;
   font-family:inherit;text-align:left;max-width:calc(100vw - 32px)}
@@ -47,8 +51,8 @@ export const CSS = `
 /* #FFFFFF against #FAF7F1 is only 1.07:1, so the card's surface encodes nothing.
    What carries the layer is the 44px rhythm, the 3px status bar (5.02 / 6.47:1)
    and the right-hand rail of lamps. Do not "fix" the weak white. */
-.bb-attention{flex:none;display:flex;flex-direction:column;gap:3px;padding:6px 10px 4px}
-.bb-attention-row{position:relative;display:flex;align-items:center;gap:8px;height:44px;
+.bb-attention{flex:none;display:flex;flex-direction:column;gap:${ATTENTION_GAP}px;padding:6px 10px 4px}
+.bb-attention-row{position:relative;display:flex;align-items:center;gap:8px;height:${ATTENTION_ROW_H}px;
   padding:0 8px 0 7px;border-left:3px solid transparent;border-radius:9px;
   background:#FFFFFF;box-shadow:0 1px 2px rgba(44,44,42,.10);
   cursor:pointer;outline:none;overflow:hidden}
@@ -74,11 +78,23 @@ export const CSS = `
 .bb-att-empty{display:flex;align-items:center;gap:6px;height:28px;padding:0 2px;
   font-size:11.5px;color:#6B6558}
 .bb-att-empty b{color:#0F766E;font-weight:600}
-.bb-att-more{flex:none;font-size:11px;color:#6B6558;text-align:right;padding:0 2px 1px}
+/* The overflow chip lives *inside* the last row, in the trailing edge of the
+   flexible action column, so revealing the 4th, 5th, 6th Bot costs zero height.
+   v0.4.0 put it on its own line below the list, which cost 20.5px (a 3px gap plus
+   a 17.5px line) — that pushed layer 2 below its 96px floor — and, worse, it was
+   a bare div: the names it stood for existed nowhere on the panel and could not
+   be opened. Same overflow as layer 3's +N, worse treatment, on the more
+   important layer. It is now a real control. */
+.bb-att-more{flex:none;display:inline-flex;align-items:center;height:18px;padding:0 6px;
+  border-radius:9px;background:#F3EDE2;color:#4A4438;font-size:10.5px;font-weight:600;
+  line-height:18px;cursor:pointer;outline:none;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.bb-att-more:hover{background:#EAE2D2}
 
 /* ── Layer 2 · 在动 (the only scroll area) ──────────────────────────────────── */
-.bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px 4px}
-.bb-run-grid{display:grid;grid-template-columns:repeat(auto-fit,148px);gap:8px;justify-content:center}
+.bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px ${RUN_PAD_B}px}
+.bb-run-grid{display:grid;grid-template-columns:repeat(auto-fit,${RUNNING_CELL_W}px);
+  gap:${RUN_GRID_GAP}px;justify-content:center}
 /* The classroom is not a card grid: no white fill, no drop shadow. A hover ring
    is the only surface change, so the cream room survives. */
 .bb-run .bb-station{padding:0 0 1px;border-radius:8px}
@@ -131,7 +147,7 @@ export const CSS = `
 /* ── Layer 3 · 闲着: one line, no image, no surface, no lamp ────────────────── */
 /* height is pinned and wrapping is off: a second line breaks the 480px budget by
    its 1px margin. Overflow degrades to +N, never to a wrap. */
-.bb-idle{flex:none;height:24px;display:flex;align-items:center;gap:6px;overflow:hidden;
+.bb-idle{flex:none;height:${IDLE_ROW_H}px;display:flex;align-items:center;gap:6px;overflow:hidden;
   padding:0 10px;border-top:1px solid #DDD6C8;font-size:11px;background:transparent}
 .bb-idle-k{flex:none;font-weight:600;color:#6B6558}
 .bb-idle-name{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;padding:1px 2px;
@@ -178,7 +194,7 @@ export const CSS = `
    are. This list is extended, never replaced. */
 .bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible,
 .bb-station:focus-visible,.bb-attention-row:focus-visible,.bb-idle-name:focus-visible,
-.bb-idle-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+.bb-idle-more:focus-visible,.bb-att-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
 
 /* ── Motion: unchanged set, unchanged budgets ─────────────────────────────── */
 .bb-blob{transform-box:fill-box;transform-origin:center bottom;animation:bb-breathe 2.6s ease-in-out infinite}

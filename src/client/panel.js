@@ -85,17 +85,25 @@ export function clampPos(value, size) {
 }
 
 // ── Layer membership, with a stability window ────────────────────────────────
-// The point of the three layers is that a Bot only moves between them when
+// The point of the layers is that a Bot only moves between 在动 and 闲着 when
 // something real happened — it started or finished a turn. A status that flips
-// for a single tick must not relocate anybody, because relocating a workstation
-// is exactly the "movement unrelated to what I care about" that change blindness
-// is about.
+// for a single tick must not relocate anybody.
 //
 // So each Bot's layer is committed only after it has held for LAYER_STABLE_MS,
 // which is shorter than POLL_MS: one bad tick is ignored, a real transition lands
 // on the next poll. The bookkeeping lives in a ref and is evaluated during render
 // — it never schedules a render of its own, so a quiet board stays completely
 // still (no timer, no reflow, nothing).
+//
+// 需要你 is NOT debounced, and that is the v0.4.1 fix. Debouncing it made the
+// panel contradict itself: the header counts live scenes, so for one poll after an
+// approval arrived the header said "1 等你" while layer 1 said "✓ 没有需要你的事"
+// and the Bot was still sitting in 闲着. Worse in the other direction — when an
+// approval was cleared, the debounced layer said ATTENTION while the live scene
+// said busy, so the Bot was filtered out of all three layers and a nine-Bot panel
+// counted eight. Both windows open exactly when the user has just clicked approve,
+// i.e. when he is certainly looking. 需要你 is the one answer on this panel that is
+// never allowed to lag.
 function useStableLayers(rows) {
   const ref = useRef(null)
   if (!ref.current) ref.current = new Map()
@@ -103,7 +111,15 @@ function useStableLayers(rows) {
   const now = Date.now()
   for (const row of rows) {
     const id = row.bot.id
-    const target = layerOf(row)
+    const live = layerOf(row)
+    if (live === LAYER_ATTENTION) {
+      // Live channel: no memory, no window. Dropping the entry also means that
+      // when this Bot leaves 需要你 for 在动 it commits immediately instead of
+      // waiting out a window against a stale memory.
+      map.delete(id)
+      continue
+    }
+    const target = live
     const entry = map.get(id)
     if (!entry) {
       map.set(id, { layer: target, pending: null, since: now })
@@ -138,14 +154,25 @@ function useStableLayers(rows) {
 export function Body({ rows = [], works = [], notices = [], empty = null, t, onOpen, onPick, sceneOf }) {
   const layers = useStableLayers(rows)
   const [expanded, setExpanded] = useState(false)
+  const [attExpanded, setAttExpanded] = useState(false)
 
   const hot = []
   const moving = []
   const resting = []
   for (const row of rows) {
-    const layer = layers.get(row.bot.id)?.layer ?? layerOf(row)
-    if (layer === LAYER_ATTENTION) hot.push(row)
-    else if (layer === LAYER_RUNNING) moving.push(row)
+    const live = layerOf(row)
+    // 需要你 by the live scene, never by the debounced layer.
+    if (live === LAYER_ATTENTION) {
+      hot.push(row)
+      continue
+    }
+    // 在动/闲着 by the debounced layer, falling back to live. The fallback is what
+    // stops a Bot from falling through the gap: without it, a stale ATTENTION
+    // memory would put a row in `hot` and then `attentionOf` would filter it out
+    // by scene, leaving the Bot in no layer at all.
+    const stable = layers.get(row.bot.id)?.layer
+    const bucket = stable === LAYER_RUNNING || stable === LAYER_IDLE ? stable : live
+    if (bucket === LAYER_RUNNING) moving.push(row)
     else resting.push(row)
   }
 
@@ -155,11 +182,15 @@ export function Body({ rows = [], works = [], notices = [], empty = null, t, onO
       empty)
   }
 
-  const attention = attentionOf(hot)
   // `+N` is a one-way reveal (design: the only path that may make layer 3 grow),
   // so the expanded line is the *untrimmed* roster — otherwise expanding would
   // open 20px of empty space and still hide the names it promised.
   const idle = idleLine(resting, expanded ? Number.POSITIVE_INFINITY : undefined)
+  // Layer 1's chip is a toggle rather than a one-way reveal: expanding it is
+  // unbounded (six approvals would push the other two layers off a 320px panel),
+  // and a state the user cannot undo is a trap. Layer 3 is bounded to two rows by
+  // CSS, so it stays one-way.
+  const attention = attentionOf(hot, attExpanded ? Number.POSITIVE_INFINITY : undefined)
   // The hand-off table explains the people above it, so it lives inside the same
   // scroll area as them. It is also the only reason the running band might exist
   // when nobody is running: open debts with no owner at work are still worth
@@ -172,7 +203,14 @@ export function Body({ rows = [], works = [], notices = [], empty = null, t, onO
     // Layer 1 — 需要你. Always rendered: an empty list is one summary line, never
     // blank, because "I looked and there is nothing" is the answer to the
     // question this panel exists for.
-    h(Attention, { items: attention.items, overflow: attention.overflow, t, onOpen }),
+    h(Attention, {
+      items: attention.items,
+      overflow: attention.overflow,
+      expanded: attExpanded,
+      t,
+      onOpen,
+      onExpand: () => setAttExpanded(value => !value),
+    }),
 
     // Layer 2 — 在动. The only scroll area in the panel; layers 1 and 3 are
     // always inside the viewport, so "is anything waiting on me" and "who is

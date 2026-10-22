@@ -15,22 +15,38 @@ export const ACTIVE_TAIL_MS = 90 * 1000
 // host's 15-minute failure TTL, which only exists to bound the store.
 export const ERROR_LAMP_MS = 3 * 60 * 1000
 
-// ── Three-layer attention axis (v0.4.0) ──────────────────────────────────────
-// Height budget constants, not measurements: the check harness has no layout
-// engine, so "fits in 320px" is asserted as arithmetic over these numbers (see
-// the C4a/b/c assertions in tools/smoke.mjs). They are the contract the CSS has
-// to honour — a row that grows past ATTENTION_ROW_H breaks the budget silently.
+// ── Three-layer attention axis (v0.4.0, re-derived in v0.4.1) ───────────────
+// These are the contract the CSS has to honour, and the CSS is generated from
+// them (style.js interpolates the four numbers marked "bound"), so a row cannot
+// quietly grow past its budget. The arithmetic lives in tools/smoke.mjs as
+// C4a/b/c — with every term, including the ones v0.4.0 forgot: the grid gap and
+// `.bb-run`'s bottom padding.
 export const HEAD_H = 39              // 7 + 24 (icon) + 7 + 1 (border)
-export const ATTENTION_ROW_H = 44     // also the WCAG 2.5.5 pointer target
-export const ATTENTION_GAP = 3
-export const ATTENTION_PAD_V = 10     // 6 top + 4 bottom
-export const IDLE_ROW_H = 24
-export const RUNNING_CELL_W = 148
-export const RUNNING_CELL_H = 134     // 115 (scene) + 18 (name) + 1 (pad)
+export const ATTENTION_ROW_H = 44     // also the WCAG 2.5.5 pointer target — bound
+export const ATTENTION_GAP = 3        // bound
+export const ATTENTION_PAD_V = 10     // 6 top + 4 bottom, the `.bb-attention` padding
+export const IDLE_ROW_H = 24          // bound
+// Cell width 139 is not a preference, it is the largest integer that satisfies
+// "560×480, 3 rows of 需要你, 6 Bots running, zero scroll":
+//   480 - 39 (head) - 148 (3×44 + 2×3 + 10) - 24 (闲着) = 269 for layer 2
+//   2 cells + 1 gap + bottom padding = 2 × (0.7765W + 20) + 8 + 4 ≤ 269
+//   → W ≤ 139.7  →  139
+// v0.4.0 shipped 148 with C4c asserting 479 ≤ 480, which was a lie: 148 needs
+// 281.8, i.e. 12.8px of overflow and a scrollbar at the default size.
+export const RUNNING_CELL_W = 139     // bound
+// 0.7765 × 139 = 107.9 (the 170×132 scene at this width) + 1 (name margin) +
+// 18 (name line) + 1 (station padding). Asserted against the aspect ratio so it
+// cannot drift if the viewBox ever changes.
+export const RUNNING_CELL_H = 128
+export const RUN_GRID_GAP = 8         // `.bb-run-grid` gap — bound
+export const RUN_PAD_B = 4            // `.bb-run` bottom padding — bound
 export const RUNNING_MIN_H = 96       // visible floor: the dumpling's face + the desk
 // How long a Bot has to hold a new layer before it moves there. Shorter than
 // POLL_MS on purpose: a status that flips for one tick must not relocate anybody,
 // while a real "started / finished a turn" still lands on the next poll.
+// Applies to the 在动 ↔ 闲着 boundary ONLY. 需要你 is a live channel — see
+// useStableLayers in panel.js for why debouncing it made the panel contradict
+// its own header.
 export const LAYER_STABLE_MS = 1200
 
 export const COLLAPSE_KEY = 'dsh-bot-board:collapsed:v5'

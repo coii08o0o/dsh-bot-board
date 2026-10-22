@@ -221,7 +221,8 @@ section('layers: 需要你 / 在动 / 闲着')
   const { attentionOf, topologyOf, idleLine, layerOf } = await import(new URL('../src/client/layers.js', import.meta.url).href)
   const {
     HEAD_H, ATTENTION_ROW_H, ATTENTION_GAP, ATTENTION_PAD_V, IDLE_ROW_H,
-    RUNNING_CELL_H, RUNNING_MIN_H, LAYER_STABLE_MS, POLL_MS, ROSTER,
+    RUNNING_CELL_W, RUNNING_CELL_H, RUN_GRID_GAP, RUN_PAD_B, RUNNING_MIN_H,
+    LAYER_STABLE_MS, POLL_MS, ROSTER,
   } = await import(new URL('../src/client/const.js', import.meta.url).href)
   const { buildRows } = await import(new URL('../src/client/rows.js', import.meta.url).href)
   const { fallbackT } = await import(new URL('../src/client/locale.js', import.meta.url).href)
@@ -357,14 +358,32 @@ section('layers: 需要你 / 在动 / 闲着')
   // requirement's original single inequality (head + 3 rows + 2 cells ≤ 320) is
   // unsatisfiable — it needs a 61px cell, i.e. a 1.87px lamp — so it is replaced
   // by the three scenarios that actually occur.
+  //
+  // v0.4.1: every term is counted now. v0.4.0's C4c omitted the grid gap and
+  // `.bb-run`'s bottom padding, so it passed at 479 while the real layout needed
+  // 492.8 — a green assertion that lied about the default size. RUNNING_CELL_W
+  // and RUNNING_CELL_H were re-derived from the corrected budget (see const.js).
   const c4a = HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V + IDLE_ROW_H + RUNNING_MIN_H
   check(c4a <= 320, `C4a worst case: 3 need-you + the visible floor of 在动 + 闲着 = ${c4a} ≤ 320 (预算，非实测)`)
-  const c4b = HEAD_H + 2 * ATTENTION_ROW_H + ATTENTION_GAP + ATTENTION_PAD_V + RUNNING_CELL_H + IDLE_ROW_H
+  const c4b = HEAD_H + 2 * ATTENTION_ROW_H + ATTENTION_GAP + ATTENTION_PAD_V + RUNNING_CELL_H + RUN_PAD_B + IDLE_ROW_H
   check(c4b <= 320, `C4b common case: 2 need-you + one full row of workstations + 闲着 = ${c4b} ≤ 320 (预算，非实测)`)
-  const c4c = HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V + 2 * RUNNING_CELL_H + IDLE_ROW_H
-  check(c4c <= 480, `C4c default 560×480: 3 need-you + six running + 闲着 = ${c4c} ≤ 480 (预算，非实测)`)
+  const c4c = HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V
+    + 2 * RUNNING_CELL_H + RUN_GRID_GAP + RUN_PAD_B + IDLE_ROW_H
+  check(c4c <= 480,
+    `C4c default 560×480: 3 need-you + six running (2 rows + gap + padding) + 闲着 = ${c4c} ≤ 480 (预算，非实测)`)
+  // The declared cell height has to cover the drawing. The scene is a 170×132
+  // viewBox scaled to RUNNING_CELL_W, plus a 20px name row (1 margin + 18 line +
+  // 1 padding). Without this, someone could shrink the cell and leave C4c green
+  // while the name row got clipped.
+  const sceneH = Math.ceil(RUNNING_CELL_W * 132 / 170)
+  check(RUNNING_CELL_H >= sceneH + 20,
+    `C4 the cell height covers the 132:170 scene plus a 20px name row (${RUNNING_CELL_H} ≥ ${sceneH + 20})`)
   check(LAYER_STABLE_MS < POLL_MS,
     `C4 the layer window (${LAYER_STABLE_MS}ms) is shorter than a poll (${POLL_MS}ms), so a real transition still lands`)
+  // The overflow chip lives inside the last row, so revealing Bot 4..N costs no
+  // height. That is what makes C4a survive a 4th (or 9th) item needing you.
+  check(18 < ATTENTION_ROW_H,
+    'C4d the overflow chip fits inside a 44px row, so overflow costs zero height')
 }
 
 // ------------------------------------------------------------- poll loop --
@@ -568,6 +587,9 @@ section('bundle: loader contract')
 section('css')
 {
   const { CSS } = await import(new URL('../src/client/style.js', import.meta.url).href)
+  const {
+    ATTENTION_ROW_H, ATTENTION_PAD_V, IDLE_ROW_H, RUNNING_CELL_W, RUN_GRID_GAP, RUN_PAD_B,
+  } = await import(new URL('../src/client/const.js', import.meta.url).href)
 
   // P0-2: the room is a cream island; its ink must be explicit, not inherited.
   const bodyRule = CSS.match(/\.bb-body\{[^}]*\}/)?.[0] ?? ''
@@ -641,9 +663,42 @@ section('css')
   // E2: the two new clickable layers are in the focus-ring selector list, not
   // beside it. A keyboard user has to be able to see where they are.
   const ring = CSS.match(/[^{}]*:focus-visible[^{]*\{[^}]*outline:2px solid #378ADD[^}]*\}/)?.[0] ?? ''
-  for (const name of ['bb-pill', 'bb-icon', 'bb-btn', 'bb-handoff', 'bb-station', 'bb-attention-row', 'bb-idle-name', 'bb-idle-more']) {
+  for (const name of ['bb-pill', 'bb-icon', 'bb-btn', 'bb-handoff', 'bb-station', 'bb-attention-row', 'bb-idle-name', 'bb-idle-more', 'bb-att-more']) {
     check(ring.includes(`.${name}:focus-visible`), `E2 ${name} is in the focus-ring selector list`)
   }
+
+  // ── §11 · the five "do not" rules that used to be unguarded ───────────────
+  // The height budget was "constant against constant": the CSS was joined to it
+  // by a comment only, so `.bb-attention-row{40px}` left C4a green and lying. The
+  // three numbers the budget depends on are now interpolated from const.js, and
+  // these assertions read the generated CSS back. They are cheap; without them
+  // every one of these five edits passes `npm run check`.
+  check(!/position:sticky/.test(CSS), '§11.5 no position:sticky (it dies silently inside overflow:hidden)')
+  const handoffsRule = CSS.match(/\.bb-handoffs\{[^}]*\}/)?.[0] ?? ''
+  check(handoffsRule.length > 0 && !/max-height/.test(handoffsRule) && !/overflow/.test(handoffsRule),
+    '§11.6 .bb-handoffs adds no second scroll area (one scroll container, in .bb-run)')
+  check(/\.bb-att-avatar \.bb-blob[^{]*\{animation:none\}/.test(CSS),
+    '§11.14 the layer-1 avatar does not breathe or blink')
+  check(new RegExp(`\\.bb-idle\\{[^}]*height:${IDLE_ROW_H}px`).test(CSS) && !/\.bb-idle\{[^}]*flex-wrap/.test(CSS),
+    '§11.15 layer 3 is one fixed line and never wraps by default')
+  check(!/\.bb-idle-name\{[^}]*color:#(?!5F594D)/.test(CSS),
+    '§11.18 layer 3 has no per-state colour (the badge is the only mark)')
+
+  // ── the constants really are the CSS ─────────────────────────────────────
+  // Interpolation makes these tautological today; the point is to fail the day
+  // somebody replaces `${ATTENTION_ROW_H}px` with a literal.
+  check(new RegExp(`\\.bb-attention-row\\{[^}]*height:${ATTENTION_ROW_H}px`).test(CSS),
+    `§11.4 .bb-attention-row height is ATTENTION_ROW_H (${ATTENTION_ROW_H}px), not a literal`)
+  check(new RegExp(`\\.bb-run-grid\\{[^}]*auto-fit,${RUNNING_CELL_W}px`).test(CSS),
+    `the grid track is RUNNING_CELL_W (${RUNNING_CELL_W}px)`)
+  check(new RegExp(`\\.bb-run-grid\\{[^}]*gap:${RUN_GRID_GAP}px`).test(CSS),
+    `the grid gap is RUN_GRID_GAP (${RUN_GRID_GAP}px) — it was missing from C4c until v0.4.1`)
+  check(new RegExp(`\\.bb-run\\{[^}]*padding:0 10px ${RUN_PAD_B}px`).test(CSS),
+    `the .bb-run bottom padding is RUN_PAD_B (${RUN_PAD_B}px) — also missing from C4c until v0.4.1`)
+  const padMatch = /\.bb-attention\{[^}]*padding:(\d+)px 10px (\d+)px/.exec(CSS)
+  const padV = Number(padMatch?.[1] ?? 0) + Number(padMatch?.[2] ?? 0)
+  check(padV === ATTENTION_PAD_V,
+    `the .bb-attention vertical padding sums to ATTENTION_PAD_V (${padV} === ${ATTENTION_PAD_V})`)
 }
 
 // ---------------------------------------------------------------- locale --
@@ -661,12 +716,12 @@ section('locale')
   const NEW_KEYS = [
     'legend.help', 'legend.hint.busy', 'legend.hint.alert', 'legend.hint.waiting',
     'legend.hint.error', 'legend.hint.idle', 'legend.hint.done',
-    'attention.empty', 'attention.overflow', 'layer.idle',
+    'attention.empty', 'attention.overflow', 'attention.collapse', 'layer.idle',
     'ho.groupTotal', 'ho.blocked', 'ho.notStarted', 'ho.mutual',
     'ho.morePeople', 'ho.moreItems', 'panel.sumHandoff',
   ]
   const missing = NEW_KEYS.filter(key => !(key in zh) || !(key in en))
-  check(missing.length === 0, `D3 the 17 new keys exist in both languages${missing.length ? ` (missing ${missing.join(',')})` : ''}`)
+  check(missing.length === 0, `D3 all ${NEW_KEYS.length} new keys exist in both languages${missing.length ? ` (missing ${missing.join(',')})` : ''}`)
   check(NEW_KEYS.every(key => typeof zh[key] === 'string' && typeof en[key] === 'string'
       && zh[key].length > 0 && en[key].length > 0),
     'D3 no new key is an empty string')

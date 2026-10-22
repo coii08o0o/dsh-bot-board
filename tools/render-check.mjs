@@ -5,7 +5,7 @@
 // command, six-state legend, stable workstation order).
 //
 // Run: node --import ./tools/register-shim.mjs tools/render-check.mjs
-import { findAll, render, textOf, effects } from './react-shim.mjs'
+import { findAll, mount, render, resetRefs, textOf, effects } from './react-shim.mjs'
 
 let failed = 0
 const check = (ok, label) => {
@@ -33,7 +33,8 @@ const { Drawer } = await import('../src/client/drawer.js')
 const { Board, Body, clampPos } = await import('../src/client/panel.js')
 const { Handoffs } = await import('../src/client/handoffs.js')
 const { LegendSheet } = await import('../src/client/legend.js')
-const { IdleLine } = await import('../src/client/attention.js')
+const { Attention, IdleLine } = await import('../src/client/attention.js')
+const { attentionOf } = await import('../src/client/layers.js')
 
 const t = fallbackT('zh')
 const now = Date.now()
@@ -355,11 +356,23 @@ const layerRows = signals => buildRows({
   questions: {}, works: [], rooms: {}, waveMap: {}, noteMap: {}, t, nameOf: layerName, now,
   ...signals,
 })
-const renderBody = (rows, works = [], scenes = {}) => render(Body({
+const bodyProps = (rows, works = [], scenes = {}) => ({
   rows, works, notices: [], empty: null, t,
   onOpen: () => {}, onPick: () => {},
   sceneOf: id => scenes[id],
-}))
+})
+// A fresh mount: refs now persist per component (like React), so an unrelated
+// snapshot must not inherit the previous test's layer memory.
+const renderBody = (rows, works, scenes) => {
+  resetRefs()
+  return mount(Body, bodyProps(rows, works, scenes))
+}
+// Successive polls of the SAME mounted panel — the only way to observe anything
+// that remembers state across renders.
+const renderPolls = snapshots => {
+  resetRefs()
+  return snapshots.map(([rows, works, scenes]) => mount(Body, bodyProps(rows, works, scenes)))
+}
 const bandsOf = tree => {
   const body = findAll(tree, node => node.props?.className === 'bb-body')[0]
   return (body?.children ?? []).filter(Boolean)
@@ -409,6 +422,120 @@ const hotBody = renderBody(hotRows)
   check(hasClass(allBusyBody, 'bb-idle').length === 0, 'C3 all busy draws no 闲着 line')
   check(hasClass(allBusyBody, 'bb-station').length === 9, 'C3 all busy puts all nine in the classroom')
   check(hasClass(allBusyBody, 'bb-meta').length === 0, 'C3 the compact workstation drops the meta strip')
+}
+
+console.log('\n-- P0: the layer window must not fight the live filter --')
+// The bug this pins down: 需要你 was debounced like the other two layers, while
+// the header counts live scenes and `attentionOf` filters by live scene. For one
+// poll after an approval arrived the header said "1 等你" and layer 1 said
+// "✓ 没有需要你的事"; when an approval was cleared the Bot was filtered out of all
+// three layers and a nine-Bot panel counted eight. Both windows open exactly when
+// the user has just clicked approve. Untestable until useRef became persistent.
+{
+  const allIdle = layerRows({})
+  const oneAlert = layerRows({ approvals: [{ id: 'ap', botId: 'layer-1', tool: 'Bash' }] })
+  const oneBusy = layerRows({
+    activity: { 'layer-1': 'working' },
+    workBots: { 'layer-1': { since: now - 1000, tool: 'Bash' } },
+  })
+  const fiveHot = layerRows({
+    approvals: [{ id: 'a1', botId: 'layer-1', tool: 'Bash' }],
+    questions: { 'layer-2': { id: 'q1', question: '用哪个语气？', options: [] } },
+    errors: [
+      { botId: 'layer-3', at: now - 1000, message: 'x' },
+      { botId: 'layer-4', at: now - 2000, message: 'y' },
+      { botId: 'layer-5', at: now - 3000, message: 'z' },
+    ],
+  })
+
+  // ① idle → alert: the FIRST render after the approval lands.
+  {
+    const [, after] = renderPolls([[allIdle], [oneAlert]])
+    check(hasClass(after, 'bb-attention-row').length === 1,
+      `P0 ① an approval reaches 需要你 on the first render, not one poll later (${hasClass(after, 'bb-attention-row').length})`)
+    check(hasClass(after, 'bb-att-empty').length === 0,
+      'P0 ① and the "nothing needs you" summary is gone in that same render')
+    check(textOf(after).includes('Researcher'), 'P0 ① the Bot that needs you is named, not left in 闲着')
+  }
+
+  // ② alert → busy: the Bot must land in 在动, not vanish.
+  {
+    const [, after] = renderPolls([[oneAlert], [oneBusy]])
+    check(hasClass(after, 'bb-attention-row').length === 0, 'P0 ② clearing the approval empties 需要你 at once')
+    check(hasClass(after, 'bb-station').length === 1,
+      `P0 ② and that Bot is in 在动 on the first render (${hasClass(after, 'bb-station').length})`)
+    check(hasClass(after, 'bb-idle-name').length === 8, 'P0 ② the other eight are still in 闲着')
+    check(textOf(after).includes('Researcher'),
+      'P0 ② nobody falls through the gap between the three layers')
+  }
+
+  // ③ one render, one truth — and every Bot is accounted for.
+  for (const [label, snapshot] of [['all idle', allIdle], ['one alert', oneAlert], ['one busy', oneBusy], ['five hot', fiveHot]]) {
+    const body = renderBody(snapshot)
+    const live = snapshot.filter(row => row.scene === 'alert' || row.scene === 'error').length
+    const inBand = hasClass(body, 'bb-attention-row').length
+    check(inBand === Math.min(live, 3),
+      `P0 ③ ${label}: 需要你 rows === min(live hot count, 3) (${inBand} vs min(${live},3))`)
+    const chip = hasClass(body, 'bb-att-more')[0]
+    const hidden = chip ? Number(textOf(chip).replace('+', '')) || 0 : 0
+    const shown = inBand + hasClass(body, 'bb-station').length + hasClass(body, 'bb-idle-name').length
+    check(shown + hidden === snapshot.length,
+      `P0 ③ ${label}: every Bot is in exactly one place (${shown} shown + ${hidden} behind the chip = ${snapshot.length})`)
+  }
+}
+
+console.log('\n-- P1-1: overflow in 需要你 is reachable --')
+{
+  const fiveHot = layerRows({
+    approvals: [{ id: 'a1', botId: 'layer-1', tool: 'Bash' }],
+    questions: { 'layer-2': { id: 'q1', question: '用哪个语气？', options: [] } },
+    errors: [
+      { botId: 'layer-3', at: now - 1000, message: 'x' },
+      { botId: 'layer-4', at: now - 2000, message: 'y' },
+      { botId: 'layer-5', at: now - 3000, message: 'z' },
+    ],
+  })
+  const capped = renderBody(fiveHot)
+  const chip = hasClass(capped, 'bb-att-more')[0]
+  check(chip?.props?.role === 'button' && chip?.props?.tabIndex === 0
+    && typeof chip?.props?.onKeyDown === 'function' && typeof chip?.props?.onClick === 'function',
+    'P1-1 the overflow chip is a control, not a caption (role/tabIndex/onKeyDown/onClick)')
+  check(textOf(chip) === '+2', `P1-1 and it says how many are hidden (${textOf(chip)})`)
+  check(hasClass(capped, 'bb-attention-row').length === 3, 'P1-1 collapsed: three rows, as budgeted')
+
+  const opened = render(Attention({
+    items: attentionOf(fiveHot, Number.POSITIVE_INFINITY).items,
+    overflow: 0, expanded: true, t, onOpen: () => {}, onExpand: () => {},
+  }))
+  const revealed = hasClass(opened, 'bb-attention-row')
+  check(revealed.length === 5, `P1-1 expanded: all five rows (${revealed.length})`)
+  check(revealed.every(row => row.props?.role === 'button' && row.props?.tabIndex === 0
+    && typeof row.props?.onKeyDown === 'function'), 'P1-1 every revealed row is operable')
+  check(['物理', '化学'].every(name => textOf(opened).includes(name)),
+    'P1-1 the names that used to exist nowhere on the panel are now on it')
+  check(textOf(hasClass(opened, 'bb-att-more')[0]) === '−',
+    'P1-1 and the chip flips into a collapse control (unbounded expansion needs an undo)')
+}
+
+console.log('\n-- compact station keeps its action in the title --')
+// Layer 2 dropped the meta strip to buy the 128px cell. That leaves `title` as the
+// only standing clue for what a running Bot is doing — and for `waiting` the clue
+// is 等谁, which is decision-relevant: the hand-off table is derived from `works`
+// (debt), not from `waiting` (who is blocked right now). Deleting `${action}` from
+// the title would quietly make a waiting Bot anonymous.
+{
+  const rowsFor = layerRows({
+    activity: { 'layer-0': 'working' },
+    workBots: { 'layer-0': { since: now - 1000, tool: 'Bash' } },
+    waiting: { 'layer-4': { bots: ['layer-0'] } },
+  })
+  const titles = hasClass(renderBody(rowsFor), 'bb-station').map(node => String(node.props?.title ?? ''))
+  check(titles.some(title => title.includes('调用 Bash')),
+    'P1-2b a compact busy station keeps its action in the title')
+  check(titles.some(title => title.includes('等 Chief')),
+    'P1-2b and a compact waiting station keeps 等谁 in the title')
+  check(hasClass(renderBody(rowsFor), 'bb-meta').length === 0,
+    'P1-2b which is only acceptable because the compact card really has no meta strip')
 }
 
 // D1: compressing a Bot into 闲着 must not drop its failure badge.

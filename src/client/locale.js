@@ -34,6 +34,7 @@ export const zh = {
 
   'attention.empty': '没有需要你的事',
   'attention.overflow': '还有 {n} 个',
+  'attention.collapse': '收起多出来的',
   'layer.idle': '闲着',
 
   'ho.groupTotal': '共 {n} 项',
@@ -130,6 +131,7 @@ export const en = {
 
   'attention.empty': 'Nothing needs you',
   'attention.overflow': '{n} more',
+  'attention.collapse': 'Collapse the extras',
   'layer.idle': 'Idle',
 
   'ho.groupTotal': '{n} open',

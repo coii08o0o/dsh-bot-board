@@ -45,6 +45,12 @@ var __bbEntry = (() => {
   var IDLE_POLL_MS = 6e3;
   var ACTIVE_TAIL_MS = 90 * 1e3;
   var ERROR_LAMP_MS = 3 * 60 * 1e3;
+  var ATTENTION_ROW_H = 44;
+  var ATTENTION_GAP = 3;
+  var IDLE_ROW_H = 24;
+  var RUNNING_CELL_W = 139;
+  var RUN_GRID_GAP = 8;
+  var RUN_PAD_B = 4;
   var LAYER_STABLE_MS = 1200;
   var COLLAPSE_KEY = "dsh-bot-board:collapsed:v5";
   var POS_KEY = "dsh-bot-board:pos:v5";
@@ -165,6 +171,7 @@ var __bbEntry = (() => {
     "legend.hint.done": "\u521A\u4EA4\u5B8C\u6D3B\uFF087 \u79D2\u540E\u56DE\u843D\u5230\u95F2\u7740\uFF09",
     "attention.empty": "\u6CA1\u6709\u9700\u8981\u4F60\u7684\u4E8B",
     "attention.overflow": "\u8FD8\u6709 {n} \u4E2A",
+    "attention.collapse": "\u6536\u8D77\u591A\u51FA\u6765\u7684",
     "layer.idle": "\u95F2\u7740",
     "ho.groupTotal": "\u5171 {n} \u9879",
     "ho.blocked": "\u88AB\u5835",
@@ -251,6 +258,7 @@ var __bbEntry = (() => {
     "legend.hint.done": "Just handed back (idle after 7s)",
     "attention.empty": "Nothing needs you",
     "attention.overflow": "{n} more",
+    "attention.collapse": "Collapse the extras",
     "layer.idle": "Idle",
     "ho.groupTotal": "{n} open",
     "ho.blocked": "blocked",
@@ -952,7 +960,7 @@ var __bbEntry = (() => {
   var Station = (0, import_react3.memo)(StationView, (prev, next) => {
     const a = prev.row;
     const b = next.row;
-    return a.bot.id === b.bot.id && a.bot.name === b.bot.name && a.status === b.status && a.scene === b.scene && a.action === b.action && a.since === b.since && a.stalled === b.stalled && a.badge === b.badge && a.failure === b.failure && prev.note === next.note && prev.t === next.t;
+    return a.bot.id === b.bot.id && a.bot.name === b.bot.name && a.status === b.status && a.scene === b.scene && a.action === b.action && a.since === b.since && a.stalled === b.stalled && a.badge === b.badge && a.failure === b.failure && prev.note === next.note && prev.t === next.t && prev.compact === next.compact && prev.onOpen === next.onOpen;
   });
 
   // src/client/drawer.js
@@ -1112,116 +1120,6 @@ var __bbEntry = (() => {
 
   // src/client/attention.js
   var import_react6 = __require("react");
-  function Avatar({ scene, bot }) {
-    return (0, import_react6.createElement)(
-      "span",
-      { className: "bb-att-avatar" },
-      (0, import_react6.createElement)(
-        "svg",
-        { width: 30, height: 30, viewBox: "56 24 60 60", "aria-hidden": "true", focusable: "false" },
-        blobSeat(scene, seatOf(bot))
-      )
-    );
-  }
-  function Attention({ items, overflow = 0, t, onOpen }) {
-    const rows = items ?? [];
-    if (!rows.length) {
-      return (0, import_react6.createElement)(
-        "div",
-        { className: "bb-attention" },
-        (0, import_react6.createElement)(
-          "div",
-          { className: "bb-att-empty" },
-          (0, import_react6.createElement)("b", null, "\u2713"),
-          (0, import_react6.createElement)("span", null, t("attention.empty"))
-        )
-      );
-    }
-    return (0, import_react6.createElement)(
-      "div",
-      { className: "bb-attention" },
-      rows.map((row) => (0, import_react6.createElement)(
-        "div",
-        {
-          className: "bb-attention-row",
-          key: row.bot.id,
-          role: "button",
-          tabIndex: 0,
-          "data-scene": row.scene,
-          title: row.action || row.bot.name,
-          onClick: () => onOpen(row),
-          onKeyDown: (event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              onOpen(row);
-            }
-          }
-        },
-        (0, import_react6.createElement)(Avatar, { scene: row.scene, bot: row.bot }),
-        // No NAME_INK here on purpose: in this layer the alert/error split is
-        // already carried by the 3px left bar, the lamp's shape and the words of the
-        // action. A coloured name would be a fourth copy of the same fact, and it
-        // would break the vertical rail into two colours to compare.
-        (0, import_react6.createElement)("span", { className: "bb-att-name" }, row.bot.name),
-        (0, import_react6.createElement)("span", { className: "bb-att-act" }, row.action),
-        // Always rendered, even when there is no turn start to count from: the
-        // column keeps its 44px so the lamps stay on one vertical rail.
-        (0, import_react6.createElement)("span", { className: "bb-att-time" }, (0, import_react6.createElement)(Elapsed, { since: row.since })),
-        (0, import_react6.createElement)("span", { className: "bb-att-lamp" }, (0, import_react6.createElement)(Lamp, { scene: row.scene, size: 12 }))
-      )),
-      overflow > 0 ? (0, import_react6.createElement)("div", { className: "bb-att-more" }, t("attention.overflow").replace("{n}", String(overflow))) : null
-    );
-  }
-  function IdleLine({ items, overflow = 0, expanded = false, t, onOpen, onExpand }) {
-    const rows = items ?? [];
-    if (!rows.length && !overflow) return null;
-    return (0, import_react6.createElement)(
-      "div",
-      {
-        className: "bb-idle",
-        "data-expanded": expanded ? "true" : "false"
-      },
-      (0, import_react6.createElement)("span", { className: "bb-idle-k" }, t("layer.idle")),
-      rows.map((row) => (0, import_react6.createElement)(
-        "span",
-        {
-          className: "bb-idle-name",
-          key: row.bot.id,
-          role: "button",
-          tabIndex: 0,
-          title: row.bot.name,
-          onClick: () => onOpen(row),
-          onKeyDown: (event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              onOpen(row);
-            }
-          }
-        },
-        (0, import_react6.createElement)("span", null, row.bot.name),
-        // The badge travels with the name in every compressed form. 0.3.4 made a
-        // quiet failure a badge instead of a red lamp; dropping it here would
-        // silently revert that.
-        row.badge ? (0, import_react6.createElement)("span", { className: "bb-badge bb-badge-inline", title: row.failure ?? "" }, "!") : null
-      )),
-      overflow > 0 ? (0, import_react6.createElement)("span", {
-        className: "bb-idle-more",
-        role: "button",
-        tabIndex: 0,
-        title: t("attention.overflow").replace("{n}", String(overflow)),
-        onClick: () => onExpand?.(),
-        onKeyDown: (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onExpand?.();
-          }
-        }
-      }, `+${overflow}`) : null
-    );
-  }
-
-  // src/client/handoffs.js
-  var import_react7 = __require("react");
 
   // src/client/layers.js
   var LAYER_ATTENTION = "attention";
@@ -1312,7 +1210,137 @@ var __bbEntry = (() => {
     return { items: kept, overflow };
   }
 
+  // src/client/attention.js
+  function Avatar({ scene, bot }) {
+    return (0, import_react6.createElement)(
+      "span",
+      { className: "bb-att-avatar" },
+      (0, import_react6.createElement)(
+        "svg",
+        { width: 30, height: 30, viewBox: "56 24 60 60", "aria-hidden": "true", focusable: "false" },
+        blobSeat(scene, seatOf(bot))
+      )
+    );
+  }
+  function Attention({ items, overflow = 0, expanded = false, t, onOpen, onExpand }) {
+    const rows = items ?? [];
+    if (!rows.length) {
+      return (0, import_react6.createElement)(
+        "div",
+        { className: "bb-attention" },
+        (0, import_react6.createElement)(
+          "div",
+          { className: "bb-att-empty" },
+          (0, import_react6.createElement)("b", null, "\u2713"),
+          (0, import_react6.createElement)("span", null, t("attention.empty"))
+        )
+      );
+    }
+    const last = rows.length - 1;
+    const chip = overflow > 0 || expanded && rows.length > ATTENTION_MAX;
+    return (0, import_react6.createElement)(
+      "div",
+      { className: "bb-attention" },
+      rows.map((row, index) => (0, import_react6.createElement)(
+        "div",
+        {
+          className: "bb-attention-row",
+          key: row.bot.id,
+          role: "button",
+          tabIndex: 0,
+          "data-scene": row.scene,
+          title: row.action || row.bot.name,
+          onClick: () => onOpen(row),
+          onKeyDown: (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onOpen(row);
+            }
+          }
+        },
+        (0, import_react6.createElement)(Avatar, { scene: row.scene, bot: row.bot }),
+        // No NAME_INK here on purpose: in this layer the alert/error split is
+        // already carried by the 3px left bar, the lamp's shape and the words of the
+        // action. A coloured name would be a fourth copy of the same fact, and it
+        // would break the vertical rail into two colours to compare.
+        (0, import_react6.createElement)("span", { className: "bb-att-name" }, row.bot.name),
+        (0, import_react6.createElement)("span", { className: "bb-att-act" }, row.action),
+        chip && index === last ? (0, import_react6.createElement)("span", {
+          className: "bb-att-more",
+          role: "button",
+          tabIndex: 0,
+          "data-expanded": expanded ? "true" : "false",
+          title: expanded ? t("attention.collapse") : t("attention.overflow").replace("{n}", String(overflow)),
+          onClick: () => onExpand?.(),
+          onKeyDown: (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onExpand?.();
+            }
+          }
+        }, expanded ? "\u2212" : `+${overflow}`) : null,
+        // Always rendered, even when there is no turn start to count from: the
+        // column keeps its 44px so the lamps stay on one vertical rail.
+        // `since || failureAt`: a Bot that broke without ever starting a turn has no
+        // `since`, and its own timestamp is the honest "how long has it been broken".
+        // For an `alert` this column is the length of the *turn*, not of the wait —
+        // approvals carry no timestamp of their own, so it can overstate the wait.
+        // Wrong in the safe direction; the drawer is where the exact text lives.
+        (0, import_react6.createElement)("span", { className: "bb-att-time" }, (0, import_react6.createElement)(Elapsed, { since: row.since || row.failureAt })),
+        (0, import_react6.createElement)("span", { className: "bb-att-lamp" }, (0, import_react6.createElement)(Lamp, { scene: row.scene, size: 12 }))
+      ))
+    );
+  }
+  function IdleLine({ items, overflow = 0, expanded = false, t, onOpen, onExpand }) {
+    const rows = items ?? [];
+    if (!rows.length && !overflow) return null;
+    return (0, import_react6.createElement)(
+      "div",
+      {
+        className: "bb-idle",
+        "data-expanded": expanded ? "true" : "false"
+      },
+      (0, import_react6.createElement)("span", { className: "bb-idle-k" }, t("layer.idle")),
+      rows.map((row) => (0, import_react6.createElement)(
+        "span",
+        {
+          className: "bb-idle-name",
+          key: row.bot.id,
+          role: "button",
+          tabIndex: 0,
+          title: row.bot.name,
+          onClick: () => onOpen(row),
+          onKeyDown: (event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onOpen(row);
+            }
+          }
+        },
+        (0, import_react6.createElement)("span", null, row.bot.name),
+        // The badge travels with the name in every compressed form. 0.3.4 made a
+        // quiet failure a badge instead of a red lamp; dropping it here would
+        // silently revert that.
+        row.badge ? (0, import_react6.createElement)("span", { className: "bb-badge bb-badge-inline", title: row.failure ?? "" }, "!") : null
+      )),
+      overflow > 0 ? (0, import_react6.createElement)("span", {
+        className: "bb-idle-more",
+        role: "button",
+        tabIndex: 0,
+        title: t("attention.overflow").replace("{n}", String(overflow)),
+        onClick: () => onExpand?.(),
+        onKeyDown: (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onExpand?.();
+          }
+        }
+      }, `+${overflow}`) : null
+    );
+  }
+
   // src/client/handoffs.js
+  var import_react7 = __require("react");
   var GROUPS_MAX = 3;
   var EDGES_MAX = 3;
   var blockedOf = (scene) => {
@@ -1607,8 +1635,8 @@ var __bbEntry = (() => {
 /* #FFFFFF against #FAF7F1 is only 1.07:1, so the card's surface encodes nothing.
    What carries the layer is the 44px rhythm, the 3px status bar (5.02 / 6.47:1)
    and the right-hand rail of lamps. Do not "fix" the weak white. */
-.bb-attention{flex:none;display:flex;flex-direction:column;gap:3px;padding:6px 10px 4px}
-.bb-attention-row{position:relative;display:flex;align-items:center;gap:8px;height:44px;
+.bb-attention{flex:none;display:flex;flex-direction:column;gap:${ATTENTION_GAP}px;padding:6px 10px 4px}
+.bb-attention-row{position:relative;display:flex;align-items:center;gap:8px;height:${ATTENTION_ROW_H}px;
   padding:0 8px 0 7px;border-left:3px solid transparent;border-radius:9px;
   background:#FFFFFF;box-shadow:0 1px 2px rgba(44,44,42,.10);
   cursor:pointer;outline:none;overflow:hidden}
@@ -1634,11 +1662,23 @@ var __bbEntry = (() => {
 .bb-att-empty{display:flex;align-items:center;gap:6px;height:28px;padding:0 2px;
   font-size:11.5px;color:#6B6558}
 .bb-att-empty b{color:#0F766E;font-weight:600}
-.bb-att-more{flex:none;font-size:11px;color:#6B6558;text-align:right;padding:0 2px 1px}
+/* The overflow chip lives *inside* the last row, in the trailing edge of the
+   flexible action column, so revealing the 4th, 5th, 6th Bot costs zero height.
+   v0.4.0 put it on its own line below the list, which cost 20.5px (a 3px gap plus
+   a 17.5px line) \u2014 that pushed layer 2 below its 96px floor \u2014 and, worse, it was
+   a bare div: the names it stood for existed nowhere on the panel and could not
+   be opened. Same overflow as layer 3's +N, worse treatment, on the more
+   important layer. It is now a real control. */
+.bb-att-more{flex:none;display:inline-flex;align-items:center;height:18px;padding:0 6px;
+  border-radius:9px;background:#F3EDE2;color:#4A4438;font-size:10.5px;font-weight:600;
+  line-height:18px;cursor:pointer;outline:none;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.bb-att-more:hover{background:#EAE2D2}
 
 /* \u2500\u2500 Layer 2 \xB7 \u5728\u52A8 (the only scroll area) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-.bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px 4px}
-.bb-run-grid{display:grid;grid-template-columns:repeat(auto-fit,148px);gap:8px;justify-content:center}
+.bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px ${RUN_PAD_B}px}
+.bb-run-grid{display:grid;grid-template-columns:repeat(auto-fit,${RUNNING_CELL_W}px);
+  gap:${RUN_GRID_GAP}px;justify-content:center}
 /* The classroom is not a card grid: no white fill, no drop shadow. A hover ring
    is the only surface change, so the cream room survives. */
 .bb-run .bb-station{padding:0 0 1px;border-radius:8px}
@@ -1691,7 +1731,7 @@ var __bbEntry = (() => {
 /* \u2500\u2500 Layer 3 \xB7 \u95F2\u7740: one line, no image, no surface, no lamp \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 /* height is pinned and wrapping is off: a second line breaks the 480px budget by
    its 1px margin. Overflow degrades to +N, never to a wrap. */
-.bb-idle{flex:none;height:24px;display:flex;align-items:center;gap:6px;overflow:hidden;
+.bb-idle{flex:none;height:${IDLE_ROW_H}px;display:flex;align-items:center;gap:6px;overflow:hidden;
   padding:0 10px;border-top:1px solid #DDD6C8;font-size:11px;background:transparent}
 .bb-idle-k{flex:none;font-weight:600;color:#6B6558}
 .bb-idle-name{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;padding:1px 2px;
@@ -1738,7 +1778,7 @@ var __bbEntry = (() => {
    are. This list is extended, never replaced. */
 .bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible,
 .bb-station:focus-visible,.bb-attention-row:focus-visible,.bb-idle-name:focus-visible,
-.bb-idle-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+.bb-idle-more:focus-visible,.bb-att-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
 
 /* \u2500\u2500 Motion: unchanged set, unchanged budgets \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .bb-blob{transform-box:fill-box;transform-origin:center bottom;animation:bb-breathe 2.6s ease-in-out infinite}
@@ -1901,7 +1941,12 @@ var __bbEntry = (() => {
     const now = Date.now();
     for (const row of rows) {
       const id = row.bot.id;
-      const target = layerOf(row);
+      const live = layerOf(row);
+      if (live === LAYER_ATTENTION) {
+        map.delete(id);
+        continue;
+      }
+      const target = live;
       const entry = map.get(id);
       if (!entry) {
         map.set(id, { layer: target, pending: null, since: now });
@@ -1930,13 +1975,19 @@ var __bbEntry = (() => {
   function Body({ rows = [], works = [], notices = [], empty = null, t, onOpen, onPick, sceneOf: sceneOf2 }) {
     const layers = useStableLayers(rows);
     const [expanded, setExpanded] = (0, import_react9.useState)(false);
+    const [attExpanded, setAttExpanded] = (0, import_react9.useState)(false);
     const hot = [];
     const moving = [];
     const resting = [];
     for (const row of rows) {
-      const layer = layers.get(row.bot.id)?.layer ?? layerOf(row);
-      if (layer === LAYER_ATTENTION) hot.push(row);
-      else if (layer === LAYER_RUNNING) moving.push(row);
+      const live = layerOf(row);
+      if (live === LAYER_ATTENTION) {
+        hot.push(row);
+        continue;
+      }
+      const stable = layers.get(row.bot.id)?.layer;
+      const bucket = stable === LAYER_RUNNING || stable === LAYER_IDLE ? stable : live;
+      if (bucket === LAYER_RUNNING) moving.push(row);
       else resting.push(row);
     }
     if (!rows.length) {
@@ -1947,8 +1998,8 @@ var __bbEntry = (() => {
         empty
       );
     }
-    const attention = attentionOf(hot);
     const idle = idleLine(resting, expanded ? Number.POSITIVE_INFINITY : void 0);
+    const attention = attentionOf(hot, attExpanded ? Number.POSITIVE_INFINITY : void 0);
     const showRun = moving.length > 0 || (works ?? []).some((work) => Number(work?.open) > 0);
     return (0, import_react9.createElement)(
       "div",
@@ -1957,7 +2008,14 @@ var __bbEntry = (() => {
       // Layer 1 — 需要你. Always rendered: an empty list is one summary line, never
       // blank, because "I looked and there is nothing" is the answer to the
       // question this panel exists for.
-      (0, import_react9.createElement)(Attention, { items: attention.items, overflow: attention.overflow, t, onOpen }),
+      (0, import_react9.createElement)(Attention, {
+        items: attention.items,
+        overflow: attention.overflow,
+        expanded: attExpanded,
+        t,
+        onOpen,
+        onExpand: () => setAttExpanded((value) => !value)
+      }),
       // Layer 2 — 在动. The only scroll area in the panel; layers 1 and 3 are
       // always inside the viewport, so "is anything waiting on me" and "who is
       // free" never need a scroll.
