@@ -242,16 +242,16 @@ section('layers: 需要你 / 在动 / 闲着')
   const every = attentionOf(sample, 99)
   check(every.items.length === hot.length && every.items.every(item => hot.includes(item)),
     `A1 需要你 = rows where scene ∈ {alert, error} (${every.items.length}/${hot.length})`)
-  check(every.items.map(item => item.bot.name).join('') === 'daibe',
-    `A1 every alert outranks every error, longest first inside a group (got ${every.items.map(i => i.bot.name).join('')})`)
+  check(every.items.map(item => item.bot.name).join('') === 'adebi',
+    `A1 every alert outranks every error, longest-waiting first inside a group (got ${every.items.map(i => i.bot.name).join('')})`)
   // The invariant stated once as an ordering predicate, over all 36 pairs.
   const ordered = every.items.every((item, index) => every.items.slice(index + 1).every(later => {
     const rank = value => (value.scene === 'alert' ? 0 : 1)
     if (rank(item) !== rank(later)) return rank(item) < rank(later)
     const key = value => Number(value.since) || Number(value.failureAt) || 0
-    return key(item) >= key(later)
+    return key(item) <= key(later)
   }))
-  check(ordered, 'A1 the order is a total order under (alert<error, then since||failureAt desc)')
+  check(ordered, 'A1 the order is a total order under (alert<error, then since||failureAt ASC — oldest wait first)')
   check(every.items.every(item => ['alert', 'error'].includes(item.scene)), 'A1 nothing else leaks in')
 
   // ── A3 · overflow is a count, not a loss ─────────────────────────────────
@@ -351,6 +351,33 @@ section('layers: 需要你 / 在动 / 闲着')
     'A5 the surviving names keep roster order')
   check(idleLine(idleRows, Number.POSITIVE_INFINITY).overflow === 0,
     'A5 an unbounded budget keeps every name — that is the +N reveal path')
+
+  // ── A5b · the width budget has to include the box, not just the glyphs ───
+  // The bug this pins down: the estimate counted glyphs plus one trailing gap the
+  // line never occupies, and skipped the per-name `padding:1px 2px` and the `+N`
+  // chip. Nine three-character names "fit" at 379px while actually taking 409px,
+  // and `.bb-idle` is `overflow:hidden` — so the ninth name was sliced off with
+  // no ellipsis. At four characters the thing sliced off was the `+N` itself, the
+  // only control that could have revealed the hidden names. 398 is the real
+  // usable width at SIZE_MIN.w (420 − 2 border − 20 padding).
+  {
+    const tri = ['前端组', '后端组', '测试组', '设计组', '运营组', '数据组', '算法组', '架构组', '安全组']
+    const triRows = tri.map((name, index) => ({ bot: { id: `session-${index}`, name }, badge: false }))
+    const tight = idleLine(triRows, 398)
+    check(tight.overflow > 0,
+      `A5b nine three-character names do not fit 398px, so the line trims instead of clipping (${tight.items.length}+${tight.overflow})`)
+    check(tight.items.length + tight.overflow === tri.length,
+      'A5b and every trimmed name is counted')
+    // With the chip charged for, the visible names must leave room for it.
+    check(tight.items.length < tri.length,
+      'A5b the trim leaves room for the +N chip that reveals the rest')
+    const triBadged = triRows.map((row, index) => ({ ...row, badge: index >= 6 }))
+    const keep = idleLine(triBadged, 398)
+    check(keep.items.filter(row => row.badge).length === 3,
+      'A5b badges survive even at the tightest budget')
+    check(idleLine(triRows, Number.POSITIVE_INFINITY).items.length === 9,
+      'A5b and the +N reveal path still shows all nine')
+  }
 
   // ── C4a/b/c · height budgets (budget, not a measurement) ─────────────────
   // The check harness has no layout engine, so "fits without scrolling" is

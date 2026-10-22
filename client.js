@@ -1134,11 +1134,12 @@ var __bbEntry = (() => {
   var groupRank = (row) => row?.scene === "alert" ? 0 : 1;
   function attentionOf(rows, max = ATTENTION_MAX) {
     const hot = (rows ?? []).filter((row) => row.scene === "alert" || row.scene === "error");
+    const limit = max === Number.POSITIVE_INFINITY ? max : Number.isFinite(max) ? Math.max(0, Math.floor(max)) : ATTENTION_MAX;
     const sorted = [...hot].sort((a, b) => {
       const rank = groupRank(a) - groupRank(b);
-      return rank !== 0 ? rank : waitKey(b) - waitKey(a);
+      return rank !== 0 ? rank : waitKey(a) - waitKey(b);
     });
-    return { items: sorted.slice(0, max), overflow: Math.max(0, sorted.length - max) };
+    return { items: sorted.slice(0, limit), overflow: Math.max(0, sorted.length - limit) };
   }
   function topologyOf(works) {
     const open = (works ?? []).filter((work) => Number(work?.open) > 0);
@@ -1153,7 +1154,7 @@ var __bbEntry = (() => {
       const fromId = idOf(work);
       const toId = toOf(work);
       const reverse = byPair.get(keyOf(toId, fromId));
-      const mutual = Boolean(reverse) && reverse !== work;
+      const mutual = fromId !== toId && Boolean(reverse) && reverse !== work;
       const edge = {
         id: work.id ?? keyOf(fromId, toId),
         fromId,
@@ -1179,21 +1180,28 @@ var __bbEntry = (() => {
     return [...groups.values()].sort((a, b) => b.total - a.total || a.fromId.localeCompare(b.fromId));
   }
   var IDLE_BUDGET = 380;
-  var CJK = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/;
+  var IDLE_GAP = 6;
+  var IDLE_PREFIX = 28;
+  var NAME_PAD = 4;
+  var BADGE_W = 14;
+  var CHIP_W = 18;
+  var CJK = /[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{1f300}-\u{1faff}]/u;
   var nameWidth = (name) => {
     let width = 0;
     for (const char of String(name ?? "")) width += CJK.test(char) ? 11 : 6.2;
     return width;
   };
-  var itemWidth = (row) => nameWidth(row?.bot?.name) + (row?.badge ? 14 : 0);
+  var itemWidth = (row) => nameWidth(row?.bot?.name) + (row?.badge ? BADGE_W : 0) + NAME_PAD;
   function idleLine(rows, budget = IDLE_BUDGET) {
     const kept = [...rows ?? []];
     let overflow = 0;
-    const total = (items) => {
+    const total = (items, withChip) => {
       if (!items.length) return 0;
-      return 28 + items.reduce((sum, row) => sum + itemWidth(row) + 6, 0);
+      const names = items.reduce((sum, row) => sum + itemWidth(row), 0);
+      const gaps = IDLE_GAP * (items.length - 1);
+      return IDLE_PREFIX + names + gaps + (withChip ? IDLE_GAP + CHIP_W : 0);
     };
-    while (kept.length && total(kept) > budget) {
+    const dropOne = () => {
       let index = -1;
       for (let i = kept.length - 1; i >= 0; i -= 1) {
         if (!kept[i].badge) {
@@ -1204,7 +1212,9 @@ var __bbEntry = (() => {
       if (index < 0) index = kept.length - 1;
       kept.splice(index, 1);
       overflow += 1;
-    }
+    };
+    while (kept.length && total(kept, false) > budget) dropOne();
+    while (kept.length && overflow > 0 && total(kept, true) > budget) dropOne();
     return { items: kept, overflow };
   }
 

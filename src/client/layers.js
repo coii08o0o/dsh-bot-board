@@ -31,20 +31,33 @@ export const ATTENTION_MAX = 3
 // Sorting rule, and the reason for it: an `alert` is cleared by one click and
 // gives the whole team its throughput back, while an `error` needs a decision
 // about what went wrong. So every alert outranks every error. Inside a group the
-// longest-running one comes first — it is the one that has been costing the most.
+// one that has been waiting longest comes first — it is the one that has been
+// costing the most.
+//
 // The key is `since || failure.at`: a failure that has not started a turn yet has
 // no `since`, and its own timestamp is the honest "how long has this been broken".
+// Because an older timestamp means a longer wait, the comparison is ASCENDING.
+// It used to be descending (newest first), which put a Bot that broke ten seconds
+// ago above one that has been stuck for three hours — the exact inverse of the
+// rule this list exists to apply, and the smoke test had baked the wrong
+// direction in as 'daibe'.
 const waitKey = row => Number(row?.since) || Number(row?.failureAt) || 0
 const groupRank = row => (row?.scene === 'alert' ? 0 : 1)
 
 export function attentionOf(rows, max = ATTENTION_MAX) {
   const hot = (rows ?? []).filter(row => row.scene === 'alert' || row.scene === 'error')
+  // `Infinity` is a legitimate budget (the expanded list shows everything); a
+  // negative or NaN budget is not, and `slice(0, -1)` would silently drop the
+  // last row *and* over-count the overflow, showing the same Bot twice.
+  const limit = max === Number.POSITIVE_INFINITY
+    ? max
+    : Number.isFinite(max) ? Math.max(0, Math.floor(max)) : ATTENTION_MAX
   // Array#sort is stable, so equal timestamps keep roster order.
   const sorted = [...hot].sort((a, b) => {
     const rank = groupRank(a) - groupRank(b)
-    return rank !== 0 ? rank : waitKey(b) - waitKey(a)
+    return rank !== 0 ? rank : waitKey(a) - waitKey(b)
   })
-  return { items: sorted.slice(0, max), overflow: Math.max(0, sorted.length - max) }
+  return { items: sorted.slice(0, limit), overflow: Math.max(0, sorted.length - limit) }
 }
 
 // ── Hand-offs ───────────────────────────────────────────────────────────────
@@ -78,7 +91,12 @@ export function topologyOf(works) {
     const fromId = idOf(work)
     const toId = toOf(work)
     const reverse = byPair.get(keyOf(toId, fromId))
-    const mutual = Boolean(reverse) && reverse !== work
+    // A self-loop (a Bot that handed work to itself, which the upstream record
+    // can produce when `from` and `to` resolve to the same session) has only one
+    // direction, so it can never be "waiting on each other". Without the first
+    // clause two separate a→a records would pair with each other and get flagged
+    // `mutual`, printing 「⇄ 互相等」 for a Bot waiting on nobody.
+    const mutual = fromId !== toId && Boolean(reverse) && reverse !== work
     const edge = {
       id: work.id ?? keyOf(fromId, toId),
       fromId,
@@ -110,17 +128,38 @@ export function topologyOf(works) {
 
 // ── 闲着 ────────────────────────────────────────────────────────────────────
 // One line, no wrapping, no separators. Widths are estimated rather than
-// measured (no layout engine in the checks, and the panel is fixed-width anyway):
-// CJK 11px/char, Latin 6.2px/char, a badge 12+2, a gap 6, the 闲着 prefix 22+6.
+// measured (no layout engine in the checks, and the panel is fixed-width anyway).
+//
+// Every term below has to match `style.js`, because a budget that under-counts
+// does not shrink the line — `.bb-idle` is `overflow:hidden`, so the overflow
+// just gets sliced off the right edge with no ellipsis and no `+N`. The first
+// version counted only the glyphs and one trailing gap it never used, so nine
+// three-character names "fit" at 379px while actually taking 409px: the ninth
+// name was clipped, and with four-character names the thing clipped was the `+2`
+// itself — the only control that could have revealed the two hidden names.
 const IDLE_BUDGET = 380
-const CJK = /[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/
+// `.bb-idle` gap, between names and before the chip.
+const IDLE_GAP = 6
+// `.bb-idle-k` is 「闲着」 (22) plus the flex gap (6).
+const IDLE_PREFIX = 28
+// `.bb-idle-name` is `padding:1px 2px`, so 4px of horizontal box the glyph
+// estimate never sees.
+const NAME_PAD = 4
+// `.bb-badge-inline` is 12px wide plus the name's inner 2px gap.
+const BADGE_W = 14
+// `.bb-idle-more` is `padding:1px 3px` around `+N` — about 18px at 11px type.
+const CHIP_W = 18
+// Hangul and the emoji planes render at CJK width, not at the 6.2px Latin
+// estimate. Without them a Korean or emoji name is under-counted by ~45%, which
+// is the same class of error as the missing padding.
+const CJK = /[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{1f300}-\u{1faff}]/u
 
 const nameWidth = name => {
   let width = 0
   for (const char of String(name ?? '')) width += CJK.test(char) ? 11 : 6.2
   return width
 }
-const itemWidth = row => nameWidth(row?.bot?.name) + (row?.badge ? 14 : 0)
+const itemWidth = row => nameWidth(row?.bot?.name) + (row?.badge ? BADGE_W : 0) + NAME_PAD
 
 // Overflow degrades by *dropping from the tail*, and it drops the first item
 // without a badge. Never by re-sorting: the quiet line is part of how this user
@@ -131,11 +170,15 @@ const itemWidth = row => nameWidth(row?.bot?.name) + (row?.badge ? 14 : 0)
 export function idleLine(rows, budget = IDLE_BUDGET) {
   const kept = [...(rows ?? [])]
   let overflow = 0
-  const total = items => {
+  const total = (items, withChip) => {
     if (!items.length) return 0
-    return 28 + items.reduce((sum, row) => sum + itemWidth(row) + 6, 0)
+    const names = items.reduce((sum, row) => sum + itemWidth(row), 0)
+    // Gaps sit *between* items; the old version charged one after the last name
+    // as well, which is width the line never occupies.
+    const gaps = IDLE_GAP * (items.length - 1)
+    return IDLE_PREFIX + names + gaps + (withChip ? IDLE_GAP + CHIP_W : 0)
   }
-  while (kept.length && total(kept) > budget) {
+  const dropOne = () => {
     let index = -1
     for (let i = kept.length - 1; i >= 0; i -= 1) {
       if (!kept[i].badge) { index = i; break }
@@ -145,5 +188,8 @@ export function idleLine(rows, budget = IDLE_BUDGET) {
     kept.splice(index, 1)
     overflow += 1
   }
+  // Two passes, because dropping names *creates* the chip that then needs room.
+  while (kept.length && total(kept, false) > budget) dropOne()
+  while (kept.length && overflow > 0 && total(kept, true) > budget) dropOne()
   return { items: kept, overflow }
 }
