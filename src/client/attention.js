@@ -15,10 +15,10 @@ import { Lamp, blobSeat } from './station.js'
 // 24–84 covers the head accessory's top (26) down to just under the body. The
 // desk, chair and monitor are siblings of `blobSeat` in Station, so cropping it
 // excludes them for free. 30/60 = 0.5, which keeps the eyes at 2.5×4.5px.
-function Avatar({ scene, bot }) {
+function Avatar({ scene, bot, seat }) {
   return h('span', { className: 'bb-att-avatar' },
     h('svg', { width: 30, height: 30, viewBox: '56 24 60 60', 'aria-hidden': 'true', focusable: 'false' },
-      blobSeat(scene, seatOf(bot))))
+      blobSeat(scene, seat ?? seatOf(bot))))
 }
 
 // One row per Bot that needs the user, max three, sorted by `attentionOf`.
@@ -56,14 +56,19 @@ export function Attention({ items, overflow = 0, expanded = false, t, onOpen, on
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(row) }
       },
     },
-      h(Avatar, { scene: row.scene, bot: row.bot }),
+      h(Avatar, { scene: row.scene, bot: row.bot, seat: row.seat }),
       // No NAME_INK here on purpose: in this layer the alert/error split is
       // already carried by the 3px left bar, the lamp's shape and the words of the
       // action. A coloured name would be a fourth copy of the same fact, and it
       // would break the vertical rail into two colours to compare.
       h('span', { className: 'bb-att-name' }, row.bot.name),
       h('span', { className: 'bb-att-act' }, row.action),
-      chip && index === last
+      // When collapsed the chip rides the last row (`+N` belongs where the list
+      // ends). When expanded it moves to the FIRST row: nine expanded rows are
+      // 430px inside a 279px body, and `.bb-body` is `overflow:hidden`, so the
+      // `−` that lived on the last row was clipped away and the expanded state
+      // could not be undone at 420×320 (v0.4.2 audit, finding #6).
+      chip && (expanded ? index === 0 : index === last)
         ? h('span', {
             className: 'bb-att-more',
             role: 'button',
@@ -96,12 +101,11 @@ export function Attention({ items, overflow = 0, expanded = false, t, onOpen, on
         : null,
       // Always rendered, even when there is no turn start to count from: the
       // column keeps its 44px so the lamps stay on one vertical rail.
-      // `since || failureAt`: a Bot that broke without ever starting a turn has no
-      // `since`, and its own timestamp is the honest "how long has it been broken".
-      // For an `alert` this column is the length of the *turn*, not of the wait —
-      // approvals carry no timestamp of their own, so it can overstate the wait.
-      // Wrong in the safe direction; the drawer is where the exact text lives.
-      h('span', { className: 'bb-att-time' }, h(Elapsed, { since: row.since || row.failureAt })),
+      // `waitSince` is the moment the request arrived — `approval.at` when there
+      // is one, else the turn start, else the failure. This column answers "how
+      // long have I been ignoring this", and using the turn start made a
+      // three-second-old approval read as 12m34s (v0.4.2 audit, finding #3).
+      h('span', { className: 'bb-att-time' }, h(Elapsed, { since: row.waitSince ?? (row.since || row.failureAt) })),
       h('span', { className: 'bb-att-lamp' }, h(Lamp, { scene: row.scene, size: 12 })))))
 }
 

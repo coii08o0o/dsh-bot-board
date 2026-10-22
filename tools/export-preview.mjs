@@ -17,7 +17,7 @@
 // Out: docs/preview-<version>.html (version read from package.json)
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createElement as h, mount, render, resetRefs, textOf } from './react-shim.mjs'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -48,17 +48,48 @@ const MIN = 60 * 1000
 
 // ── the tree → HTML serialiser ──────────────────────────────────────────────
 // The shim produces {type, props, children}; this turns that into markup. Only
-// what the panel actually emits is handled: attributes are passed through with
-// SVG's own casing (the HTML parser's foreign-content table fixes the rest),
-// handlers are dropped, and `style` objects become declarations.
+// what the panel actually emits is handled: attributes are passed through, with
+// handlers dropped and `style` objects turned into declarations.
+//
+// Attribute casing is NOT free-form. This file is parsed as HTML, so anything
+// camelCase that the HTML parser does not know is lowercased into an unknown
+// attribute and thrown away — silently, at parse time, with no error anywhere.
+// The v0.4.2 audit found exactly that: 113 `strokeWidth` attributes in the
+// exported page, 0 `stroke-width`, every stroke falling back to the SVG default
+// `stroke-width:1`. Layer 2's lamp went 1.2 → 1.0 (0.81px rendered, under the
+// design's own ≥0.95 threshold) and the classroom desk lines were halved 2 → 1.
+// This page is the only visual evidence behind four audit reports, so the
+// mistake was invisible in the artifact and visible only in a browser.
+//
+// The previous comment here claimed the HTML spec's foreign-content table would
+// fix SVG's camelCase. It only fixes the names on the spec's SVG attribute
+// adjustment list (viewBox, markerWidth, …) — `strokewidth` is not on it.
 const VOID = new Set(['circle', 'rect', 'line', 'ellipse', 'path', 'polygon', 'polyline', 'use', 'stop', 'br'])
 const SKIP = new Set(['children', 'key', 'ref', 'style'])
-// Only the HTML-side camelCase names need lowering; SVG's own casing
-// (viewBox, strokeWidth, …) must survive verbatim.
+// HTML-side camelCase names, which have a real lowercase attribute.
 const RENAME = { className: 'class', tabIndex: 'tabindex', htmlFor: 'for' }
+// Names that ARE on the spec's SVG attribute adjustment list, i.e. the parser
+// maps their lowercased form back to this casing by itself. Kebab-casing these
+// would be wrong: `marker-width` is not an attribute, so it gets dropped just
+// like the unadjusted camelCase did.
+const ADJUSTED = new Set([
+  'viewBox', 'textLength', 'glyphRef',
+  'markerHeight', 'markerUnits', 'markerWidth',
+  'clipPathUnits', 'maskContentUnits', 'maskUnits',
+])
+// Everything else in SVG's camelCase vocabulary gets a real kebab attribute.
+// The prefix list is the set of SVG presentation attributes that are
+// hyphenated in the spec: stroke-width, fill-opacity, font-size, text-anchor,
+// clip-rule, mask-type, marker-end, paint-order, vector-effect,
+// shape-rendering, glyph-orientation-horizontal, stop-color, flood-color,
+// lighting-color. `viewBox` never matches (its prefix is `view`), and the
+// ADJUSTED set guards the rest of that family.
+const KEBAB = /^(stroke|fill|font|text|marker|clip|mask|paint|vector|shape|glyph|stop|flood|lighting)[A-Z]/
+const kebab = name => name.replace(/[A-Z]/g, ch => `-${ch.toLowerCase()}`)
 
 const escapeText = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const escapeAttr = value => String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+
 
 function styleOf(value) {
   if (!value || typeof value !== 'object') return ''
@@ -76,7 +107,10 @@ function styleOf(value) {
 // which is the shape the serialiser and textOf both read.
 const flatten = node => render(node)
 
-function toHtml(node) {
+// Exported so a check can assert on the serialised markup directly instead of
+// scraping the generated file: the attribute-casing bug above was invisible to
+// every existing check because none of them looked at the output string.
+export function toHtml(node) {
   if (node === null || node === undefined || node === false || node === true) return ''
   if (Array.isArray(node)) return node.map(toHtml).join('')
   if (typeof node === 'string' || typeof node === 'number') return escapeText(node)
@@ -85,7 +119,7 @@ function toHtml(node) {
   for (const [key, value] of Object.entries(props)) {
     if (SKIP.has(key)) continue
     if (typeof value === 'function' || value === undefined || value === null || value === false) continue
-    const name = RENAME[key] ?? key
+    const name = RENAME[key] ?? (KEBAB.test(key) && !ADJUSTED.has(key) ? kebab(key) : key)
     attrs.push(`${name}="${escapeAttr(value === true ? '' : value)}"`)
   }
   const style = styleOf(props.style)
@@ -408,15 +442,20 @@ ${cases.map((item, index) => `<section class="pv-sec">
 </html>
 `
 
-mkdirSync(join(ROOT, 'docs'), { recursive: true })
-const out = join(ROOT, 'docs', `preview-${VERSION}.html`)
-writeFileSync(out, html)
-console.log(`wrote ${out}`)
-console.log(`  ${cases.length} scenarios, ${cases.reduce((sum, item) => sum + item.panels.length, 0)} panels`)
-console.log(`  ${(html.length / 1024).toFixed(1)} KB`)
-// A sanity line: if a scenario accidentally renders an empty body, say so instead
-// of shipping a pretty picture of nothing.
-for (const item of cases) {
-  const chars = textOf(flatten(item.panels)).replace(/\s+/g, '')
-  if (chars.length < 40) console.error(`WARN scenario "${item.title}" rendered almost no text`)
+// Writing the file is skipped when this module is imported rather than run, so
+// `import { toHtml }` from a check stays side-effect free (no docs/ churn).
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+if (isMain) {
+  mkdirSync(join(ROOT, 'docs'), { recursive: true })
+  const out = join(ROOT, 'docs', `preview-${VERSION}.html`)
+  writeFileSync(out, html)
+  console.log(`wrote ${out}`)
+  console.log(`  ${cases.length} scenarios, ${cases.reduce((sum, item) => sum + item.panels.length, 0)} panels`)
+  console.log(`  ${(html.length / 1024).toFixed(1)} KB`)
+  // A sanity line: if a scenario accidentally renders an empty body, say so
+  // instead of shipping a pretty picture of nothing.
+  for (const item of cases) {
+    const chars = textOf(flatten(item.panels)).replace(/\s+/g, '')
+    if (chars.length < 40) console.error(`WARN scenario "${item.title}" rendered almost no text`)
+  }
 }

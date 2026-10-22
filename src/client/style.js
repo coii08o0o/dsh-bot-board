@@ -147,7 +147,7 @@ export const CSS = `
 .bb-handoff[data-blocked="true"] .bb-ho-count{color:#8A5B00;font-weight:600}
 .bb-handoff[data-blocked="true"] .bb-ho-flag{color:#B45309;font-weight:600}
 .bb-handoff[data-mutual="true"] .bb-ho-arrow{color:#B45309}
-.bb-ho-more{padding:0 0 0 14px;color:#6B6558;font-size:11px;line-height:16px}
+.bb-ho-more{padding:0 0 0 14px;color:#6B6558;font-size:11px;line-height:16px;cursor:pointer}
 
 /* ── Layer 3 · 闲着: one line, no image, no surface, no lamp ────────────────── */
 /* height is pinned and wrapping is off: a second line breaks the 480px budget by
@@ -201,7 +201,7 @@ export const CSS = `
    are. This list is extended, never replaced. */
 .bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible,
 .bb-station:focus-visible,.bb-attention-row:focus-visible,.bb-idle-name:focus-visible,
-.bb-idle-more:focus-visible,.bb-att-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+.bb-idle-more:focus-visible,.bb-att-more:focus-visible,.bb-ho-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
 
 /* ── Motion: unchanged set, unchanged budgets ─────────────────────────────── */
 .bb-blob{transform-box:fill-box;transform-origin:center bottom;animation:bb-breathe 2.6s ease-in-out infinite}

@@ -10,7 +10,7 @@
 // whole point: `from → to` is who *dispatched*, and the debt runs the other way.
 // A drawn line would lose the direction, and it would also break at narrow
 // widths; a glyph never does.
-import { createElement as h } from 'react'
+import { createElement as h, useState } from 'react'
 import { ago } from './format.js'
 import { topologyOf } from './layers.js'
 
@@ -35,13 +35,35 @@ const blockedOf = scene => {
 }
 
 export function Handoffs({ works, t, onPick, sceneOf }) {
+  // The cap keeps the table inside 420px, but it used to be a dead end: the row
+  // that said 「还有 5 项」 was a plain div, so the five answers to "who picked it
+  // up" were not on the panel and not in the drawer either — the one scenario the
+  // table exists for (one sender, eight subjects) was the one it truncated
+  // (v0.4.2 audit, finding #15). Expanding is a user action, so it can cost height.
+  const [all, setAll] = useState(false)
   const groups = topologyOf(works)
   if (!groups.length) return null
-  const shown = groups.slice(0, GROUPS_MAX)
-  const hiddenGroups = groups.length - shown.length
+  const shown = all ? groups : groups.slice(0, GROUPS_MAX)
+  const hiddenGroups = groups.length - Math.min(groups.length, GROUPS_MAX)
+  const more = (label, count) => h('div', {
+    className: 'bb-ho-more',
+    role: 'button',
+    tabIndex: 0,
+    onClick: event => {
+      event.stopPropagation()
+      setAll(value => !value)
+    },
+    onKeyDown: event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        event.stopPropagation()
+        setAll(value => !value)
+      }
+    },
+  }, all ? t('ho.collapse') : label.replace('{n}', String(count)))
   return h('div', { className: 'bb-handoffs', role: 'group', 'aria-label': t('handoff.title') },
     shown.map(group => {
-      const edges = group.edges.slice(0, EDGES_MAX)
+      const edges = all ? group.edges : group.edges.slice(0, EDGES_MAX)
       const hiddenItems = group.edges.slice(EDGES_MAX).reduce((sum, edge) => sum + edge.open, 0)
       return h('div', { className: 'bb-ho-group', key: group.fromId },
         h('div', { className: 'bb-ho-group-head' },
@@ -77,11 +99,7 @@ export function Handoffs({ works, t, onPick, sceneOf }) {
             edge.mutual ? h('span', { className: 'bb-ho-flag' }, t('ho.mutual')) : null,
             h('span', { className: 'bb-ho-time' }, ago(edge.at, Date.now(), t)))
         }),
-        hiddenItems > 0
-          ? h('div', { className: 'bb-ho-more' }, t('ho.moreItems').replace('{n}', String(hiddenItems)))
-          : null)
+        hiddenItems > 0 ? more(t('ho.moreItems'), hiddenItems) : null)
     }),
-    hiddenGroups > 0
-      ? h('div', { className: 'bb-ho-more' }, t('ho.morePeople').replace('{n}', String(hiddenGroups)))
-      : null)
+    hiddenGroups > 0 ? more(t('ho.morePeople'), hiddenGroups) : null)
 }

@@ -42,6 +42,7 @@ export const zh = {
   'ho.mutual': '互相等',
   'ho.morePeople': '还有 {n} 人',
   'ho.moreItems': '还有 {n} 项',
+  'ho.collapse': '收起',
 
   'status.working': '干活中',
   'status.thinking': '思考中',
@@ -138,6 +139,7 @@ export const en = {
   'ho.mutual': 'waiting on each other',
   'ho.morePeople': '{n} more',
   'ho.moreItems': '{n} more',
+  'ho.collapse': 'Show less',
 
   'status.working': 'Working',
   'status.thinking': 'Thinking',

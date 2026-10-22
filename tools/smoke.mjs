@@ -133,6 +133,67 @@ section('host: snapshot')
     body = await read()
     check(body.bots.length === 3 && body.stale === false, 'a rewrite with a new size is picked up')
 
+    // The open-work cap has to be a cap. `Math.max(WORKS_MAX, open.length)` made
+    // it a no-op in exactly the case it exists for — 5000 open hand-offs went out
+    // as a multi-megabyte payload on every poll of a 5-second feed.
+    const manyWorks = Object.fromEntries(Array.from({ length: 5000 }, (_, index) => [
+      `m${index}`,
+      { from: 'session-aaa', to: 'session-ddd', at: 1792490000000 - index, open: ['x'], results: [] },
+    ]))
+    await writeFile(statePath, JSON.stringify({ ...fixture, works: manyWorks }))
+    body = await read()
+    check(body.works.length <= 24,
+      `5000 open hand-offs are capped at WORKS_MAX, not shipped whole (${body.works.length})`)
+
+    // A null or a string in `bots` is another process's file content, not a value
+    // this code built. It used to throw on `bot.id` — and because the cache is
+    // written at the END of snapshot(), the throw skipped the write, so the board
+    // never healed and every poll failed the same way.
+    await writeFile(statePath, JSON.stringify({
+      bots: {
+        ok: { id: 'session-aaa', name: 'Chief', segments: [] },
+        bad: null,
+        worse: 'junk',
+      },
+      works: {}, rooms: {},
+    }))
+    let junk = null
+    try { junk = await read() } catch { junk = null }
+    check(junk?.ok === true && junk.bots.length === 1,
+      `a null or a string among the Bots is dropped, not fatal (${junk ? `${junk.bots.length} bots, ok=${junk.ok}` : 'the route threw'})`)
+
+    // The name is the one field the user tells two Bots apart by. U+200B made
+    // "Chief" and "Chief\u200B" look like two different Bots side by side, and
+    // U+202E reversed the rest of the string on the card.
+    await writeFile(statePath, JSON.stringify({
+      bots: { z: { id: 'session-zzz', name: 'Ch\u200Bief\u202E', segments: [] } }, works: {}, rooms: {},
+    }))
+    const first = await read()
+    check(first.bots[0]?.name === 'Chief',
+      `a zero-width space and an RLO mark are removed from the name, not escaped (${JSON.stringify(first.bots[0]?.name)})`)
+    check(!/[\u200b-\u200f\u202a-\u202e]/.test(first.bots[0]?.name ?? ''),
+      'and nothing from the invisible/bidi range survives into the snapshot')
+
+    // `readAt` is when state.json was last actually READ. A cache hit must not
+    // refresh it, or a writer that stopped looks alive forever.
+    const second = await read()
+    check(typeof first.readAt === 'number' && first.readAt > 0, 'a good read stamps readAt')
+    check(second.readAt === first.readAt,
+      'a cache hit does not move readAt (the file did not change, so the age must not reset)')
+
+    // …and 16s later, with the file still untouched, the snapshot has to say so.
+    // Three missed 5s board polls is the point where "old" stops being a blip.
+    const realNow = Date.now
+    let aged = null
+    try {
+      Date.now = () => realNow() + 16_000
+      aged = await read()
+    } finally {
+      Date.now = realNow
+    }
+    check(aged?.stale === true && aged.readAt === first.readAt,
+      `an unchanged state.json older than READ_STALE_MS is reported stale (stale=${aged?.stale}, readAt kept=${aged?.readAt === first.readAt})`)
+
     // A ctx without inject() or a connection service must not throw.
     let threw = false
     try {
@@ -215,14 +276,59 @@ section('format + roster')
     'an unknown activity reads as a sentence, not as a raw token')
 }
 
+// ------------------------------------------------------------------ lamp --
+section('lamp: one backdrop, one outline')
+{
+  const {
+    LAMP, LAMP_BASE, LAMP_BASE_R, LAMP_R, LAMP_STROKE, LAMP_STROKE_W,
+  } = await import(new URL('../src/client/const.js', import.meta.url).href)
+
+  // The cream disc exists because the lamp straddles three backdrops (64% monitor
+  // bezel, 29% floor, 7% desk) and its outline fell to 1.45:1 on the darkest one.
+  // This is a geometric invariant, not a measurement: no part of the outline may
+  // hang off the disc, now or after anybody re-sizes either one. It is the one
+  // assertion that makes "the lamp grows past its base" impossible to ship.
+  check(LAMP_BASE_R >= LAMP_R + LAMP_STROKE_W / 2,
+    `the disc covers the lamp's outer radius (${LAMP_BASE_R} ≥ ${LAMP_R} + ${LAMP_STROKE_W}/2)`)
+
+  // WCAG relative luminance: sRGB → linear → (L1 + .05) / (L2 + .05).
+  const linear = value => {
+    const c = value / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }
+  const luminance = hex => {
+    const n = parseInt(String(hex).replace('#', ''), 16)
+    return 0.2126 * linear((n >> 16) & 255) + 0.7152 * linear((n >> 8) & 255) + 0.0722 * linear(n & 255)
+  }
+  const contrast = (a, b) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+    return (hi + 0.05) / (lo + 0.05)
+  }
+  // Outline only, never the fill. `busy` (2.24:1) and layer-1 `alert` (1.92:1) are
+  // *designed* to sit below 3:1 against cream — shape and the written state carry
+  // those, and a filled disc would be a second colour saying the same thing.
+  // Asserting LAMP[scene] instead would fail the current design, and the cheapest
+  // way to make that pass is to edit a colour in const.js, which collides with
+  // the hard constraint at const.js:70. So: the outline is the measurable channel.
+  check(contrast(LAMP_STROKE, LAMP_BASE) >= 3,
+    `the lamp outline clears 3:1 on its own backdrop (${contrast(LAMP_STROKE, LAMP_BASE).toFixed(2)}:1)`)
+  // The three states layer 2 can draw must stay distinguishable by hue at all.
+  // No threshold on purpose: the shape channel already carries the state, so a
+  // contrast number here would be a second, weaker copy of the same rule.
+  check(new Set([LAMP.busy, LAMP.waiting, LAMP.done]).size === 3,
+    'busy / waiting / done are three different fills, not three names for one colour')
+}
+
 // ------------------------------------------------- three-layer attention --
 section('layers: 需要你 / 在动 / 闲着')
 {
-  const { attentionOf, topologyOf, idleLine, layerOf } = await import(new URL('../src/client/layers.js', import.meta.url).href)
+  const {
+    attentionOf, topologyOf, idleLine, layerOf, nameWidth, IDLE_BUDGET, IDLE_SLOP, IDLE_USABLE,
+  } = await import(new URL('../src/client/layers.js', import.meta.url).href)
   const {
     HEAD_H, ATTENTION_ROW_H, ATTENTION_GAP, ATTENTION_PAD_V, IDLE_ROW_H, PANEL_BORDER,
     RUNNING_CELL_W, RUNNING_CELL_H, cellHeight, RUN_GRID_GAP, RUN_PAD_B, RUNNING_MIN_H,
-    LAYER_STABLE_MS, POLL_MS, ROSTER,
+    LAYER_STABLE_MS, POLL_MS, ROSTER, SCENE_VB,
   } = await import(new URL('../src/client/const.js', import.meta.url).href)
   const { buildRows } = await import(new URL('../src/client/rows.js', import.meta.url).href)
   const { fallbackT } = await import(new URL('../src/client/locale.js', import.meta.url).href)
@@ -265,6 +371,76 @@ section('layers: 需要你 / 在动 / 闲着')
   const quiet = attentionOf([row('a', 'idle'), row('b', 'idle'), row('c', 'done'), row('d', 'busy'), row('e', 'waiting')])
   check(quiet.items.length === 0 && quiet.overflow === 0, 'A4 a team with nobody blocked returns an empty list')
 
+  // ── A6 · a budget that is not a budget ───────────────────────────────────
+  // `slice(0, -1)` on a negative max keeps n−1 rows and calls the dropped one
+  // overflow: the list then reads as complete while the last Bot is missing from
+  // both the rows and the count. Negative and NaN are not budgets, so the clamp
+  // has to produce zero rows and an honest overflow.
+  const threeHot = [row('a', 'alert', 100), row('b', 'error', 0, 200), row('c', 'alert', 300)]
+  const negative = attentionOf(threeHot, -1)
+  check(negative.items.length === 0 && negative.overflow === threeHot.length,
+    `A6 a negative budget shows nothing and counts everything (${negative.items.length}+${negative.overflow}=${threeHot.length})`)
+  // The same accounting over every budget that can occur, including both
+  // legitimate extremes: no row may be lost and none may be listed twice.
+  const accounted = [-1, 0, 1, 2, 3, 4, Number.POSITIVE_INFINITY].every(max => {
+    const out = attentionOf(threeHot, max)
+    const ids = out.items.map(item => item.bot.id)
+    return out.items.length + out.overflow === threeHot.length && new Set(ids).size === ids.length
+  })
+  check(accounted, 'A6 items + overflow === n and no Bot is listed twice, at every budget')
+
+  // ── A7 · an error keeps a seat at the table ──────────────────────────────
+  // Three approvals used to push the one failing Bot off the panel entirely:
+  // layers 2 and 3 do not take `error`, so it survived only as a number in the
+  // header. One slot is reserved for the oldest error whenever there are ≥2 rows.
+  const reserved = attentionOf([
+    row('a', 'alert', 100), row('b', 'alert', 200), row('c', 'alert', 300), row('d', 'error', 0, 400),
+  ], 3)
+  check(reserved.items.length === 3 && reserved.overflow === 1,
+    `A7 three alerts and one error still show three rows (${reserved.items.length}+${reserved.overflow})`)
+  check(reserved.items.some(item => item.scene === 'error'),
+    `A7 and the failing Bot is one of them (${reserved.items.map(item => item.scene).join(',')})`)
+
+  // ── A8 · "how long have I been ignoring this" starts at the request ──────
+  // The approval's own arrival time, not the turn's start: a 3-second-old
+  // approval on a 12-minute turn read as 12m34s, and with no turn running the
+  // key was 0 for everyone, which collapsed the ordering rule into roster order.
+  // A has the newer turn but the older request, so A must come first.
+  {
+    const twinBots = [
+      { id: 'b-a', name: '物理', sessionId: 'b-a' },
+      { id: 'b-b', name: '化学', sessionId: 'b-b' },
+    ]
+    const clock = 1_700_000_000_000
+    const built = buildRows({
+      bots: twinBots,
+      activity: {}, waiting: {}, questions: {}, errors: [], works: [], rooms: {},
+      workBots: { 'b-a': { since: clock - 3_000 }, 'b-b': { since: clock - 600_000 } },
+      approvals: [
+        { id: 'ap-a', botId: 'b-a', tool: 'Bash', at: clock - 3_600_000 },
+        // Upstream omits `at` sometimes; the turn start is then the best we have.
+        { id: 'ap-b', botId: 'b-b', tool: 'Read' },
+      ],
+      t, nameOf: id => twinBots.find(bot => bot.id === id)?.name ?? id, now: clock,
+    })
+    const rowA = built.find(item => item.bot.id === 'b-a')
+    check(rowA.approvalAt === clock - 3_600_000 && rowA.waitSince === rowA.approvalAt,
+      'A8 an approval carries its own arrival time, and the wait is measured from it')
+    const order = attentionOf(built, 3).items.map(item => item.bot.id)
+    check(order[0] === 'b-a',
+      `A8 the older request outranks the newer turn (got ${order.join(',')})`)
+  }
+
+  // ── B6 · a Bot that handed work to itself is not "waiting on each other" ──
+  const selfLoop = topologyOf([
+    { id: 'w1', fromId: 'a', toId: 'a', open: 1, at: 1 },
+    { id: 'w2', fromId: 'a', toId: 'a', open: 1, at: 2 },
+  ])
+  const selfEdges = selfLoop.flatMap(group => group.edges)
+  check(selfEdges.length === 2, `B6 both self-hand-offs are still edges (${selfEdges.length})`)
+  check(selfEdges.every(edge => edge.mutual === false),
+    'B6 and neither is mutual — one direction cannot be a cycle, and two a→a records paired with each other printed 互相等 for a Bot waiting on nobody')
+
   // ── A2 · layering is a view; the rows never reorder ──────────────────────
   const bots = ROSTER.map((item, index) => ({ id: `session-${index}`, name: item.name, sessionId: `session-${index}` }))
   const nameOf = id => bots.find(bot => bot.id === id)?.name ?? id
@@ -302,6 +478,20 @@ section('layers: 需要你 / 在动 / 闲着')
   check(bands[1].every(item => ['busy', 'waiting', 'done'].includes(item.scene)),
     'A2 在动 holds busy ∪ waiting ∪ done — a waiting Bot is neither running nor free')
   check(bands[2].every(item => item.scene === 'idle'), 'A2 闲着 holds only idle')
+
+  // ── B7 · a second Bot cannot impersonate the first ───────────────────────
+  // `bot.name` is upstream free text. A second Bot that renames itself to
+  // 'Chief' used to draw a byte-identical Chief — two look-alikes, one working
+  // and one failing, with no way to tell them apart. The seat is claimed once
+  // per render, so the duplicate falls through to the hashed palette.
+  {
+    const twins = [{ id: 'b1', name: 'Chief' }, { id: 'b2', name: 'Chief' }]
+    const twinRows = buildRows({ ...base, bots: twins })
+    check(twinRows.length === 2 && twinRows[0].seat === ROSTER[0],
+      'B7 the first Bot to claim a roster name gets that seat')
+    check(twinRows[1].seat !== ROSTER[0] && twinRows[1].seat.color !== twinRows[0].seat.color,
+      `B7 the second one is a stranger, not a twin (${twinRows[0].seat.color} vs ${twinRows[1].seat.color})`)
+  }
 
   // ── B1/B2/B3 · the hand-off edge table ───────────────────────────────────
   const works = [
@@ -377,6 +567,28 @@ section('layers: 需要你 / 在动 / 闲着')
       'A5b badges survive even at the tightest budget')
     check(idleLine(triRows, Number.POSITIVE_INFINITY).items.length === 9,
       'A5b and the +N reveal path still shows all nine')
+
+    // CJK Extension B (U+20000+) is CJK width. The regex used to stop at U+9FFF,
+    // so three such characters estimated 279px while really taking 409px: the
+    // line kept all nine names, reported overflow 0, drew no +N and clipped the
+    // tail. Pinned as an equivalence, not as `=== 11` — the exact number is the
+    // estimator's business, being CJK-wide is the requirement.
+    check(nameWidth('𠀀') === nameWidth('前'),
+      'a CJK Extension B glyph is estimated at CJK width, like a basic-plane one')
+    // The DEFAULT budget has to bind, not just the 398 the test passes by hand:
+    // this is the assertion that makes `IDLE_BUDGET = 600` impossible to ship.
+    const byDefault = idleLine(triRows)
+    check(byDefault.items.length < tri.length,
+      `the default budget trims nine three-character names instead of clipping them (${byDefault.items.length}+${byDefault.overflow})`)
+    check(byDefault.items.length + byDefault.overflow === tri.length,
+      'A5b and every name the default budget dropped is counted')
+    // Where 380 comes from, term by term: the usable width at the smallest panel
+    // minus the estimator's own slack. A bare 380 had no upper bound at all, so
+    // raising it to 600 stayed green and re-opened the clipping bug.
+    check(IDLE_BUDGET <= IDLE_USABLE,
+      `the budget cannot exceed the usable line at the smallest panel (${IDLE_BUDGET} ≤ ${IDLE_USABLE})`)
+    check(IDLE_BUDGET === IDLE_USABLE - IDLE_SLOP && IDLE_SLOP === 18,
+      `and it is exactly usable minus the slack (${IDLE_USABLE} - ${IDLE_SLOP} = ${IDLE_BUDGET})`)
   }
 
   // ── C4a/b/c · height budgets (budget, not a measurement) ─────────────────
@@ -404,11 +616,20 @@ section('layers: 需要你 / 在动 / 闲着')
     `C4c default 560×480: 3 need-you + six running (2 rows + gap + padding) + 闲着 = ${c4c.toFixed(2)} ≤ 480 (预算，非实测)`)
   // The declared cell height has to cover the drawing. Without this, someone could
   // shrink RUNNING_CELL_H alone and leave C4c green while the name row got clipped.
-  const sceneH = Math.ceil(RUNNING_CELL_W * 132 / 170)
+  const sceneH = Math.ceil(RUNNING_CELL_W * SCENE_VB.h / SCENE_VB.w)
   check(RUNNING_CELL_H >= sceneH + 20,
-    `C4 the cell height covers the 132:170 scene plus a 20px name row (${RUNNING_CELL_H} ≥ ${sceneH + 20})`)
+    `C4 the cell height covers the ${SCENE_VB.h}:${SCENE_VB.w} scene plus a 20px name row (${RUNNING_CELL_H} ≥ ${sceneH + 20})`)
   check(RUNNING_CELL_H >= cell,
     `C4 the declared cell height is not an underestimate of the rendered one (${RUNNING_CELL_H} ≥ ${cell.toFixed(2)})`)
+  // The ratio used to be hand-copied into station.js, const.js and this file, so
+  // changing only the drawing left every budget green while the panel really
+  // scrolled 45px. RUNNING_CELL_H was a typed 128; it is now derived, and the
+  // second assertion pins `cellHeight` to SCENE_VB instead of to 132/170.
+  check(RUNNING_CELL_H === Math.ceil(cellHeight()),
+    `RUNNING_CELL_H is derived, not typed (${RUNNING_CELL_H} === ceil(${cellHeight().toFixed(2)}))`)
+  check(cellHeight(SCENE_VB.w) === SCENE_VB.h + 20,
+    `cellHeight divides by SCENE_VB, so the aspect ratio exists once (${cellHeight(SCENE_VB.w)} === ${SCENE_VB.h} + 20)`)
+
   check(LAYER_STABLE_MS < POLL_MS,
     `C4 the layer window (${LAYER_STABLE_MS}ms) is shorter than a poll (${POLL_MS}ms), so a real transition still lands`)
   // The overflow chip lives inside the last row, so revealing Bot 4..N costs no
@@ -608,6 +829,15 @@ section('bundle: loader contract')
   check(!threw, 'apply() survives a host without ctx.locale')
 
   check(!/petdex|PET_|\.gif/i.test(source), 'no petdex/sprite leftovers')
+  // The banner is the only place that answers "was this artifact built from this
+  // source?" by reading the artifact alone. Nothing used to read it: the
+  // `// version:` line could be rewritten to 0.0.0-stale with every check green,
+  // because only `npm run verify` looked, and `npm run check` does not run it.
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
+  const banner = source.slice(0, 2000)
+  check(banner.includes('// src: '), 'the banner carries a src fingerprint a check can read')
+  check(banner.includes(`// version: ${pkg.version}`),
+    `and the version is the one in package.json (${pkg.version})`)
   // A read-only board must not send `locale`: ds-bot stores it in a process-wide
   // uiLocale that decides the language of new Bot greetings and memory.
   check(!/locale:\s*['"]zh-CN['"]/.test(source), 'never sends a locale to ds-bot')

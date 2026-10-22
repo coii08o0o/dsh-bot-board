@@ -5,6 +5,7 @@
 // belongs to is a *view* decision taken at render time — `buildRows` keeps its
 // roster order untouched, so a workstation never moves because a status changed.
 // Everything in this file is React-free so it can be exercised without a DOM.
+import { PANEL_BORDER, SIZE_MIN } from './const.js'
 
 // Layer membership. Note `waiting` and `done` are "in the room", not idle:
 //   - `waiting` is neither running nor free (it is blocked on another Bot), so
@@ -34,14 +35,18 @@ export const ATTENTION_MAX = 3
 // one that has been waiting longest comes first — it is the one that has been
 // costing the most.
 //
-// The key is `since || failure.at`: a failure that has not started a turn yet has
-// no `since`, and its own timestamp is the honest "how long has this been broken".
+// The key is `approvalAt || since || failure.at`: an approval is a request that
+// arrived at a moment, and that moment is what "how long have I been ignoring
+// this" means. `since` is the turn's start, which is a different question — using
+// it made a 3-second-old approval on a 12-minute turn read as 12m34s.
+// A failure that has not started a turn yet has no `since`, and its own timestamp
+// is the honest "how long has this been broken".
 // Because an older timestamp means a longer wait, the comparison is ASCENDING.
 // It used to be descending (newest first), which put a Bot that broke ten seconds
 // ago above one that has been stuck for three hours — the exact inverse of the
 // rule this list exists to apply, and the smoke test had baked the wrong
 // direction in as 'daibe'.
-const waitKey = row => Number(row?.since) || Number(row?.failureAt) || 0
+const waitKey = row => Number(row?.approvalAt) || Number(row?.since) || Number(row?.failureAt) || 0
 const groupRank = row => (row?.scene === 'alert' ? 0 : 1)
 
 export function attentionOf(rows, max = ATTENTION_MAX) {
@@ -57,7 +62,18 @@ export function attentionOf(rows, max = ATTENTION_MAX) {
     const rank = groupRank(a) - groupRank(b)
     return rank !== 0 ? rank : waitKey(a) - waitKey(b)
   })
-  return { items: sorted.slice(0, limit), overflow: Math.max(0, sorted.length - limit) }
+  const items = sorted.slice(0, limit)
+  // An alert is cleared by one click; an error needs a decision about what went
+  // wrong. So alerts outrank errors — but not to the point of erasing them: with
+  // three approvals and one failure the failing Bot vanished from the panel
+  // entirely (layer 2 and 3 do not take `error`), leaving only a 「1 卡住」 count
+  // in the header. Reserve one slot for the oldest error whenever there is room
+  // for two rows (v0.4.2 audit, finding #4).
+  if (items.length >= 2 && !items.some(row => row.scene === 'error')) {
+    const oldestError = sorted.find(row => row.scene === 'error')
+    if (oldestError) items[items.length - 1] = oldestError
+  }
+  return { items, overflow: Math.max(0, sorted.length - items.length) }
 }
 
 // ── Hand-offs ───────────────────────────────────────────────────────────────
@@ -137,7 +153,15 @@ export function topologyOf(works) {
 // three-character names "fit" at 379px while actually taking 409px: the ninth
 // name was clipped, and with four-character names the thing clipped was the `+2`
 // itself — the only control that could have revealed the two hidden names.
-const IDLE_BUDGET = 380
+// The budget is derived from the smallest panel instead of typed. `SIZE_MIN.w`
+// minus the panel border and the horizontal padding is 398; `IDLE_SLOP` is the
+// 18px that absorbs the estimator's own error. It used to be a bare `380` with no
+// upper bound at all: raising it to 600 stayed green, and at 420px that clips the
+// ninth name *and* the `+N` chip that would have revealed it — the exact bug
+// v0.4.1 fixed, back through a different door (v0.4.2 audit, finding #7).
+export const IDLE_SLOP = 18
+export const IDLE_USABLE = SIZE_MIN.w - PANEL_BORDER - 20
+export const IDLE_BUDGET = IDLE_USABLE - IDLE_SLOP
 // `.bb-idle` gap, between names and before the chip.
 const IDLE_GAP = 6
 // `.bb-idle-k` is 「闲着」 (22) plus the flex gap (6).
@@ -151,10 +175,13 @@ const BADGE_W = 14
 const CHIP_W = 18
 // Hangul and the emoji planes render at CJK width, not at the 6.2px Latin
 // estimate. Without them a Korean or emoji name is under-counted by ~45%, which
-// is the same class of error as the missing padding.
-const CJK = /[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{1f300}-\u{1faff}]/u
+// is the same class of error as the missing padding. CJK Extension B (U+20000+)
+// was the one plane `AUDIT-LOGIC:240` asked for and nobody added: a name of three
+// such characters estimated 279px while really taking 409px, so the line kept all
+// nine names, reported `overflow = 0`, rendered no `+N`, and clipped the tail.
+export const CJK = /[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{1f300}-\u{1faff}]|[\u{20000}-\u{2fa1f}]/u
 
-const nameWidth = name => {
+export const nameWidth = name => {
   let width = 0
   for (const char of String(name ?? '')) width += CJK.test(char) ? 11 : 6.2
   return width

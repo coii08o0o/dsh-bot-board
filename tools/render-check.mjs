@@ -26,7 +26,7 @@ globalThis.document = {
 globalThis.window = { innerWidth: 1440, innerHeight: 900 }
 
 const { buildRows } = await import('../src/client/rows.js')
-const { ERROR_LAMP_MS } = await import('../src/client/const.js')
+const { ERROR_LAMP_MS, SCENE_VB } = await import('../src/client/const.js')
 const { fallbackT } = await import('../src/client/locale.js')
 const { Station } = await import('../src/client/station.js')
 const { Drawer } = await import('../src/client/drawer.js')
@@ -344,6 +344,27 @@ check(textOf(handoffs).includes('4 项待交'), 'the strip counts the open items
 check(textOf(handoffs).includes('12 分钟前'), 'the strip says how long ago it started')
 check(render(Handoffs({ t, works: [] })) === null, 'a quiet board renders no strip at all')
 
+// The cap keeps the table inside 420px, but it used to be a dead end: 「还有 5 项」
+// was a plain div, so the five answers to "who picked it up" were on neither the
+// panel nor the drawer. The one scenario the table exists for — one sender, eight
+// subjects — was the one it truncated. Expanding is a user action, so it may cost
+// height; being unreachable is what it may not do.
+{
+  const eight = Array.from({ length: 8 }, (_, index) => ({
+    id: `e${index}`, fromId: 'layer-2', from: '班主任',
+    toId: `layer-${index}`, to: `同学${index}`, open: 1, at: now - index * 60_000,
+  }))
+  const tree = render(Handoffs({ t, works: eight, onPick: () => {} }))
+  const more = findAll(tree, node => node.props?.className === 'bb-ho-more')[0]
+  check(more?.props?.role === 'button' && more?.props?.tabIndex === 0
+    && typeof more?.props?.onClick === 'function' && typeof more?.props?.onKeyDown === 'function',
+    'the truncation notice is a control (role=button + tabIndex=0 + click/keydown)')
+  check(textOf(more).includes('5'),
+    `and it counts the five edges it hid, not the eight it grouped (${textOf(more)})`)
+  check(findAll(tree, node => node.props?.className === 'bb-handoff').length === 3,
+    'while the collapsed table still shows only three edges')
+}
+
 console.log('\n-- three layers --')
 // The harness runs no effects, so Board can never finish a poll here. The body is
 // rendered directly with a snapshot instead: that is the whole reason it is its
@@ -378,6 +399,24 @@ const bandsOf = tree => {
   return (body?.children ?? []).filter(Boolean)
 }
 const hasClass = (tree, name) => findAll(tree, node => String(node.props?.className ?? '').split(' ').includes(name))
+
+console.log('\n-- the classroom draws the scene it declares --')
+// Read off the RENDERED tree, not compared against a literal typed here: the
+// 132:170 ratio used to live in station.js, const.js and smoke.mjs, so changing
+// only the drawing left every budget green. The failure this catches is
+// "SCENE_VB moved and station.js did not follow" — i.e. the numbers typed back
+// into station.js the next time the viewBox is touched.
+{
+  const running = layerRows({
+    activity: { 'layer-0': 'working' },
+    workBots: { 'layer-0': { since: now - 1000, tool: 'Bash' } },
+  })
+  const scenes = hasClass(renderBody(running), 'bb-scene')
+  const expected = `0 0 ${SCENE_VB.w} ${SCENE_VB.h}`
+  check(scenes.length === 1, `one classroom cell, one scene (${scenes.length})`)
+  check(scenes.every(node => node.props?.viewBox === expected),
+    `the scene's viewBox comes from SCENE_VB (${scenes[0]?.props?.viewBox} vs ${expected})`)
+}
 
 console.log('\n-- the hand-off table reads before the cells --')
 // Six Bots running already fill the band (two rows of 128px cells + gap + padding
@@ -447,6 +486,32 @@ const hotBody = renderBody(hotRows)
   check(hasClass(allBusyBody, 'bb-idle').length === 0, 'C3 all busy draws no 闲着 line')
   check(hasClass(allBusyBody, 'bb-station').length === 9, 'C3 all busy puts all nine in the classroom')
   check(hasClass(allBusyBody, 'bb-meta').length === 0, 'C3 the compact workstation drops the meta strip')
+}
+
+// The unreadable-snapshot path. `Board` owns the `board.ok === false` → reason
+// mapping, but its `board` comes from useTeam's poll effect, which this harness
+// never runs, so that half is not reachable here. What IS reachable — and is the
+// half that can silently regress — is Body's decision to keep the notices when
+// there are no rows. Dropping them would print 还没有 Bot in the one place this
+// tool must not lie: the truth there is 状态文件读不了.
+{
+  resetRefs()
+  const unreadable = {
+    type: 'div',
+    props: { className: 'bb-notice bb-notice-warn', children: t('panel.unreadable') },
+  }
+  const empty = { type: 'div', props: { className: 'bb-text', children: t('panel.empty') } }
+  const tree = mount(Body, {
+    rows: [], works: [], notices: [unreadable], empty, t,
+    onOpen: () => {}, onPick: () => {}, sceneOf: () => undefined,
+  })
+  const notices = hasClass(tree, 'bb-notice')
+  check(notices.length === 1 && textOf(notices[0]) === t('panel.unreadable'),
+    `an empty board still prints why it is empty (${textOf(notices[0] ?? '')})`)
+  check(notices[0]?.props?.className.includes('bb-notice-warn'),
+    'and marks it as a warning, not as ordinary chrome')
+  check(t('panel.unreadable') !== t('panel.empty'),
+    'the reason and the empty state are different sentences, not one sentence twice')
 }
 
 console.log('\n-- P0: the layer window must not fight the live filter --')
@@ -540,6 +605,31 @@ console.log('\n-- P1-1: overflow in 需要你 is reachable --')
     'P1-1 the names that used to exist nowhere on the panel are now on it')
   check(textOf(hasClass(opened, 'bb-att-more')[0]) === '−',
     'P1-1 and the chip flips into a collapse control (unbounded expansion needs an undo)')
+}
+
+console.log('\n-- the − chip rides the FIRST row when expanded --')
+// Nine expanded rows are ~430px inside a 279px body and `.bb-body` is
+// `overflow:hidden`, so a `−` that lived on the last row was clipped away: the
+// expanded state could not be undone at 420×320. Collapsed it belongs where the
+// list ends (`+N`), expanded it has to be at the top where it is still painted.
+{
+  const nineHot = layerRows({
+    approvals: layerBots.map((bot, index) => ({ id: `n${index}`, botId: bot.id, tool: 'Bash' })),
+  })
+  const items = attentionOf(nineHot, Number.POSITIVE_INFINITY).items
+  check(items.length === 9, `nine Bots need you (${items.length})`)
+  const tree = render(Attention({
+    items, overflow: 0, expanded: true, t, onOpen: () => {}, onExpand: () => {},
+  }))
+  const rowsInList = hasClass(tree, 'bb-attention-row')
+  check(rowsInList.length === 9, `expanded draws all nine rows (${rowsInList.length})`)
+  const onFirst = hasClass(rowsInList[0], 'bb-att-more')
+  check(onFirst.length === 1 && textOf(onFirst[0]) === '−',
+    `the collapse control is on row 1, where it cannot be clipped (${textOf(onFirst[0])})`)
+  check(hasClass(rowsInList.at(-1), 'bb-att-more').length === 0,
+    'and no longer on the last row, which is the one that scrolls out of view')
+  check(rowsInList.filter(row => hasClass(row, 'bb-att-more').length > 0).length === 1,
+    'exactly one chip — the toggle is not duplicated per row')
 }
 
 console.log('\n-- compact station keeps its action in the title --')
@@ -770,6 +860,35 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
   const sum = findAll(board, node => node.props?.className === 'bb-sum')[0]
   check(textOf(sum).trim().startsWith(`0 ${t('legend.alert')}`),
     'C2 the header counts 等你 before anything else (weight, not colour, so a dark theme cannot swallow it)')
+}
+
+console.log('\n-- preview serialiser: attribute casing --')
+// docs/preview-*.html is parsed as HTML, so an unknown camelCase attribute is
+// lowercased and thrown away at parse time, silently. That shipped: 113
+// `strokeWidth` and 0 `stroke-width`, so every stroke fell back to the SVG
+// default of 1 — layer 2's lamp went 1.2 → 1.0 (0.81px rendered, under the
+// design's own ≥0.95 threshold) and the desk lines halved 2 → 1. It was
+// invisible in the artifact and visible only in a browser, because no check ever
+// looked at the serialised string. Imported for its `toHtml` export only: the
+// module guards its file write behind an `isMain` check, so nothing is written.
+{
+  const { toHtml } = await import('./export-preview.mjs')
+  const stroked = toHtml({ type: 'rect', props: { strokeWidth: 1.5 } })
+  check(stroked.includes('stroke-width="1.5"'),
+    `an SVG presentation attribute is kebab-cased on the way out (${stroked})`)
+  check(!stroked.includes('strokeWidth'), 'and the camelCase spelling is not what ships')
+
+  // viewBox is on the HTML spec's SVG attribute adjustment list, so kebab-casing
+  // it would produce `view-box`, which is not an attribute and gets dropped just
+  // like the unadjusted camelCase did.
+  const view = toHtml({ type: 'svg', props: { viewBox: '0 0 12 12' } })
+  check(view.includes('viewBox="0 0 12 12"') && !view.includes('view-box'),
+    `viewBox keeps its spec casing, it is not kebab-cased (${view})`)
+
+  // The real drawing, not a fixture: the lamp and desk strokes only exist here.
+  const markup = toHtml(stations['Chief'])
+  check(markup.includes('stroke-width') && !markup.includes('strokeWidth'),
+    'and the workstation that ships serialises with no camelCase stroke at all')
 }
 
 if (failed) {

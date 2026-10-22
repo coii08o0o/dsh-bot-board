@@ -108,8 +108,14 @@ export function useTeam({ active }) {
     wakeRef: boardWake,
     run: callBoard,
     onValue: value => setBoard(value),
+    // `ok:false` matters: without it the panel fell through to `panel.empty` and
+    // told the user 「还没有 Bot」 when the truth was that the snapshot could not be
+    // read at all — a cheerful lie in the one place this tool must not lie
+    // (v0.4.2 audit, finding #10).
     onError: err => setBoard(previous => ({
       ...(previous ?? { works: [], bots: [], errors: [] }),
+      ok: false,
+      reason: 'unreadable',
       boardError: err?.message ?? 'local read failed',
     })),
   })

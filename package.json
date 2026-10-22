@@ -1,6 +1,6 @@
 {
   "name": "dsh-bot-board",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "private": true,
   "type": "module",
   "description": "Bot 看板 — 一眼看清 DS Bot 里每个 Bot 现在在干什么、跑了多久、卡在哪",
@@ -23,7 +23,9 @@
     "render": "node --import ./tools/register-shim.mjs tools/render-check.mjs",
     "preview": "node --import ./tools/register-shim.mjs tools/export-preview.mjs",
     "check": "node tools/build.mjs && node tools/smoke.mjs && node --import ./tools/register-shim.mjs tools/render-check.mjs",
-    "freeze": "node tools/build.mjs && echo 'src-only:' && cat src/host/index.js src/client/*.js | shasum -a 256 && echo 'artifact:' && shasum -a 256 client.js && node tools/smoke.mjs > /dev/null && node --import ./tools/register-shim.mjs tools/render-check.mjs > /dev/null && echo 'checks: green'"
+    "verify": "node tools/verify-artifact.mjs",
+    "ci": "node tools/verify-artifact.mjs && node tools/smoke.mjs && node --import ./tools/register-shim.mjs tools/render-check.mjs",
+    "freeze": "node tools/verify-artifact.mjs && echo 'src-only:' && cat src/host/index.js src/client/*.js | shasum -a 256 && echo 'artifact:' && shasum -a 256 client.js && node tools/smoke.mjs > /dev/null && node --import ./tools/register-shim.mjs tools/render-check.mjs > /dev/null && echo 'checks: green'"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

@@ -1,5 +1,6 @@
 // GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
-// version: 0.4.2
+// version: 0.4.3
+// src: 2566161969bf2109
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',
   factory: (require) => {
@@ -49,7 +50,11 @@ var __bbEntry = (() => {
   var ATTENTION_ROW_H = 44;
   var ATTENTION_GAP = 3;
   var IDLE_ROW_H = 24;
+  var PANEL_BORDER = 2;
+  var SCENE_VB = { w: 170, h: 132 };
+  var cellHeight = (width = RUNNING_CELL_W) => width * SCENE_VB.h / SCENE_VB.w + 20;
   var RUNNING_CELL_W = 138;
+  var RUNNING_CELL_H = Math.ceil(cellHeight());
   var RUN_GRID_GAP = 8;
   var RUN_PAD_B = 4;
   var LAYER_STABLE_MS = 1200;
@@ -67,6 +72,11 @@ var __bbEntry = (() => {
     idle: "#D3D1C7",
     done: "#0F766E"
   };
+  var LAMP_STROKE = "#5B5648";
+  var LAMP_STROKE_W = 1.2;
+  var LAMP_R = 2.9;
+  var LAMP_BASE = "#FFFDF8";
+  var LAMP_BASE_R = 3.8;
   var LEGEND = [
     ["busy", "legend.busy"],
     ["alert", "legend.alert"],
@@ -123,10 +133,13 @@ var __bbEntry = (() => {
     const b = mix(n & 255);
     return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, "0")}`;
   }
-  function seatOf(bot) {
+  function seatOf(bot, taken) {
     const name = typeof bot?.name === "string" ? bot.name : "";
     const fixed = ROSTER.find((item) => item.name === name);
-    if (fixed) return fixed;
+    if (fixed && !taken?.has(fixed.name)) {
+      taken?.add(fixed.name);
+      return fixed;
+    }
     const id = String(bot?.id ?? name);
     let hash = 0;
     for (let i = 0; i < id.length; i += 1) hash = hash * 31 + id.charCodeAt(i) >>> 0;
@@ -179,6 +192,7 @@ var __bbEntry = (() => {
     "ho.mutual": "\u4E92\u76F8\u7B49",
     "ho.morePeople": "\u8FD8\u6709 {n} \u4EBA",
     "ho.moreItems": "\u8FD8\u6709 {n} \u9879",
+    "ho.collapse": "\u6536\u8D77",
     "status.working": "\u5E72\u6D3B\u4E2D",
     "status.thinking": "\u601D\u8003\u4E2D",
     "status.searching": "\u67E5\u8D44\u6599",
@@ -265,6 +279,7 @@ var __bbEntry = (() => {
     "ho.mutual": "waiting on each other",
     "ho.morePeople": "{n} more",
     "ho.moreItems": "{n} more",
+    "ho.collapse": "Show less",
     "status.working": "Working",
     "status.thinking": "Thinking",
     "status.searching": "Searching",
@@ -488,8 +503,11 @@ var __bbEntry = (() => {
     const approvalsList = Array.isArray(approvals) ? approvals : [];
     const errorList = Array.isArray(errors) ? errors : [];
     const failureOf = (bot) => errorList.filter((item) => item.botId === bot.id).sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0];
+    const takenSeats = /* @__PURE__ */ new Set();
     return bots.map((bot) => {
       const approval = approvalsList.find((item) => item?.botId === bot.id);
+      const approvalAt = Number(approval?.at) || 0;
+      const seat = seatOf(bot, takenSeats);
       const question = questionOf(bot, questions);
       const wait = waiting[bot.id];
       const work = workBots[bot.id];
@@ -527,6 +545,14 @@ var __bbEntry = (() => {
         // `since`, and its own timestamp is the honest "how long has it been
         // broken". Not used for ordering rows (that stays roster order).
         failureAt: failure?.at ?? 0,
+        // 「需要你」 has to answer "how long has this been waiting". `since` is when
+        // the turn started, not when the approval arrived, so a request that landed
+        // three seconds ago on a twelve-minute turn read as 12m34s — and with no
+        // turn running the key was 0 for everyone, which collapsed the "longest
+        // wait first" rule into roster order (v0.4.2 audit, finding #3).
+        approvalAt,
+        waitSince: approvalAt || since || (failure?.at ?? 0),
+        seat,
         detail,
         work: work ?? null,
         // A turn running in a group, not in the Bot's own chat. Worth saying: the
@@ -723,14 +749,30 @@ var __bbEntry = (() => {
   }
   function lampShape(scene) {
     const fill = LAMP[scene] ?? LAMP.idle;
-    const common = { fill, stroke: "#5B5648", strokeWidth: 1.2 };
+    const common = { fill, stroke: LAMP_STROKE, strokeWidth: LAMP_STROKE_W };
+    const base = (0, import_react3.createElement)("circle", { cx: 151, cy: 85, r: LAMP_BASE_R, fill: LAMP_BASE });
     if (scene === "error") {
-      return (0, import_react3.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, transform: "rotate(45 151 85)", ...common });
+      return (0, import_react3.createElement)(
+        "g",
+        null,
+        base,
+        (0, import_react3.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, transform: "rotate(45 151 85)", ...common })
+      );
     }
     if (scene === "alert") {
-      return (0, import_react3.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, rx: 1, ...common });
+      return (0, import_react3.createElement)(
+        "g",
+        null,
+        base,
+        (0, import_react3.createElement)("rect", { x: 148.4, y: 82.4, width: 5.2, height: 5.2, rx: 1, ...common })
+      );
     }
-    return (0, import_react3.createElement)("circle", { cx: 151, cy: 85, r: 2.9, ...common });
+    return (0, import_react3.createElement)(
+      "g",
+      null,
+      base,
+      (0, import_react3.createElement)("circle", { cx: 151, cy: 85, r: LAMP_R, ...common })
+    );
   }
   var LAMP_SHAPE = {
     circle: { tag: "circle", props: { cx: 6, cy: 6, r: 4.5 } },
@@ -883,7 +925,7 @@ var __bbEntry = (() => {
   }
   function StationView({ row, onOpen, note, t, compact = false }) {
     const { bot, status, scene, action, since, stalled, badge } = row;
-    const seat = seatOf(bot);
+    const seat = row.seat ?? seatOf(bot);
     const label = scene === "done" ? t("status.done") : statusLabel(status, t);
     const title = `${bot.name} \xB7 ${label}${action ? ` \xB7 ${action}` : ""}${stalled ? ` \xB7 ${t("meta.stalled")}` : ""}`;
     return (0, import_react3.createElement)(
@@ -904,7 +946,7 @@ var __bbEntry = (() => {
       },
       (0, import_react3.createElement)(
         "svg",
-        { className: "bb-scene", viewBox: "0 0 170 132", "aria-hidden": "true" },
+        { className: "bb-scene", viewBox: `0 0 ${SCENE_VB.w} ${SCENE_VB.h}`, "aria-hidden": "true" },
         (0, import_react3.createElement)("ellipse", { cx: 88, cy: 122, rx: 42, ry: 5, fill: "rgba(0,0,0,.06)" }),
         (0, import_react3.createElement)(
           "g",
@@ -1131,7 +1173,7 @@ var __bbEntry = (() => {
     return LAYER_IDLE;
   }
   var ATTENTION_MAX = 3;
-  var waitKey = (row) => Number(row?.since) || Number(row?.failureAt) || 0;
+  var waitKey = (row) => Number(row?.approvalAt) || Number(row?.since) || Number(row?.failureAt) || 0;
   var groupRank = (row) => row?.scene === "alert" ? 0 : 1;
   function attentionOf(rows, max = ATTENTION_MAX) {
     const hot = (rows ?? []).filter((row) => row.scene === "alert" || row.scene === "error");
@@ -1140,7 +1182,12 @@ var __bbEntry = (() => {
       const rank = groupRank(a) - groupRank(b);
       return rank !== 0 ? rank : waitKey(a) - waitKey(b);
     });
-    return { items: sorted.slice(0, limit), overflow: Math.max(0, sorted.length - limit) };
+    const items = sorted.slice(0, limit);
+    if (items.length >= 2 && !items.some((row) => row.scene === "error")) {
+      const oldestError = sorted.find((row) => row.scene === "error");
+      if (oldestError) items[items.length - 1] = oldestError;
+    }
+    return { items, overflow: Math.max(0, sorted.length - items.length) };
   }
   function topologyOf(works) {
     const open = (works ?? []).filter((work) => Number(work?.open) > 0);
@@ -1180,13 +1227,15 @@ var __bbEntry = (() => {
     }
     return [...groups.values()].sort((a, b) => b.total - a.total || a.fromId.localeCompare(b.fromId));
   }
-  var IDLE_BUDGET = 380;
+  var IDLE_SLOP = 18;
+  var IDLE_USABLE = SIZE_MIN.w - PANEL_BORDER - 20;
+  var IDLE_BUDGET = IDLE_USABLE - IDLE_SLOP;
   var IDLE_GAP = 6;
   var IDLE_PREFIX = 28;
   var NAME_PAD = 4;
   var BADGE_W = 14;
   var CHIP_W = 18;
-  var CJK = /[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{1f300}-\u{1faff}]/u;
+  var CJK = /[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[\u{1f300}-\u{1faff}]|[\u{20000}-\u{2fa1f}]/u;
   var nameWidth = (name) => {
     let width = 0;
     for (const char of String(name ?? "")) width += CJK.test(char) ? 11 : 6.2;
@@ -1220,14 +1269,14 @@ var __bbEntry = (() => {
   }
 
   // src/client/attention.js
-  function Avatar({ scene, bot }) {
+  function Avatar({ scene, bot, seat }) {
     return (0, import_react6.createElement)(
       "span",
       { className: "bb-att-avatar" },
       (0, import_react6.createElement)(
         "svg",
         { width: 30, height: 30, viewBox: "56 24 60 60", "aria-hidden": "true", focusable: "false" },
-        blobSeat(scene, seatOf(bot))
+        blobSeat(scene, seat ?? seatOf(bot))
       )
     );
   }
@@ -1267,14 +1316,19 @@ var __bbEntry = (() => {
             }
           }
         },
-        (0, import_react6.createElement)(Avatar, { scene: row.scene, bot: row.bot }),
+        (0, import_react6.createElement)(Avatar, { scene: row.scene, bot: row.bot, seat: row.seat }),
         // No NAME_INK here on purpose: in this layer the alert/error split is
         // already carried by the 3px left bar, the lamp's shape and the words of the
         // action. A coloured name would be a fourth copy of the same fact, and it
         // would break the vertical rail into two colours to compare.
         (0, import_react6.createElement)("span", { className: "bb-att-name" }, row.bot.name),
         (0, import_react6.createElement)("span", { className: "bb-att-act" }, row.action),
-        chip && index === last ? (0, import_react6.createElement)("span", {
+        // When collapsed the chip rides the last row (`+N` belongs where the list
+        // ends). When expanded it moves to the FIRST row: nine expanded rows are
+        // 430px inside a 279px body, and `.bb-body` is `overflow:hidden`, so the
+        // `−` that lived on the last row was clipped away and the expanded state
+        // could not be undone at 420×320 (v0.4.2 audit, finding #6).
+        chip && (expanded ? index === 0 : index === last) ? (0, import_react6.createElement)("span", {
           className: "bb-att-more",
           role: "button",
           tabIndex: 0,
@@ -1301,12 +1355,11 @@ var __bbEntry = (() => {
         }, expanded ? "\u2212" : `+${overflow}`) : null,
         // Always rendered, even when there is no turn start to count from: the
         // column keeps its 44px so the lamps stay on one vertical rail.
-        // `since || failureAt`: a Bot that broke without ever starting a turn has no
-        // `since`, and its own timestamp is the honest "how long has it been broken".
-        // For an `alert` this column is the length of the *turn*, not of the wait —
-        // approvals carry no timestamp of their own, so it can overstate the wait.
-        // Wrong in the safe direction; the drawer is where the exact text lives.
-        (0, import_react6.createElement)("span", { className: "bb-att-time" }, (0, import_react6.createElement)(Elapsed, { since: row.since || row.failureAt })),
+        // `waitSince` is the moment the request arrived — `approval.at` when there
+        // is one, else the turn start, else the failure. This column answers "how
+        // long have I been ignoring this", and using the turn start made a
+        // three-second-old approval read as 12m34s (v0.4.2 audit, finding #3).
+        (0, import_react6.createElement)("span", { className: "bb-att-time" }, (0, import_react6.createElement)(Elapsed, { since: row.waitSince ?? (row.since || row.failureAt) })),
         (0, import_react6.createElement)("span", { className: "bb-att-lamp" }, (0, import_react6.createElement)(Lamp, { scene: row.scene, size: 12 }))
       ))
     );
@@ -1369,15 +1422,32 @@ var __bbEntry = (() => {
     return "false";
   };
   function Handoffs({ works, t, onPick, sceneOf: sceneOf2 }) {
+    const [all, setAll] = (0, import_react7.useState)(false);
     const groups = topologyOf(works);
     if (!groups.length) return null;
-    const shown = groups.slice(0, GROUPS_MAX);
-    const hiddenGroups = groups.length - shown.length;
+    const shown = all ? groups : groups.slice(0, GROUPS_MAX);
+    const hiddenGroups = groups.length - Math.min(groups.length, GROUPS_MAX);
+    const more = (label, count) => (0, import_react7.createElement)("div", {
+      className: "bb-ho-more",
+      role: "button",
+      tabIndex: 0,
+      onClick: (event) => {
+        event.stopPropagation();
+        setAll((value) => !value);
+      },
+      onKeyDown: (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          event.stopPropagation();
+          setAll((value) => !value);
+        }
+      }
+    }, all ? t("ho.collapse") : label.replace("{n}", String(count)));
     return (0, import_react7.createElement)(
       "div",
       { className: "bb-handoffs", role: "group", "aria-label": t("handoff.title") },
       shown.map((group) => {
-        const edges = group.edges.slice(0, EDGES_MAX);
+        const edges = all ? group.edges : group.edges.slice(0, EDGES_MAX);
         const hiddenItems = group.edges.slice(EDGES_MAX).reduce((sum, edge) => sum + edge.open, 0);
         return (0, import_react7.createElement)(
           "div",
@@ -1421,10 +1491,10 @@ var __bbEntry = (() => {
               (0, import_react7.createElement)("span", { className: "bb-ho-time" }, ago(edge.at, Date.now(), t))
             );
           }),
-          hiddenItems > 0 ? (0, import_react7.createElement)("div", { className: "bb-ho-more" }, t("ho.moreItems").replace("{n}", String(hiddenItems))) : null
+          hiddenItems > 0 ? more(t("ho.moreItems"), hiddenItems) : null
         );
       }),
-      hiddenGroups > 0 ? (0, import_react7.createElement)("div", { className: "bb-ho-more" }, t("ho.morePeople").replace("{n}", String(hiddenGroups))) : null
+      hiddenGroups > 0 ? more(t("ho.morePeople"), hiddenGroups) : null
     );
   }
 
@@ -1609,8 +1679,14 @@ var __bbEntry = (() => {
       wakeRef: boardWake,
       run: callBoard,
       onValue: (value) => setBoard(value),
+      // `ok:false` matters: without it the panel fell through to `panel.empty` and
+      // told the user 「还没有 Bot」 when the truth was that the snapshot could not be
+      // read at all — a cheerful lie in the one place this tool must not lie
+      // (v0.4.2 audit, finding #10).
       onError: (err) => setBoard((previous) => ({
         ...previous ?? { works: [], bots: [], errors: [] },
+        ok: false,
+        reason: "unreadable",
         boardError: err?.message ?? "local read failed"
       }))
     });
@@ -1751,7 +1827,7 @@ var __bbEntry = (() => {
 .bb-handoff[data-blocked="true"] .bb-ho-count{color:#8A5B00;font-weight:600}
 .bb-handoff[data-blocked="true"] .bb-ho-flag{color:#B45309;font-weight:600}
 .bb-handoff[data-mutual="true"] .bb-ho-arrow{color:#B45309}
-.bb-ho-more{padding:0 0 0 14px;color:#6B6558;font-size:11px;line-height:16px}
+.bb-ho-more{padding:0 0 0 14px;color:#6B6558;font-size:11px;line-height:16px;cursor:pointer}
 
 /* \u2500\u2500 Layer 3 \xB7 \u95F2\u7740: one line, no image, no surface, no lamp \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 /* height is pinned and wrapping is off: a second line breaks the 480px budget by
@@ -1805,7 +1881,7 @@ var __bbEntry = (() => {
    are. This list is extended, never replaced. */
 .bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible,
 .bb-station:focus-visible,.bb-attention-row:focus-visible,.bb-idle-name:focus-visible,
-.bb-idle-more:focus-visible,.bb-att-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+.bb-idle-more:focus-visible,.bb-att-more:focus-visible,.bb-ho-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
 
 /* \u2500\u2500 Motion: unchanged set, unchanged budgets \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .bb-blob{transform-box:fill-box;transform-origin:center bottom;animation:bb-breathe 2.6s ease-in-out infinite}

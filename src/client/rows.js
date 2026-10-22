@@ -3,7 +3,7 @@
 // `now` is a parameter so the stall check is deterministic under test.
 import { clip } from './format.js'
 import { badgeOf, isLive, sceneOf, stalledOf, statusOf } from './scene.js'
-import { ERROR_LAMP_MS, ROSTER } from './const.js'
+import { ERROR_LAMP_MS, ROSTER, seatOf } from './const.js'
 
 // Roster order first so a workstation never moves when a status changes; unknown
 // Bots trail in a stable order instead of hashing into somebody else's seat.
@@ -101,10 +101,15 @@ export function buildRows({
   const failureOf = bot => errorList
     .filter(item => item.botId === bot.id)
     .sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0]
+  // One Set for the whole render, so a seat is claimed once and layer 1 / layer 2
+  // cannot disagree about which of two same-named Bots is the real one.
+  const takenSeats = new Set()
 
   return bots
     .map(bot => {
       const approval = approvalsList.find(item => item?.botId === bot.id)
+      const approvalAt = Number(approval?.at) || 0
+      const seat = seatOf(bot, takenSeats)
       const question = questionOf(bot, questions)
       const wait = waiting[bot.id]
       const work = workBots[bot.id]
@@ -161,6 +166,14 @@ export function buildRows({
         // `since`, and its own timestamp is the honest "how long has it been
         // broken". Not used for ordering rows (that stays roster order).
         failureAt: failure?.at ?? 0,
+        // 「需要你」 has to answer "how long has this been waiting". `since` is when
+        // the turn started, not when the approval arrived, so a request that landed
+        // three seconds ago on a twelve-minute turn read as 12m34s — and with no
+        // turn running the key was 0 for everyone, which collapsed the "longest
+        // wait first" rule into roster order (v0.4.2 audit, finding #3).
+        approvalAt,
+        waitSince: approvalAt || since || (failure?.at ?? 0),
+        seat,
         detail,
         work: work ?? null,
         // A turn running in a group, not in the Bot's own chat. Worth saying: the

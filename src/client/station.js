@@ -1,7 +1,7 @@
 // One workstation: chair + desk + monitor + lamp + dumpling + prop + name, plus
 // the one-line meta strip that answers "what is it doing and for how long".
 import { memo, createElement as h } from 'react'
-import { LAMP, NAME_INK, seatOf, statusLabel } from './const.js'
+import { LAMP, LAMP_BASE, LAMP_BASE_R, LAMP_R, LAMP_STROKE, LAMP_STROKE_W, NAME_INK, SCENE_VB, seatOf, statusLabel } from './const.js'
 import { Elapsed } from './elapsed.js'
 
 const DARK = '#2C2C2A'
@@ -120,14 +120,21 @@ function deskProp(kind) {
 // anti-aliasing — the lamp effectively disappeared.
 function lampShape(scene) {
   const fill = LAMP[scene] ?? LAMP.idle
-  const common = { fill, stroke: '#5B5648', strokeWidth: 1.2 }
+  const common = { fill, stroke: LAMP_STROKE, strokeWidth: LAMP_STROKE_W }
+  // The base disc is not decoration: it is the only backdrop the lamp has. Drawn
+  // first so the lamp sits on it, and big enough (3.8 > 2.9 + 1.2/2) that no part
+  // of the outline can hang off it — the invariant is asserted in smoke.mjs.
+  const base = h('circle', { cx: 151, cy: 85, r: LAMP_BASE_R, fill: LAMP_BASE })
   if (scene === 'error') {
-    return h('rect', { x: 148.4, y: 82.4, width: 5.2, height: 5.2, transform: 'rotate(45 151 85)', ...common })
+    return h('g', null, base,
+      h('rect', { x: 148.4, y: 82.4, width: 5.2, height: 5.2, transform: 'rotate(45 151 85)', ...common }))
   }
   if (scene === 'alert') {
-    return h('rect', { x: 148.4, y: 82.4, width: 5.2, height: 5.2, rx: 1, ...common })
+    return h('g', null, base,
+      h('rect', { x: 148.4, y: 82.4, width: 5.2, height: 5.2, rx: 1, ...common }))
   }
-  return h('circle', { cx: 151, cy: 85, r: 2.9, ...common })
+  return h('g', null, base,
+    h('circle', { cx: 151, cy: 85, r: LAMP_R, ...common }))
 }
 
 // The same six states, at a size the caller picks, in a 12-unit box. Three
@@ -277,7 +284,7 @@ export function blobSeat(scene, seat) {
 // must keep passing unchanged.
 function StationView({ row, onOpen, note, t, compact = false }) {
   const { bot, status, scene, action, since, stalled, badge } = row
-  const seat = seatOf(bot)
+  const seat = row.seat ?? seatOf(bot)
   const label = scene === 'done' ? t('status.done') : statusLabel(status, t)
   const title = `${bot.name} · ${label}${action ? ` · ${action}` : ''}${stalled ? ` · ${t('meta.stalled')}` : ''}`
   return h('div', {
@@ -291,7 +298,7 @@ function StationView({ row, onOpen, note, t, compact = false }) {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(row) }
     },
   },
-    h('svg', { className: 'bb-scene', viewBox: '0 0 170 132', 'aria-hidden': 'true' },
+    h('svg', { className: 'bb-scene', viewBox: `0 0 ${SCENE_VB.w} ${SCENE_VB.h}`, 'aria-hidden': 'true' },
       h('ellipse', { cx: 88, cy: 122, rx: 42, ry: 5, fill: 'rgba(0,0,0,.06)' }),
       h('g', { fill: '#D9D4CB' },
         h('rect', { x: 22, y: 62, width: 11, height: 40, rx: 5 }),

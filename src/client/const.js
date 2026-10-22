@@ -31,11 +31,17 @@ export const IDLE_ROW_H = 24          // bound
 // consequence: at the C4c worst case `.bb-run` had 267px, not the 269px the
 // budget assumed, and the second row of workstations overflowed by 1px.
 export const PANEL_BORDER = 2
+// The classroom scene's own coordinate system. `station.js` builds the SVG from
+// this and `cellHeight` divides by it, so the aspect ratio exists once. It used
+// to be hand-copied into `station.js:294`, `const.js:38` and `smoke.mjs:407`;
+// changing only the SVG then left the budget green while the panel really
+// scrolled 45px (v0.4.2 audit, finding #3).
+export const SCENE_VB = { w: 170, h: 132 }
 // How tall one workstation actually renders, as a function of its width: the
-// 170×132 scene scaled down, plus the 20px name row (1 margin + 18 line + 1 pad).
+// scene scaled down, plus the 20px name row (1 margin + 18 line + 1 pad).
 // Exported as a function rather than a number so the budget cannot be computed
 // from a rounded-up constant and then be off by a pixel.
-export const cellHeight = (width = RUNNING_CELL_W) => width * 132 / 170 + 20
+export const cellHeight = (width = RUNNING_CELL_W) => width * SCENE_VB.h / SCENE_VB.w + 20
 // Cell width 138 is not a preference, it is the largest integer that satisfies
 // "560×480, 3 rows of 需要你, 6 Bots running, 闲着, zero scroll":
 //   480 - 2 (panel border) - 39 (head) - 148 (3×44 + 2×3 + 10) - 24 (闲着) = 267
@@ -44,7 +50,10 @@ export const cellHeight = (width = RUNNING_CELL_W) => width * 132 / 170 + 20
 // it omitted the grid gap, the run padding and the panel border, and the real
 // need was 492.8. 139 then failed by 0.9px, which the static preview caught.
 export const RUNNING_CELL_W = 138     // bound
-export const RUNNING_CELL_H = 128     // declared ceiling of cellHeight(); ≥ the real 127.15
+// Derived, not typed: 132/170 lived in five places and two of them (this one and
+// smoke.mjs:407) copied the same literal, so C4 and C4c agreed with each other
+// no matter what the drawing did. Math.ceil(cellHeight()) is exactly 128.
+export const RUNNING_CELL_H = Math.ceil(cellHeight())
 export const RUN_GRID_GAP = 8         // `.bb-run-grid` gap — bound
 export const RUN_PAD_B = 4            // `.bb-run` bottom padding — bound
 export const RUNNING_MIN_H = 96       // visible floor: the dumpling's face + the desk
@@ -75,6 +84,20 @@ export const LAMP = {
   idle: '#D3D1C7',
   done: '#0F766E',
 }
+// The lamp is the one graphic in the scene drawn on a dark backdrop. Every other
+// line sits on cream (worst case 3.79:1 for the outline), but the lamp straddles
+// the monitor bezel's lower edge: 64% of its 7-unit footprint is on #3A3F45, 29%
+// on the floor, 7% on the desk. The outline #5B5648 clears 3:1 everywhere except
+// the bezel (1.45), so the channel that carries `idle` vanished exactly where the
+// shape channel is weakest — and it failed *partially*, which reads as a drawing
+// glitch rather than a contrast problem, which is why four audits missed it.
+// A cream disc under the lamp gives it one backdrop of its own: 7.20:1.
+// The radius only has to cover the lamp's outer radius, 2.9 + 1.2/2 = 3.5.
+export const LAMP_STROKE = '#5B5648'
+export const LAMP_STROKE_W = 1.2
+export const LAMP_R = 2.9
+export const LAMP_BASE = '#FFFDF8'
+export const LAMP_BASE_R = 3.8
 export const LEGEND = [
   ['busy', 'legend.busy'],
   ['alert', 'legend.alert'],
@@ -137,10 +160,18 @@ function faceOf(color) {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
 }
 
-export function seatOf(bot) {
+// `taken` is the set of named seats already claimed in this render. A Bot's name
+// is upstream-controlled free text, so a second Bot that renames itself to
+// 'Chief' used to draw a byte-identical Chief: two look-alikes, one working and
+// one failing, with no way to tell them apart (v0.4.2 audit, finding #12). A
+// duplicate now falls through to the hashed palette instead of impersonating.
+export function seatOf(bot, taken) {
   const name = typeof bot?.name === 'string' ? bot.name : ''
   const fixed = ROSTER.find(item => item.name === name)
-  if (fixed) return fixed
+  if (fixed && !taken?.has(fixed.name)) {
+    taken?.add(fixed.name)
+    return fixed
+  }
   const id = String(bot?.id ?? name)
   let hash = 0
   for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
