@@ -4,14 +4,14 @@ import { createElement as h, useCallback, useEffect, useMemo, useRef, useState }
 import {
   COLLAPSE_KEY, LAMP, LAYER_STABLE_MS, POS_KEY, SIZE_DEFAULT, SIZE_KEY, SIZE_MAX, SIZE_MIN,
 } from './const.js'
-import { clip, elapsed } from './format.js'
+import { clip } from './format.js'
 import { buildRows } from './rows.js'
 import { Station } from './station.js'
 import { Drawer } from './drawer.js'
 import { LegendSheet } from './legend.js'
 import { Attention, IdleLine } from './attention.js'
 import { Handoffs } from './handoffs.js'
-import { LAYER_ATTENTION, LAYER_IDLE, LAYER_RUNNING, attentionOf, idleLine, layerOf } from './layers.js'
+import { ATTENTION_MAX, LAYER_ATTENTION, LAYER_IDLE, LAYER_RUNNING, attentionOf, idleLine, layerOf } from './layers.js'
 import { useTeam } from './poll.js'
 import { ensureStyle } from './style.js'
 import { defaultT } from './locale.js'
@@ -90,10 +90,13 @@ export function clampPos(value, size) {
 // for a single tick must not relocate anybody.
 //
 // So each Bot's layer is committed only after it has held for LAYER_STABLE_MS,
-// which is shorter than POLL_MS: one bad tick is ignored, a real transition lands
-// on the next poll. The bookkeeping lives in a ref and is evaluated during render
-// — it never schedules a render of its own, so a quiet board stays completely
-// still (no timer, no reflow, nothing).
+// which is shorter than POLL_MS. The delay is therefore two polls, not one: the
+// first render that sees a change only records it, the next one commits it. That
+// is deliberate — committing on first sight would turn a one-tick flip into
+// "move there, move back" — but it means the honest description is "the poll
+// after next", not "the next poll". The bookkeeping lives in a ref and is
+// evaluated during render; it never schedules a render of its own, so a quiet
+// board stays completely still (no timer, no reflow, nothing).
 //
 // 需要你 is NOT debounced, and that is the v0.4.1 fix. Debouncing it made the
 // panel contradict itself: the header counts live scenes, so for one poll after an
@@ -104,6 +107,12 @@ export function clampPos(value, size) {
 // counted eight. Both windows open exactly when the user has just clicked approve,
 // i.e. when he is certainly looking. 需要你 is the one answer on this panel that is
 // never allowed to lag.
+//
+// The fix is deliberately in two halves — dropping the entry here, and falling
+// back to the live layer in Body. Either half alone is enough to close the bug
+// (both were verified by rolling each one back on its own). That redundancy is
+// intentional: it is the belt to the braces of "a row is never in no layer at
+// all", and it should not be deleted as dead code.
 function useStableLayers(rows) {
   const ref = useRef(null)
   if (!ref.current) ref.current = new Map()
@@ -151,10 +160,15 @@ function useStableLayers(rows) {
 // The three bands. Split out of Board so the structure can be asserted on
 // directly: the check harness renders once and runs no effects, so a panel that
 // only builds its body from a poll result would be untestable.
-export function Body({ rows = [], works = [], notices = [], empty = null, t, onOpen, onPick, sceneOf }) {
+export function Body({
+  rows = [], works = [], notices = [], empty = null, t, onOpen, onPick, sceneOf,
+  // The static preview renders the post-click state, which is otherwise only
+  // reachable by clicking. The panel never passes it; production is unchanged.
+  initialAttExpanded = false,
+}) {
   const layers = useStableLayers(rows)
   const [expanded, setExpanded] = useState(false)
-  const [attExpanded, setAttExpanded] = useState(false)
+  const [attExpanded, setAttExpanded] = useState(initialAttExpanded)
 
   const hot = []
   const moving = []
@@ -187,14 +201,32 @@ export function Body({ rows = [], works = [], notices = [], empty = null, t, onO
   // open 20px of empty space and still hide the names it promised.
   const idle = idleLine(resting, expanded ? Number.POSITIVE_INFINITY : undefined)
   // Layer 1's chip is a toggle rather than a one-way reveal: expanding it is
-  // unbounded (six approvals would push the other two layers off a 320px panel),
+  // unbounded (nine approvals would push the other two layers off a 320px panel),
   // and a state the user cannot undo is a trap. Layer 3 is bounded to two rows by
   // CSS, so it stays one-way.
-  const attention = attentionOf(hot, attExpanded ? Number.POSITIVE_INFINITY : undefined)
-  // The hand-off table explains the people above it, so it lives inside the same
-  // scroll area as them. It is also the only reason the running band might exist
-  // when nobody is running: open debts with no owner at work are still worth
-  // showing.
+  //
+  // The flag has to be cleared when the overflow goes away, because the chip goes
+  // with it — no chip means no `−` to press, so the state would sit at true and
+  // the list would silently re-expand the next time five Bots needed you, which
+  // would be a different five, minutes later. Adjusted during render rather than
+  // in an effect so the corrected value is what this very render paints (and so
+  // the sequence is observable without a layout engine).
+  const hotOver = hot.length > ATTENTION_MAX
+  if (attExpanded && !hotOver) setAttExpanded(false)
+  const attOpen = attExpanded && hotOver
+  const attention = attentionOf(hot, attOpen ? Number.POSITIVE_INFINITY : undefined)
+  // The hand-off table lives inside the running band's scroll area, but *above*
+  // the workstation grid. When six Bots are running the two rows of cells already
+  // fill the band (268px of 269px), so the table cannot stay on screen with them —
+  // and the moment that happens is exactly when it matters most: right after
+  // handing work to the whole team, when eight Bots run and eight edges open at
+  // once. Given a scroll is unavoidable there, the relation is the thing to see
+  // first: workstations never move and are remembered by position, while which
+  // debts are open is new information every time. The header's `N 项在交接` covers
+  // the case where you never scroll at all.
+  //
+  // It is also the only reason the running band exists when nobody is running:
+  // open debts with no owner at work are still worth showing.
   const showRun = moving.length > 0 || (works ?? []).some(work => Number(work?.open) > 0)
 
   return h('div', { className: 'bb-body' },
@@ -206,7 +238,7 @@ export function Body({ rows = [], works = [], notices = [], empty = null, t, onO
     h(Attention, {
       items: attention.items,
       overflow: attention.overflow,
-      expanded: attExpanded,
+      expanded: attOpen,
       t,
       onOpen,
       onExpand: () => setAttExpanded(value => !value),
@@ -217,13 +249,13 @@ export function Body({ rows = [], works = [], notices = [], empty = null, t, onO
     // free" never need a scroll.
     showRun
       ? h('div', { className: 'bb-run' },
+          h(Handoffs, { works, t, onPick, sceneOf }),
           moving.length
             ? h('div', { className: 'bb-run-grid' },
                 moving.map(row => h(Station, {
                   key: row.bot.id, row, onOpen, note: row.note, t, compact: true,
                 })))
-            : null,
-          h(Handoffs, { works, t, onPick, sceneOf }))
+            : null)
       : null,
 
     // Layer 3 — 闲着. No image, no surface, no lamp: names only.
@@ -235,6 +267,65 @@ export function Body({ rows = [], works = [], notices = [], empty = null, t, onO
       onOpen,
       onExpand: () => setExpanded(true),
     }))
+}
+
+// Everything the header and the collapsed pill report, derived in one place so
+// the static preview (tools/export-preview.mjs) cannot show different numbers
+// from the panel it is supposed to be previewing.
+//
+// There is deliberately no `最久` here. v0.4.0 printed `最久 4m12s` in the header;
+// the static preview measured the header at the 420px design baseline and it
+// needed 288px in 255px of space, so the last item — that one — was clipped by
+// 33px, showing a half number. It was also the only item in the header that never
+// changes a decision, and layer 2 prints every duration anyway. Removing it makes
+// the remaining five fit at 420 (226 ≤ 255).
+export function summarize(rows, works) {
+  const counts = { busy: 0, alert: 0, waiting: 0, error: 0, idle: 0, done: 0 }
+  for (const row of rows) counts[row.scene] = (counts[row.scene] ?? 0) + 1
+  const openHandoffs = (works ?? []).reduce((sum, work) => sum + (Number(work?.open) || 0), 0)
+  const tone = counts.error ? LAMP.error
+    : counts.alert ? LAMP.alert
+      : counts.waiting ? LAMP.waiting
+        : counts.busy ? LAMP.busy
+          : LAMP.idle
+  return { counts, openHandoffs, tone }
+}
+
+// The header. Extracted so the static preview (tools/export-preview.mjs) can mount
+// the real chrome instead of re-typing it — a preview that re-types the header
+// drifts from the panel and then "verifies" something the product no longer does.
+// Pure: every value comes in as a prop, including the drag handlers.
+export function Head({ counts, openHandoffs = 0, tone, t, onHelp, onCollapse, drag = {} }) {
+  return h('div', { className: 'bb-head', ...drag, title: t('panel.drag') },
+    h(Dot, { tone, busy: counts.busy > 0 }),
+    h('span', { className: 'bb-title' }, t('panel.title')),
+    h('span', { className: 'bb-grow' }),
+    // Counts report 需要你 first. The old order led with 干活, which is the one
+    // number that never needs the user; emphasis is weight, not colour, because
+    // the header follows the host theme and a hard-coded colour goes invisible in
+    // a dark one. Both zeroes are shown on purpose: a quiet board has to be able
+    // to say "0 waiting, 0 stuck" rather than say nothing.
+    h('span', { className: 'bb-sum' },
+      h('span', { className: counts.alert ? 'bb-sum-hot' : 'bb-sum-quiet' },
+        `${counts.alert} ${t('legend.alert')}`),
+      h('span', { className: counts.error ? 'bb-sum-hot' : 'bb-sum-quiet' },
+        `${counts.error} ${t('legend.error')}`),
+      h('span', { className: 'bb-sum-quiet' }, `${counts.busy} ${t('legend.busy')}`),
+      h('span', { className: 'bb-sum-quiet' }, `${counts.waiting} ${t('legend.waiting')}`),
+      openHandoffs
+        ? h('span', { className: 'bb-sum-quiet' }, t('panel.sumHandoff').replace('{n}', String(openHandoffs)))
+        : null),
+    // The legend used to be a permanent 27px strip here — six swatches that never
+    // changed, at the eye's first landing point. It is now one 24px button that
+    // costs nothing until you ask.
+    h('button', {
+      className: 'bb-icon',
+      type: 'button',
+      onClick: onHelp,
+      title: t('legend.help'),
+      'aria-label': t('legend.help'),
+    }, '?'),
+    h('button', { className: 'bb-icon', type: 'button', onClick: onCollapse, title: t('panel.collapse') }, '×'))
 }
 
 function Board(props) {
@@ -339,18 +430,7 @@ function Board(props) {
     waveMap, noteMap, t, nameOf,
   }), [bots, activity, workBots, waiting, approvals, questions, errors, works, rooms, waveMap, noteMap, nameOf, t])
 
-  const counts = useMemo(() => {
-    const tally = { busy: 0, alert: 0, waiting: 0, error: 0, idle: 0, done: 0 }
-    for (const row of rows) tally[row.scene] = (tally[row.scene] ?? 0) + 1
-    return tally
-  }, [rows])
-
-  const longest = useMemo(() => {
-    const now = Date.now()
-    const live = rows.filter(row => row.since > 0 && row.scene === 'busy')
-    if (!live.length) return ''
-    return elapsed(Math.min(...live.map(row => row.since)), now)
-  }, [rows])
+  const { counts, openHandoffs, tone } = summarize(rows, works)
 
   const openDrawer = useCallback(row => {
     const id = row?.bot?.id
@@ -492,7 +572,6 @@ function Board(props) {
   }
 
   const wrapStyle = pos ? { left: pos.left, top: pos.top, right: 'auto', bottom: 'auto' } : undefined
-  const tone = counts.error ? LAMP.error : counts.alert ? LAMP.alert : counts.waiting ? LAMP.waiting : counts.busy ? LAMP.busy : LAMP.idle
   const drawerRow = sheet?.kind === 'bot' ? rows.find(row => row.bot.id === sheet.id) ?? null : null
   const loading = !view && !board && !error
   const reason = board && board.ok === false
@@ -501,10 +580,9 @@ function Board(props) {
         : board.reason ?? '')
     : ''
 
-  // How many items are still owed across every open record. Lifted into the head
+  // How many items are still owed across every open record is part of `summarize`
   // so "is anything in flight at all" stays on the first line even when the table
   // itself has scrolled below the fold.
-  const openHandoffs = works.reduce((sum, work) => sum + (Number(work?.open) || 0), 0)
   const sceneOf = id => rows.find(row => row.bot.id === id)?.scene
 
   const notices = []
@@ -528,42 +606,15 @@ function Board(props) {
 
   return h('div', { className: 'bb-wrap', style: wrapStyle, ref: wrapRef },
     h('div', { className: 'bb-panel', style: { width: size.w, height: size.h } },
-      h('div', {
-        className: 'bb-head',
-        onPointerDown, onPointerMove, onPointerUp,
-        onPointerCancel: onPointerUp,
-        title: t('panel.drag'),
-      },
-        h(Dot, { tone, busy: counts.busy > 0 }),
-        h('span', { className: 'bb-title' }, t('panel.title')),
-        h('span', { className: 'bb-grow' }),
-        // Counts report 需要你 first. The old order led with 干活, which is the
-        // one number that never needs the user; emphasis is weight, not colour,
-        // because the header follows the host theme and a hard-coded colour goes
-        // invisible in a dark one. Both zeroes are shown on purpose: a quiet board
-        // has to be able to say "0 waiting, 0 stuck" rather than say nothing.
-        h('span', { className: 'bb-sum' },
-          h('span', { className: counts.alert ? 'bb-sum-hot' : 'bb-sum-quiet' },
-            `${counts.alert} ${t('legend.alert')}`),
-          h('span', { className: counts.error ? 'bb-sum-hot' : 'bb-sum-quiet' },
-            `${counts.error} ${t('legend.error')}`),
-          h('span', { className: 'bb-sum-quiet' }, `${counts.busy} ${t('legend.busy')}`),
-          h('span', { className: 'bb-sum-quiet' }, `${counts.waiting} ${t('legend.waiting')}`),
-          openHandoffs
-            ? h('span', { className: 'bb-sum-quiet' }, t('panel.sumHandoff').replace('{n}', String(openHandoffs)))
-            : null,
-          longest ? h('span', { className: 'bb-sum-quiet' }, `${t('panel.mostly')} ${longest}`) : null),
-        // The legend used to be a permanent 27px strip here — six swatches that
-        // never changed, at the eye's first landing point. It is now one 24px
-        // button that costs nothing until you ask.
-        h('button', {
-          className: 'bb-icon',
-          type: 'button',
-          onClick: () => setSheet(previous => (previous?.kind === 'legend' ? null : { kind: 'legend' })),
-          title: t('legend.help'),
-          'aria-label': t('legend.help'),
-        }, '?'),
-        h('button', { className: 'bb-icon', type: 'button', onClick: () => flip(true), title: t('panel.collapse') }, '×')),
+      h(Head, {
+        counts,
+        openHandoffs,
+        tone,
+        t,
+        onHelp: () => setSheet(previous => (previous?.kind === 'legend' ? null : { kind: 'legend' })),
+        onCollapse: () => flip(true),
+        drag: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp },
+      }),
 
       h(Body, {
         rows,

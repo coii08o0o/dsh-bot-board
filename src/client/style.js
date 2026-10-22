@@ -89,7 +89,10 @@ export const CSS = `
   border-radius:9px;background:#F3EDE2;color:#4A4438;font-size:10.5px;font-weight:600;
   line-height:18px;cursor:pointer;outline:none;white-space:nowrap;
   font-variant-numeric:tabular-nums}
-.bb-att-more:hover{background:#EAE2D2}
+/* Hover is a 1px inner ring plus a step in text colour, not a tint: a tint on
+   this surface measures 1.105:1, i.e. no feedback — the same mistake the
+   .bb-attention-row hover comment above already argues against. */
+.bb-att-more:hover{box-shadow:inset 0 0 0 1px #8F8776;color:#2C2C2A}
 
 /* ── Layer 2 · 在动 (the only scroll area) ──────────────────────────────────── */
 .bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px ${RUN_PAD_B}px}
@@ -108,13 +111,15 @@ export const CSS = `
   font-variant-numeric:tabular-nums}
 
 /* ── Layer 2 internal · hand-offs, grouped by sender ───────────────────────── */
-/* A hairline means "below is a note", not "here is a panel". No fill, no border
+/* A hairline means "above is a note", not "here is a panel". No fill, no border
    box, and no max-height: two scrollbars inside a 420px column fight each other,
-   so the list is bounded by rows (3 groups × 3 edges + a count) instead. */
-.bb-handoffs{flex:none;margin-top:8px;padding-top:6px;border-top:1px solid #DDD6C8;
+   so the list is bounded by rows (3 groups × 3 edges + a count) instead.
+   The rule sits on the bottom edge because the table now precedes the grid: when
+   the band has to scroll, the relation is read before the individual cells. */
+.bb-handoffs{flex:none;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #DDD6C8;
   font-size:11px;color:#2C2C2A}
-.bb-ho-group{margin-top:6px}
-.bb-ho-group:first-child{margin-top:0}
+.bb-ho-group{margin-bottom:6px}
+.bb-ho-group:last-child{margin-bottom:0}
 /* 600 + deep ink = structural: this is who the bottleneck is. Same size as an
    edge, so the only difference is weight and colour. */
 .bb-ho-group-head{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:600;
@@ -153,9 +158,11 @@ export const CSS = `
 .bb-idle-name{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;padding:1px 2px;
   border-radius:4px;color:#5F594D;white-space:nowrap;cursor:pointer;outline:none}
 .bb-idle-name:hover{color:#2C2C2A;background:rgba(44,44,42,.06)}
+/* Same rule as .bb-att-more: a 0.06 black tint on cream is 1.12:1, which is not
+   feedback. The ring is 3.3:1 and the text steps to the room's ink. */
 .bb-idle-more{flex:none;padding:1px 3px;border-radius:4px;font-weight:600;color:#6B6558;
   cursor:pointer;outline:none}
-.bb-idle-more:hover{background:rgba(44,44,42,.06)}
+.bb-idle-more:hover{background:transparent;box-shadow:inset 0 0 0 1px #8F8776;color:#2C2C2A}
 /* The inline badge keeps the bb-badge class name (that is what D1 asserts) and
    only changes its position: the badge must survive every compressed form. */
 .bb-badge-inline{position:static;flex:none;width:12px;height:12px;line-height:12px;font-size:9px;

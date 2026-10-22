@@ -312,7 +312,7 @@ console.log('\n-- Board shell --')
 let boardThrew = null
 let board = null
 try {
-  board = render(Board({ t }))
+  board = mount(Board, { t })
 } catch (error) {
   boardThrew = error
 }
@@ -378,6 +378,31 @@ const bandsOf = tree => {
   return (body?.children ?? []).filter(Boolean)
 }
 const hasClass = (tree, name) => findAll(tree, node => String(node.props?.className ?? '').split(' ').includes(name))
+
+console.log('\n-- the hand-off table reads before the cells --')
+// Six Bots running already fill the band (two rows of 128px cells + gap + padding
+// = 268 of 269px), so the table and the grid cannot both be on screen. The moment
+// that happens is the one where the table matters most: right after handing work
+// to the whole team. When a scroll is unavoidable, the relation has to be read
+// before the individuals — workstations never move and are remembered by
+// position, while which debts are open is new information every time. Moving the
+// table back below the grid would restore the old "the one thing you just did is
+// off-screen" behaviour without failing any other assertion.
+{
+  const sixRunning = layerRows({
+    activity: Object.fromEntries(layerBots.slice(0, 6).map(bot => [bot.id, 'working'])),
+    workBots: Object.fromEntries(layerBots.slice(0, 6).map(bot => [bot.id, { since: now - 60_000, tool: 'Bash' }])),
+  })
+  const body = renderBody(sixRunning, [
+    { id: 'w-order', from: '班主任', to: '数学', open: 4, at: now - 720_000, last: null },
+  ])
+  const run = hasClass(body, 'bb-run')[0]
+  const kids = (run?.children ?? []).flat().filter(Boolean)
+  const tableAt = kids.findIndex(node => String(node.props?.className ?? '').includes('bb-handoffs'))
+  const gridAt = kids.findIndex(node => String(node.props?.className ?? '').includes('bb-run-grid'))
+  check(tableAt >= 0 && gridAt >= 0 && tableAt < gridAt,
+    `the hand-off table comes before the workstation grid (${tableAt} < ${gridAt})`)
+}
 
 // C1: when something needs the user, it is the first thing with text on it.
 const hotRows = layerRows({
@@ -536,6 +561,108 @@ console.log('\n-- compact station keeps its action in the title --')
     'P1-2b and a compact waiting station keeps 等谁 in the title')
   check(hasClass(renderBody(rowsFor), 'bb-meta').length === 0,
     'P1-2b which is only acceptable because the compact card really has no meta strip')
+}
+
+console.log('\n-- P0b: the 在动/闲着 window still absorbs a single tick --')
+// The only logic touched by the P0 fix that had no coverage: the window itself.
+// Renders are driven with a shifted clock so a poll boundary can be simulated.
+{
+  const allIdle = layerRows({})
+  const allBusy = layerRows({ activity: Object.fromEntries(layerBots.map(bot => [bot.id, 'working'])) })
+  const withClock = (offset, fn) => {
+    const real = Date.now
+    Date.now = () => real() + offset
+    try { return fn() } finally { Date.now = real }
+  }
+  const frame = (rows, offset) => withClock(offset, () => mount(Body, bodyProps(rows)))
+
+  resetRefs()
+  frame(allIdle, 0)
+  const early = frame(allBusy, 0)
+  check(hasClass(early, 'bb-station').length === 0,
+    'G1 one poll of busy does not relocate anybody yet (the window is open)')
+  check(hasClass(early, 'bb-idle-name').length === 9, 'G1 and the nine names are still in 闲着')
+  const landed = frame(allBusy, 1500)
+  check(hasClass(landed, 'bb-station').length === 9, 'G1 once the window has held, the move lands')
+
+  // idle → busy → idle inside one window: the grid must never move at all.
+  resetRefs()
+  frame(allIdle, 0)
+  frame(allBusy, 0)
+  const back = frame(allIdle, 0)
+  check(hasClass(back, 'bb-station').length === 0 && hasClass(back, 'bb-idle-name').length === 9,
+    'G2 a one-tick flip never relocates the grid (that is what the window is for)')
+}
+
+console.log('\n-- P0c: the chip must not double-fire into the row it sits in --')
+// The chip is a child of a row that is itself a button, so React's synthetic
+// events bubble. Without stopPropagation, clicking `+2` also opened the drawer of
+// the Bot on that row — and the drawer covers the panel, so the list appeared to
+// jump to somebody else's details.
+{
+  const fiveHot = layerRows({
+    approvals: [{ id: 'a1', botId: 'layer-1', tool: 'Bash' }, { id: 'a2', botId: 'layer-2', tool: 'Read' }],
+    errors: [
+      { botId: 'layer-3', at: now - 1000, message: 'x' },
+      { botId: 'layer-4', at: now - 2000, message: 'y' },
+      { botId: 'layer-5', at: now - 3000, message: 'z' },
+    ],
+  })
+  let opened = 0
+  let expanded = 0
+  resetRefs()
+  const tree = mount(Body, {
+    ...bodyProps(fiveHot),
+    onOpen: () => { opened += 1 },
+    // Body owns the toggle; the assertion below only needs to know the click
+    // reached it, which the chip's own handler proves.
+  })
+  const chip = hasClass(tree, 'bb-att-more')[0]
+  let stopped = 0
+  chip.props.onClick({ stopPropagation: () => { stopped += 1 } })
+  check(stopped === 1, 'P0c the chip stops the click before it reaches the row')
+  let stoppedKey = 0
+  let defaulted = 0
+  chip.props.onKeyDown({
+    key: 'Enter',
+    preventDefault: () => { defaulted += 1 },
+    stopPropagation: () => { stoppedKey += 1 },
+  })
+  check(stoppedKey === 1 && defaulted === 1,
+    'P0c and it stops Enter/Space too (preventDefault alone is not enough — the row only looks at event.key)')
+  check(opened === 0, 'P0c the chip\'s own handler only toggles; it never opens a drawer')
+  check(typeof chip.props['aria-label'] === 'string' && chip.props['aria-label'].length > 0,
+    'P0c the chip announces what it does (it is a nested control, so it needs its own name)')
+}
+
+console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
+// When the count drops to ≤3 the chip disappears, so there is no `−` left to
+// press. A sticky flag would silently re-expand the list the next time five Bots
+// needed you — a different five, minutes later, and layer 2 would lose its height.
+{
+  const make = (count) => layerRows({
+    approvals: layerBots.slice(0, count).map((bot, index) => ({ id: `s${index}`, botId: bot.id, tool: 'Bash' })),
+  })
+  resetRefs()
+  const five = make(5)
+  const two = make(2)
+  const props = rows => ({ ...bodyProps(rows) })
+
+  const collapsed = mount(Body, props(five))
+  check(hasClass(collapsed, 'bb-attention-row').length === 3, 'P1b five hot starts collapsed at three rows')
+  const chip = hasClass(collapsed, 'bb-att-more')[0]
+  chip.props.onClick({ stopPropagation: () => {} })
+  const opened = mount(Body, props(five))
+  check(hasClass(opened, 'bb-attention-row').length === 5,
+    'P1b the click expands to all five (the toggle reached Body)')
+
+  const shrunk = mount(Body, props(two))
+  check(hasClass(shrunk, 'bb-attention-row').length === 2 && hasClass(shrunk, 'bb-att-more').length === 0,
+    'P1b the overflow is gone, so the chip is gone')
+  const regrown = mount(Body, props(five))
+  check(hasClass(regrown, 'bb-attention-row').length === 3,
+    'P1b and coming back to five hot is COLLAPSED again, not silently re-expanded')
+  check(hasClass(regrown, 'bb-att-more').length === 1, 'P1b with its +2 chip back')
 }
 
 // D1: compressing a Bot into 闲着 must not drop its failure badge.

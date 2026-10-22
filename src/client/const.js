@@ -26,18 +26,25 @@ export const ATTENTION_ROW_H = 44     // also the WCAG 2.5.5 pointer target — 
 export const ATTENTION_GAP = 3        // bound
 export const ATTENTION_PAD_V = 10     // 6 top + 4 bottom, the `.bb-attention` padding
 export const IDLE_ROW_H = 24          // bound
-// Cell width 139 is not a preference, it is the largest integer that satisfies
-// "560×480, 3 rows of 需要你, 6 Bots running, zero scroll":
-//   480 - 39 (head) - 148 (3×44 + 2×3 + 10) - 24 (闲着) = 269 for layer 2
-//   2 cells + 1 gap + bottom padding = 2 × (0.7765W + 20) + 8 + 4 ≤ 269
-//   → W ≤ 139.7  →  139
-// v0.4.0 shipped 148 with C4c asserting 479 ≤ 480, which was a lie: 148 needs
-// 281.8, i.e. 12.8px of overflow and a scrollbar at the default size.
-export const RUNNING_CELL_W = 139     // bound
-// 0.7765 × 139 = 107.9 (the 170×132 scene at this width) + 1 (name margin) +
-// 18 (name line) + 1 (station padding). Asserted against the aspect ratio so it
-// cannot drift if the viewBox ever changes.
-export const RUNNING_CELL_H = 128
+// `.bb-panel` is 1px on each side and border-box, so the inside of a 480px panel
+// is 478px. v0.4.1's first pass forgot this and the static preview measured the
+// consequence: at the C4c worst case `.bb-run` had 267px, not the 269px the
+// budget assumed, and the second row of workstations overflowed by 1px.
+export const PANEL_BORDER = 2
+// How tall one workstation actually renders, as a function of its width: the
+// 170×132 scene scaled down, plus the 20px name row (1 margin + 18 line + 1 pad).
+// Exported as a function rather than a number so the budget cannot be computed
+// from a rounded-up constant and then be off by a pixel.
+export const cellHeight = (width = RUNNING_CELL_W) => width * 132 / 170 + 20
+// Cell width 138 is not a preference, it is the largest integer that satisfies
+// "560×480, 3 rows of 需要你, 6 Bots running, 闲着, zero scroll":
+//   480 - 2 (panel border) - 39 (head) - 148 (3×44 + 2×3 + 10) - 24 (闲着) = 267
+//   2 × (0.7765W + 20) + 8 (grid gap) + 4 (run padding) ≤ 267  →  W ≤ 138.4
+// v0.4.0 shipped 148 and C4c asserted 479 ≤ 480, which was a lie in three ways:
+// it omitted the grid gap, the run padding and the panel border, and the real
+// need was 492.8. 139 then failed by 0.9px, which the static preview caught.
+export const RUNNING_CELL_W = 138     // bound
+export const RUNNING_CELL_H = 128     // declared ceiling of cellHeight(); ≥ the real 127.15
 export const RUN_GRID_GAP = 8         // `.bb-run-grid` gap — bound
 export const RUN_PAD_B = 4            // `.bb-run` bottom padding — bound
 export const RUNNING_MIN_H = 96       // visible floor: the dumpling's face + the desk

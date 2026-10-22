@@ -48,7 +48,7 @@ var __bbEntry = (() => {
   var ATTENTION_ROW_H = 44;
   var ATTENTION_GAP = 3;
   var IDLE_ROW_H = 24;
-  var RUNNING_CELL_W = 139;
+  var RUNNING_CELL_W = 138;
   var RUN_GRID_GAP = 8;
   var RUN_PAD_B = 4;
   var LAYER_STABLE_MS = 1200;
@@ -152,7 +152,6 @@ var __bbEntry = (() => {
     "panel.stale": "\u6570\u636E\u8BFB\u53D6\u5EF6\u8FDF\uFF0C\u663E\u793A\u7684\u662F\u4E0A\u4E00\u6B21\u5FEB\u7167",
     "panel.boardError": "\u672C\u5730\u6570\u636E\u8BFB\u53D6\u5931\u8D25",
     "panel.offline": "\u6CA1\u8FDE\u4E0A DS Bot",
-    "panel.mostly": "\u6700\u4E45",
     "panel.noState": "\u6CA1\u627E\u5230 DS Bot \u7684\u72B6\u6001\u6587\u4EF6",
     "panel.unreadable": "\u72B6\u6001\u6587\u4EF6\u8BFB\u4E0D\u4E86",
     "panel.sumHandoff": "{n} \u9879\u5728\u4EA4\u63A5",
@@ -239,7 +238,6 @@ var __bbEntry = (() => {
     "panel.stale": "Data is delayed \u2014 showing the last snapshot",
     "panel.boardError": "Could not read local data",
     "panel.offline": "Not connected to DS Bot",
-    "panel.mostly": "Longest",
     "panel.noState": "DS Bot has no state file yet",
     "panel.unreadable": "The state file cannot be read",
     "panel.sumHandoff": "{n} open hand-offs",
@@ -1271,10 +1269,21 @@ var __bbEntry = (() => {
           tabIndex: 0,
           "data-expanded": expanded ? "true" : "false",
           title: expanded ? t("attention.collapse") : t("attention.overflow").replace("{n}", String(overflow)),
-          onClick: () => onExpand?.(),
+          "aria-label": expanded ? t("attention.collapse") : t("attention.overflow").replace("{n}", String(overflow)),
+          // The chip lives inside a row that is itself a button, so every
+          // activation bubbles: without stopPropagation, clicking `+2` opened
+          // the drawer of the Bot on that row (the drawer covers the panel, so
+          // the list looked like it had jumped to someone else's details).
+          // `preventDefault` is not enough on the keyboard path — the row's
+          // handler only looks at `event.key`, not at whether it was handled.
+          onClick: (event) => {
+            event.stopPropagation();
+            onExpand?.();
+          },
           onKeyDown: (event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
+              event.stopPropagation();
               onExpand?.();
             }
           }
@@ -1673,7 +1682,10 @@ var __bbEntry = (() => {
   border-radius:9px;background:#F3EDE2;color:#4A4438;font-size:10.5px;font-weight:600;
   line-height:18px;cursor:pointer;outline:none;white-space:nowrap;
   font-variant-numeric:tabular-nums}
-.bb-att-more:hover{background:#EAE2D2}
+/* Hover is a 1px inner ring plus a step in text colour, not a tint: a tint on
+   this surface measures 1.105:1, i.e. no feedback \u2014 the same mistake the
+   .bb-attention-row hover comment above already argues against. */
+.bb-att-more:hover{box-shadow:inset 0 0 0 1px #8F8776;color:#2C2C2A}
 
 /* \u2500\u2500 Layer 2 \xB7 \u5728\u52A8 (the only scroll area) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 .bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px ${RUN_PAD_B}px}
@@ -1692,13 +1704,15 @@ var __bbEntry = (() => {
   font-variant-numeric:tabular-nums}
 
 /* \u2500\u2500 Layer 2 internal \xB7 hand-offs, grouped by sender \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
-/* A hairline means "below is a note", not "here is a panel". No fill, no border
+/* A hairline means "above is a note", not "here is a panel". No fill, no border
    box, and no max-height: two scrollbars inside a 420px column fight each other,
-   so the list is bounded by rows (3 groups \xD7 3 edges + a count) instead. */
-.bb-handoffs{flex:none;margin-top:8px;padding-top:6px;border-top:1px solid #DDD6C8;
+   so the list is bounded by rows (3 groups \xD7 3 edges + a count) instead.
+   The rule sits on the bottom edge because the table now precedes the grid: when
+   the band has to scroll, the relation is read before the individual cells. */
+.bb-handoffs{flex:none;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #DDD6C8;
   font-size:11px;color:#2C2C2A}
-.bb-ho-group{margin-top:6px}
-.bb-ho-group:first-child{margin-top:0}
+.bb-ho-group{margin-bottom:6px}
+.bb-ho-group:last-child{margin-bottom:0}
 /* 600 + deep ink = structural: this is who the bottleneck is. Same size as an
    edge, so the only difference is weight and colour. */
 .bb-ho-group-head{display:flex;align-items:baseline;gap:6px;font-size:11px;font-weight:600;
@@ -1737,9 +1751,11 @@ var __bbEntry = (() => {
 .bb-idle-name{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;padding:1px 2px;
   border-radius:4px;color:#5F594D;white-space:nowrap;cursor:pointer;outline:none}
 .bb-idle-name:hover{color:#2C2C2A;background:rgba(44,44,42,.06)}
+/* Same rule as .bb-att-more: a 0.06 black tint on cream is 1.12:1, which is not
+   feedback. The ring is 3.3:1 and the text steps to the room's ink. */
 .bb-idle-more{flex:none;padding:1px 3px;border-radius:4px;font-weight:600;color:#6B6558;
   cursor:pointer;outline:none}
-.bb-idle-more:hover{background:rgba(44,44,42,.06)}
+.bb-idle-more:hover{background:transparent;box-shadow:inset 0 0 0 1px #8F8776;color:#2C2C2A}
 /* The inline badge keeps the bb-badge class name (that is what D1 asserts) and
    only changes its position: the badge must survive every compressed form. */
 .bb-badge-inline{position:static;flex:none;width:12px;height:12px;line-height:12px;font-size:9px;
@@ -1972,10 +1988,22 @@ var __bbEntry = (() => {
     }
     return map;
   }
-  function Body({ rows = [], works = [], notices = [], empty = null, t, onOpen, onPick, sceneOf: sceneOf2 }) {
+  function Body({
+    rows = [],
+    works = [],
+    notices = [],
+    empty = null,
+    t,
+    onOpen,
+    onPick,
+    sceneOf: sceneOf2,
+    // The static preview renders the post-click state, which is otherwise only
+    // reachable by clicking. The panel never passes it; production is unchanged.
+    initialAttExpanded = false
+  }) {
     const layers = useStableLayers(rows);
     const [expanded, setExpanded] = (0, import_react9.useState)(false);
-    const [attExpanded, setAttExpanded] = (0, import_react9.useState)(false);
+    const [attExpanded, setAttExpanded] = (0, import_react9.useState)(initialAttExpanded);
     const hot = [];
     const moving = [];
     const resting = [];
@@ -1999,7 +2027,10 @@ var __bbEntry = (() => {
       );
     }
     const idle = idleLine(resting, expanded ? Number.POSITIVE_INFINITY : void 0);
-    const attention = attentionOf(hot, attExpanded ? Number.POSITIVE_INFINITY : void 0);
+    const hotOver = hot.length > ATTENTION_MAX;
+    if (attExpanded && !hotOver) setAttExpanded(false);
+    const attOpen = attExpanded && hotOver;
+    const attention = attentionOf(hot, attOpen ? Number.POSITIVE_INFINITY : void 0);
     const showRun = moving.length > 0 || (works ?? []).some((work) => Number(work?.open) > 0);
     return (0, import_react9.createElement)(
       "div",
@@ -2011,7 +2042,7 @@ var __bbEntry = (() => {
       (0, import_react9.createElement)(Attention, {
         items: attention.items,
         overflow: attention.overflow,
-        expanded: attExpanded,
+        expanded: attOpen,
         t,
         onOpen,
         onExpand: () => setAttExpanded((value) => !value)
@@ -2022,6 +2053,7 @@ var __bbEntry = (() => {
       showRun ? (0, import_react9.createElement)(
         "div",
         { className: "bb-run" },
+        (0, import_react9.createElement)(Handoffs, { works, t, onPick, sceneOf: sceneOf2 }),
         moving.length ? (0, import_react9.createElement)(
           "div",
           { className: "bb-run-grid" },
@@ -2033,8 +2065,7 @@ var __bbEntry = (() => {
             t,
             compact: true
           }))
-        ) : null,
-        (0, import_react9.createElement)(Handoffs, { works, t, onPick, sceneOf: sceneOf2 })
+        ) : null
       ) : null,
       // Layer 3 — 闲着. No image, no surface, no lamp: names only.
       (0, import_react9.createElement)(IdleLine, {
@@ -2045,6 +2076,55 @@ var __bbEntry = (() => {
         onOpen,
         onExpand: () => setExpanded(true)
       })
+    );
+  }
+  function summarize(rows, works) {
+    const counts = { busy: 0, alert: 0, waiting: 0, error: 0, idle: 0, done: 0 };
+    for (const row of rows) counts[row.scene] = (counts[row.scene] ?? 0) + 1;
+    const openHandoffs = (works ?? []).reduce((sum, work) => sum + (Number(work?.open) || 0), 0);
+    const tone = counts.error ? LAMP.error : counts.alert ? LAMP.alert : counts.waiting ? LAMP.waiting : counts.busy ? LAMP.busy : LAMP.idle;
+    return { counts, openHandoffs, tone };
+  }
+  function Head({ counts, openHandoffs = 0, tone, t, onHelp, onCollapse, drag = {} }) {
+    return (0, import_react9.createElement)(
+      "div",
+      { className: "bb-head", ...drag, title: t("panel.drag") },
+      (0, import_react9.createElement)(Dot, { tone, busy: counts.busy > 0 }),
+      (0, import_react9.createElement)("span", { className: "bb-title" }, t("panel.title")),
+      (0, import_react9.createElement)("span", { className: "bb-grow" }),
+      // Counts report 需要你 first. The old order led with 干活, which is the one
+      // number that never needs the user; emphasis is weight, not colour, because
+      // the header follows the host theme and a hard-coded colour goes invisible in
+      // a dark one. Both zeroes are shown on purpose: a quiet board has to be able
+      // to say "0 waiting, 0 stuck" rather than say nothing.
+      (0, import_react9.createElement)(
+        "span",
+        { className: "bb-sum" },
+        (0, import_react9.createElement)(
+          "span",
+          { className: counts.alert ? "bb-sum-hot" : "bb-sum-quiet" },
+          `${counts.alert} ${t("legend.alert")}`
+        ),
+        (0, import_react9.createElement)(
+          "span",
+          { className: counts.error ? "bb-sum-hot" : "bb-sum-quiet" },
+          `${counts.error} ${t("legend.error")}`
+        ),
+        (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, `${counts.busy} ${t("legend.busy")}`),
+        (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, `${counts.waiting} ${t("legend.waiting")}`),
+        openHandoffs ? (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, t("panel.sumHandoff").replace("{n}", String(openHandoffs))) : null
+      ),
+      // The legend used to be a permanent 27px strip here — six swatches that never
+      // changed, at the eye's first landing point. It is now one 24px button that
+      // costs nothing until you ask.
+      (0, import_react9.createElement)("button", {
+        className: "bb-icon",
+        type: "button",
+        onClick: onHelp,
+        title: t("legend.help"),
+        "aria-label": t("legend.help")
+      }, "?"),
+      (0, import_react9.createElement)("button", { className: "bb-icon", type: "button", onClick: onCollapse, title: t("panel.collapse") }, "\xD7")
     );
   }
   function Board(props) {
@@ -2145,17 +2225,7 @@ var __bbEntry = (() => {
       t,
       nameOf
     }), [bots, activity, workBots, waiting, approvals, questions, errors, works, rooms, waveMap, noteMap, nameOf, t]);
-    const counts = (0, import_react9.useMemo)(() => {
-      const tally = { busy: 0, alert: 0, waiting: 0, error: 0, idle: 0, done: 0 };
-      for (const row of rows) tally[row.scene] = (tally[row.scene] ?? 0) + 1;
-      return tally;
-    }, [rows]);
-    const longest = (0, import_react9.useMemo)(() => {
-      const now = Date.now();
-      const live = rows.filter((row) => row.since > 0 && row.scene === "busy");
-      if (!live.length) return "";
-      return elapsed(Math.min(...live.map((row) => row.since)), now);
-    }, [rows]);
+    const { counts, openHandoffs, tone } = summarize(rows, works);
     const openDrawer = (0, import_react9.useCallback)((row) => {
       const id = row?.bot?.id;
       if (id) setSheet({ kind: "bot", id });
@@ -2282,11 +2352,9 @@ var __bbEntry = (() => {
       }
     };
     const wrapStyle = pos ? { left: pos.left, top: pos.top, right: "auto", bottom: "auto" } : void 0;
-    const tone = counts.error ? LAMP.error : counts.alert ? LAMP.alert : counts.waiting ? LAMP.waiting : counts.busy ? LAMP.busy : LAMP.idle;
     const drawerRow = sheet?.kind === "bot" ? rows.find((row) => row.bot.id === sheet.id) ?? null : null;
     const loading = !view && !board && !error;
     const reason = board && board.ok === false ? board.reason === "no-state" ? t("panel.noState") : board.reason === "unreadable" ? t("panel.unreadable") : board.reason ?? "" : "";
-    const openHandoffs = works.reduce((sum, work) => sum + (Number(work?.open) || 0), 0);
     const sceneOf2 = (id) => rows.find((row) => row.bot.id === id)?.scene;
     const notices = [];
     if (error) notices.push((0, import_react9.createElement)("div", { className: "bb-notice", key: "offline" }, `${t("panel.offline")}\uFF1A${error}`));
@@ -2319,54 +2387,15 @@ var __bbEntry = (() => {
       (0, import_react9.createElement)(
         "div",
         { className: "bb-panel", style: { width: size.w, height: size.h } },
-        (0, import_react9.createElement)(
-          "div",
-          {
-            className: "bb-head",
-            onPointerDown,
-            onPointerMove,
-            onPointerUp,
-            onPointerCancel: onPointerUp,
-            title: t("panel.drag")
-          },
-          (0, import_react9.createElement)(Dot, { tone, busy: counts.busy > 0 }),
-          (0, import_react9.createElement)("span", { className: "bb-title" }, t("panel.title")),
-          (0, import_react9.createElement)("span", { className: "bb-grow" }),
-          // Counts report 需要你 first. The old order led with 干活, which is the
-          // one number that never needs the user; emphasis is weight, not colour,
-          // because the header follows the host theme and a hard-coded colour goes
-          // invisible in a dark one. Both zeroes are shown on purpose: a quiet board
-          // has to be able to say "0 waiting, 0 stuck" rather than say nothing.
-          (0, import_react9.createElement)(
-            "span",
-            { className: "bb-sum" },
-            (0, import_react9.createElement)(
-              "span",
-              { className: counts.alert ? "bb-sum-hot" : "bb-sum-quiet" },
-              `${counts.alert} ${t("legend.alert")}`
-            ),
-            (0, import_react9.createElement)(
-              "span",
-              { className: counts.error ? "bb-sum-hot" : "bb-sum-quiet" },
-              `${counts.error} ${t("legend.error")}`
-            ),
-            (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, `${counts.busy} ${t("legend.busy")}`),
-            (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, `${counts.waiting} ${t("legend.waiting")}`),
-            openHandoffs ? (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, t("panel.sumHandoff").replace("{n}", String(openHandoffs))) : null,
-            longest ? (0, import_react9.createElement)("span", { className: "bb-sum-quiet" }, `${t("panel.mostly")} ${longest}`) : null
-          ),
-          // The legend used to be a permanent 27px strip here — six swatches that
-          // never changed, at the eye's first landing point. It is now one 24px
-          // button that costs nothing until you ask.
-          (0, import_react9.createElement)("button", {
-            className: "bb-icon",
-            type: "button",
-            onClick: () => setSheet((previous) => previous?.kind === "legend" ? null : { kind: "legend" }),
-            title: t("legend.help"),
-            "aria-label": t("legend.help")
-          }, "?"),
-          (0, import_react9.createElement)("button", { className: "bb-icon", type: "button", onClick: () => flip(true), title: t("panel.collapse") }, "\xD7")
-        ),
+        (0, import_react9.createElement)(Head, {
+          counts,
+          openHandoffs,
+          tone,
+          t,
+          onHelp: () => setSheet((previous) => previous?.kind === "legend" ? null : { kind: "legend" }),
+          onCollapse: () => flip(true),
+          drag: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp }
+        }),
         (0, import_react9.createElement)(Body, {
           rows,
           works,

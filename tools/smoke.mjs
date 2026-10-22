@@ -220,8 +220,8 @@ section('layers: 需要你 / 在动 / 闲着')
 {
   const { attentionOf, topologyOf, idleLine, layerOf } = await import(new URL('../src/client/layers.js', import.meta.url).href)
   const {
-    HEAD_H, ATTENTION_ROW_H, ATTENTION_GAP, ATTENTION_PAD_V, IDLE_ROW_H,
-    RUNNING_CELL_W, RUNNING_CELL_H, RUN_GRID_GAP, RUN_PAD_B, RUNNING_MIN_H,
+    HEAD_H, ATTENTION_ROW_H, ATTENTION_GAP, ATTENTION_PAD_V, IDLE_ROW_H, PANEL_BORDER,
+    RUNNING_CELL_W, RUNNING_CELL_H, cellHeight, RUN_GRID_GAP, RUN_PAD_B, RUNNING_MIN_H,
     LAYER_STABLE_MS, POLL_MS, ROSTER,
   } = await import(new URL('../src/client/const.js', import.meta.url).href)
   const { buildRows } = await import(new URL('../src/client/rows.js', import.meta.url).href)
@@ -359,25 +359,29 @@ section('layers: 需要你 / 在动 / 闲着')
   // unsatisfiable — it needs a 61px cell, i.e. a 1.87px lamp — so it is replaced
   // by the three scenarios that actually occur.
   //
-  // v0.4.1: every term is counted now. v0.4.0's C4c omitted the grid gap and
-  // `.bb-run`'s bottom padding, so it passed at 479 while the real layout needed
-  // 492.8 — a green assertion that lied about the default size. RUNNING_CELL_W
-  // and RUNNING_CELL_H were re-derived from the corrected budget (see const.js).
-  const c4a = HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V + IDLE_ROW_H + RUNNING_MIN_H
+  // v0.4.1: every term is counted now, including the three v0.4.0 omitted — the
+  // grid gap, `.bb-run`'s bottom padding, and the panel's own 2px border. The
+  // last one is why the budget said 269px of room while the browser gave 267px.
+  // C4c computes in fractions (cellHeight()) rather than from a rounded-up
+  // constant, so a 0.9px overflow cannot hide behind an integer.
+  const cell = cellHeight()
+  const c4a = PANEL_BORDER + HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V
+    + IDLE_ROW_H + RUNNING_MIN_H
   check(c4a <= 320, `C4a worst case: 3 need-you + the visible floor of 在动 + 闲着 = ${c4a} ≤ 320 (预算，非实测)`)
-  const c4b = HEAD_H + 2 * ATTENTION_ROW_H + ATTENTION_GAP + ATTENTION_PAD_V + RUNNING_CELL_H + RUN_PAD_B + IDLE_ROW_H
+  const c4b = PANEL_BORDER + HEAD_H + 2 * ATTENTION_ROW_H + ATTENTION_GAP + ATTENTION_PAD_V
+    + RUNNING_CELL_H + RUN_PAD_B + IDLE_ROW_H
   check(c4b <= 320, `C4b common case: 2 need-you + one full row of workstations + 闲着 = ${c4b} ≤ 320 (预算，非实测)`)
-  const c4c = HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V
-    + 2 * RUNNING_CELL_H + RUN_GRID_GAP + RUN_PAD_B + IDLE_ROW_H
+  const c4c = PANEL_BORDER + HEAD_H + 3 * ATTENTION_ROW_H + 2 * ATTENTION_GAP + ATTENTION_PAD_V
+    + 2 * cell + RUN_GRID_GAP + RUN_PAD_B + IDLE_ROW_H
   check(c4c <= 480,
-    `C4c default 560×480: 3 need-you + six running (2 rows + gap + padding) + 闲着 = ${c4c} ≤ 480 (预算，非实测)`)
-  // The declared cell height has to cover the drawing. The scene is a 170×132
-  // viewBox scaled to RUNNING_CELL_W, plus a 20px name row (1 margin + 18 line +
-  // 1 padding). Without this, someone could shrink the cell and leave C4c green
-  // while the name row got clipped.
+    `C4c default 560×480: 3 need-you + six running (2 rows + gap + padding) + 闲着 = ${c4c.toFixed(2)} ≤ 480 (预算，非实测)`)
+  // The declared cell height has to cover the drawing. Without this, someone could
+  // shrink RUNNING_CELL_H alone and leave C4c green while the name row got clipped.
   const sceneH = Math.ceil(RUNNING_CELL_W * 132 / 170)
   check(RUNNING_CELL_H >= sceneH + 20,
     `C4 the cell height covers the 132:170 scene plus a 20px name row (${RUNNING_CELL_H} ≥ ${sceneH + 20})`)
+  check(RUNNING_CELL_H >= cell,
+    `C4 the declared cell height is not an underestimate of the rendered one (${RUNNING_CELL_H} ≥ ${cell.toFixed(2)})`)
   check(LAYER_STABLE_MS < POLL_MS,
     `C4 the layer window (${LAYER_STABLE_MS}ms) is shorter than a poll (${POLL_MS}ms), so a real transition still lands`)
   // The overflow chip lives inside the last row, so revealing Bot 4..N costs no
@@ -683,6 +687,13 @@ section('css')
     '§11.15 layer 3 is one fixed line and never wraps by default')
   check(!/\.bb-idle-name\{[^}]*color:#(?!5F594D)/.test(CSS),
     '§11.18 layer 3 has no per-state colour (the badge is the only mark)')
+
+  // Every height in the C4 budget is border-box. Without this rule `.bb-idle`
+  // would be 25px (24 + its 1px border) and `.bb-panel` 562px, so the whole
+  // budget would be silently wrong. Nothing else in this file depends on it
+  // being present, which is exactly why it needs an assertion.
+  check(/\.bb-wrap \*\{box-sizing:border-box\}/.test(CSS),
+    'the box model the C4 budget assumes is declared (.bb-wrap *{box-sizing:border-box})')
 
   // ── the constants really are the CSS ─────────────────────────────────────
   // Interpolation makes these tautological today; the point is to fail the day

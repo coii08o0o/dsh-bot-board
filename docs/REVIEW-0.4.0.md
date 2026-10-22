@@ -393,3 +393,257 @@ check(!/\.bb-idle-name\{[^}]*color:#(?!5F594D)/.test(CSS), '§11.18 layer 3 has 
 4. **三条高度预算、三个常量、三条断言**——把一条永远红的断言换成了三条可满足的。这个动作本身（承认需求原文 C4 算术不可满足）是专业的，只是替换后的算术要再对一次账（P1-2）。
 5. **`buildRows` 一个字没改**，`render-check:82` 的「workstations never move」零成本存活。分层是渲染期 `filter`。
 6. **22 条禁令一条没破。** 我逐条核过，全部遵守。问题只在「没人守着」。
+
+---
+---
+
+# 复审 v0.4.1（`f5fc384`）
+
+- 基线：`npm run check` → **357 条断言全绿**（182 smoke + 175 render；v0.4.0 是 319）
+- 方法同上一轮：读 diff + 重跑我自己留在 `/tmp/bb-review/` 的用例（**用我自己写的持久-ref hook runtime，不用他们改过的 `react-shim`**）+ 从**生成的 CSS** 反读数字 + 破坏测试
+
+## 0. 裁定
+
+# **REVISE** —— 但剩余范围是**两处、约 10 行**
+
+上一轮的 1 个 P0 和 3 个 P1 **全部真修好了**，我逐条复验通过（§1）。退回是因为**修 P1-1 时新引入了一个 P0**：那个 `+N` chip 嵌在整行可点区域里，事件冒泡到行上，**点它等于点了那一行**——100% 复现，鼠标和键盘都是。
+
+不是设计问题，是 `stopPropagation` 少了一行。加上它、再加一处状态自愈，就可以交付。
+
+| | v0.4.0 | v0.4.1 | 结论 |
+|---|---|---|---|
+| P0 | 1（面板自相矛盾） | **1（chip 双触发，新引入）** | 旧的已修，新的要修 |
+| P1 | 3 | 1（`attExpanded` 粘滞） | 三条旧的已修 |
+| 断言 | 319 | 357 | 破坏测试 11/12 真的会红 |
+
+## 1. 上一轮 1 P0 + 3 P1 的复验
+
+### P0 · 层归属防抖与实时过滤不同步 —— **修好了**
+
+用我自己的用例重跑（`case.mjs A/B`，持久 ref、可控时钟、独立于项目 shim）：
+
+```
+CASE A · idle → alert
+ t+0     L1rows=0  L1="✓没有需要你的事"   L3 含 Researcher   | live 0 alert
+ t+1500  L1rows=1  L1="Researcher 等你批 Bash"  L3 不含 Researcher | live 1 alert   ← 同一帧，不再矛盾
+CASE B · alert → busy
+ t+0     L1rows=1  L2=0  L3 8 人
+ t+1500  L1rows=0  L2=1  L3 8 人   ← 人在层 2，不再三层都找不到
+```
+
+两个故障窗口都关了，且是**同一帧**关的，不是延后一帧。**P0 解除。**
+
+### P1-1 · 溢出不可达 —— **机制修好了，但新引入了 P0（见 §2）**
+
+`+N` 现在是第 3 行内的尾随 chip，`attention` 子节点数从 4 回到 3，**高度代价实测 0**（C4a 有无 chip 都是 211.00）。`role/tabIndex/Enter/Space/焦点环` 全在，且有断言钉着（破坏测试见 §3）。
+
+### P1-2 · C4c 算术 —— **修好了，我从生成的 CSS 反读验过**
+
+不抄常量，直接从 `CSS` 字符串里正则读出每个数，再自己算：
+
+```
+.bb-attention-row height 44px    .bb-attention gap 3px / pad 6+4px    .bb-idle 24px
+.bb-run-grid track 139px / gap 8px      .bb-run padding-bottom 4px
+station name mt 1 / lh 18px + station pad 1px
+=> scene 107.93px, cell 127.93px   (const RUNNING_CELL_H 128, 余 0.07)
+```
+
+| 场景 | 实算需求 | 预算 | 余量 |
+|---|---|---|---|
+| C4a 3 件需要你 + 0 在动 @320 | 211.00 | 320 | +109.00（层 2 得 109 ≥ 96 ✓） |
+| C4a + chip（4 件以上） | 211.00 | 320 | **+109.00 —— chip 真的 0 高度** |
+| C4b 2 件 + 1 行在动 @320 | 295.93 | 320 | +24.07 |
+| **C4c 3 件 + 6 个在动 @480** | **478.86** | 480 | **+1.14** |
+| 你点的那个：2 件 + 2 个在动 @320 | 295.93 | 320 | +24.07 |
+
+**零滚动成立。** 1.14px 余量够不够？够：浏览器把 107.93 向上取整成 108 时，两行 = 216 + 8 + 4 = 228… 精确算是 `2×128 + 8 + 4 = 268 ≤ 269`，整数取整后仍然成立。
+
+**缩尺寸没有代价，我逐项验了：**
+
+| | 148px（v0.4.0） | 139px（v0.4.1） | 下限 |
+|---|---|---|---|
+| 列数 @420 / 560 / 980 | 2 / 3 / 6 | **2 / 3 / 6（不变）** | — |
+| 灯 5.2u + 1.2 描边 | 5.57px | **5.23px** | 4px ✓ |
+| 眼睛 5u | 4.35px | 4.09px | — |
+| 眼镜描边 2u | 1.74px | 1.64px | — |
+| 屏幕进度条 3u | 2.61px | 2.45px | — |
+| 叶脉 1.2u（装饰） | 1.04px | **0.98px（亚像素）** | 不编码状态，可接受 |
+
+实现者说「只有叶脉降到亚像素」——**属实**，我算了一遍。
+
+### P1-3 · §11 五条无断言 —— **修好了，而且真的会红**
+
+`style.js` 现在从 `const.js` 插值 5 个数字，CSS 不再是第二份手抄。我逐个改坏：
+
+| 改坏什么 | 结果 |
+|---|---|
+| `height:${ATTENTION_ROW_H}px` → 字面 `40px` | **FAIL** §11.4 `.bb-attention-row height is ATTENTION_ROW_H` |
+| 层 3 允许换行 | **FAIL** §11.15 |
+| 删 `.bb-att-avatar .bb-blob{animation:none}` | **FAIL** §11.14 |
+| `.bb-handoffs` 加 `max-height`/`overflow` | **FAIL** §11.6 |
+| 层 3 名字染成 `#1D4ED8` | **FAIL** §11.18 |
+| `.bb-head` 加 `position:sticky` | **FAIL** §11.5 |
+| grid gap 8→6、run padding 4→0 | **FAIL** 两条常量耦合断言 |
+
+**7/7 全红。** 上一轮那 5 条「能被违反而全绿」的禁令，现在一条都过不去了。
+
+### 顺手的三条 —— 都验了
+
+- memo 比较器加了 `compact` + `onOpen`（`station.js:357-358`）✓
+- compact 工位 `title` 含动作，且有两条断言（`render-check` 「P1-2b」段）✓
+- 无 turn 的 error 行时长列改用 `failureAt`（`attention.js:78`）✓
+
+## 2. 新发现 P0 · chip 嵌在可点行里，点它等于点了那一行
+
+**`attention.js:66-79`。** chip 是 `.bb-attention-row` 的**子节点**，而行本身有 `onClick: () => onOpen(row)`。chip 的 `onClick: () => onExpand?.()` **没有接收事件、没有 `stopPropagation`**（arity = 0，实测）。React 的合成事件照常冒泡。
+
+我按浏览器的事件流手工跑了一遍（shim 不分发事件，所以直接调两个 handler，顺序就是冒泡顺序）：
+
+```
+点 chip：  onExpand()  ->  onOpen(数学)        ← 打开了第 3 行那个 Bot 的抽屉
+按 Enter： preventDefault -> preventDefault -> onOpen(化学)
+```
+
+**用户点「+2」，得到的是「数学」的抽屉。** 抽屉是 `position:absolute; inset:0; z-index:2`，整块面板盖住 —— 所以展开其实发生了，但用户看见的是别人的详情页。按 Esc 关掉才看到 5 行。
+
+为什么 P0 而不是 P1：这个 chip 是 P1-1 的**全部产出**（「让第 4 个人可达」），而它 100% 的激活都先把用户扔进一个不相干的抽屉；鼠标和键盘两条路都中；而且这是新增控件，不是遗留问题。修复是一行。
+
+**修法**（`attention.js:74-77`）：
+
+```js
+onClick: event => { event.stopPropagation(); onExpand?.() },
+onKeyDown: event => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    event.stopPropagation()   // 行的 Enter 处理器否则会打开抽屉
+    onExpand?.()
+  }
+},
+'aria-label': expanded
+  ? t('attention.collapse')
+  : t('attention.overflow').replace('{n}', String(overflow)),
+```
+
+`preventDefault` **不够** —— 行的 `onKeyDown` 只看 `event.key`，不看是否已被处理。必须 `stopPropagation`。
+
+**必须配断言**（否则下一个人重构掉 `stopPropagation` 也没人知道）。shim 不分发事件，所以断言机制本身：
+
+```js
+let stopped = false, opened = 0
+const tree = mount(Body, { ...bodyProps(fiveHot), onOpen: () => { opened += 1 } })
+const chip = findAll(tree, n => n.props?.className === 'bb-att-more')[0]
+chip.props.onClick({ stopPropagation: () => { stopped = true } })
+check(stopped, 'P1-1 the chip stops the click before it reaches the row')
+// keyboard 同理，断言 event.stopPropagation 被调用
+```
+
+**对照：层 3 的 `+N` 没有这个问题** —— `.bb-idle` 本身没有 `onClick`，`+N` 是名字们的兄弟节点而不是子节点（实测 `idle.props.onClick === undefined`）。所以「照抄层 3 的 `+N`」这句话只说对了一半：抄了结构，没抄「不嵌在可点区域里」这个前提。
+
+## 3. 新发现 P1 · `attExpanded` 粘滞，自愈只自愈了 chip 没自愈状态
+
+`panel.js:157` 的 `attExpanded` 只有点 `−` 才会变回 false。计数掉到 ≤3 时 chip 消失了（`attention.js:44` 的 `chip` 条件），**于是用户再没有 `−` 可点，状态永久留在 true**。
+
+实测（持久 `useState`，直接调 chip 的 onClick）：
+
+```
+5 hot 折叠       L1=3  chip="+2" data-expanded=false
+点一下           L1=5  chip="−"  data-expanded=true
+掉到 2 件        L1=2  chip=(none)          ← 视觉上自愈了
+又回到 5 件      L1=5  chip="−"  data-expanded=true   ← 自己又展开了，没人要求
+```
+
+**后果不是美观问题，是布局**：320 面板、5 行展开时 `39 + (5×44 + 4×3 + 10) + 24 = 305`，**层 2 只剩 15px**（下限 96）。而这次展开是十分钟前为了另一批 5 个人点开的。
+
+实现者反对我上一轮「单向展开」建议的理由是「单向展开是个用户无法撤销的状态」——这个反对**部分成立**：toggle 确实给了撤销路径。但粘滞是另一种「无法撤销」：用户没有地方表达「我只想展开那一次」。
+
+**修法**（`panel.js` Body 内，两行）：
+
+```js
+const hotOver = hot.length > ATTENTION_MAX
+useEffect(() => { if (!hotOver) setAttExpanded(false) }, [hotOver])
+```
+
+断言：mount → 展开（5 件）→ 掉到 2 件 → 回到 5 件 → **必须是 3 行 + chip**，不是 5 行。
+
+### 关于 toggle 本身：**同意实现者的判断**
+
+我上一轮建议「单向展开」，实现者改成 toggle 并给了理由。理由是成立的：层 1 是 `flex:none`，9 个审批展开就是 242px，会把另两层挤出 320 —— 而层 3 的 `+N` 敢单向，是因为 `.bb-idle[data-expanded]` 被 CSS 限死在 `max-height:44px`（两行）。层 1 没有这个上界。**所以「可撤销」在这里不是偏好，是必需品。** 我撤回原建议。
+
+但 toggle 只解决「能不能撤销」，没解决「上界在哪」。如果要做完整，可以再加一条：展开上限 6 行（`min(hot.length, 6)`），其余交给头部计数 —— 不过这是 P2，不做也能交付。
+
+## 4. 你要我验的另外三件
+
+### 4.1 防抖在 `map.delete` 之后还活着吗 —— **活着，而且抖动保护是真的**
+
+```
+G1 · idle → busy（activity 噪声那条路）
+ t+0     L3（9 个名字）
+ t+1500  L3   ← 防抖挡住了，没搬家
+ t+3000  L2   ← 落地
+
+G2 · 一个 tick 的抖动（idle → busy → idle）
+ 结果：全程 L3，从头到尾没动过   ← 防抖的目的达成了
+```
+
+`map.delete` 只影响「离开需要你」这一条路（立刻提交），而那条路上**不可能有抖动**（审批不会自己出现又消失）。**防抖要防的东西完好。**
+
+两个附带结论：
+
+1. **alert→busy 确实会当场挤动层 2**：实测 t+1500 时层 2 的格子序变成 `Researcher , 班主任 , 数学` —— Researcher（名册第 2）插进第 1 格，把原来两个各右移一格；420 宽 2 列时第 3 个直接掉到第二行。**但这不是回归**：v0.4.0 里这个重排也发生，只是晚 1.5 秒（那时人还在「三层都不要」的缝里）。重排是「有人进场」的必然代价，不是防抖失守。
+2. **idle↔busy 的落地是「下下个 poll」，不是「下一个」**：`panel.js:120` 的 `if (entry.pending !== target) { entry.pending = target; entry.since = now; continue }` 只在第一次看见变化时**记录**，提交要等下一次 `now - since >= 1200`。所以真实延迟是 **2 个 poll = 3s**，而注释写的是「a real transition lands on the next poll」。**注释错一格**（行为本身是对的：改成一次就提交，抖动就会变成「搬过去再搬回来」）。P2。
+
+### 4.2 测试基建有没有被弱化 —— **没有弱化，但有一处隔离隐患**
+
+- `renderBody` / `renderPolls` 都先 `resetRefs()`，**用例之间不互相污染**（我特意先跑了一次「不隔离」的版本，看到前一个 case 的 ref 泄漏成假结果，加上隔离后复现消失 —— 说明这个 `resetRefs` 是必需的，不是装饰）。
+- 旧的单帧断言：`resetRefs()` 后第一帧的 map 是空的 → `layer = target` 直接提交，行为和 v0.4.0 的「refs 每次重建」**完全一致**。**没有任何一条旧断言因为 refs 变持久而变容易通过。**
+- 一处隐患：`render-check.mjs:315` 的 `render(Board({ t }))` 是**直接调用**，没走 `mount`。于是 `Board` 的 8 个 `useRef` 会写进**上一个渲染过的组件**的 ref store（当时是 `Elapsed`）。今天无害（`Elapsed` 只用 `useState`），但这是个埋着的坑。P2：改成 `mount(Board, { t })`。
+- **一处覆盖缺口**：`renderPolls` 只用在两个 P0 用例上，**没有任何断言覆盖 idle↔busy 的防抖**。而这次修复正好动的就是那个函数。现在 `LAYER_STABLE_MS < POLL_MS` 那条只是两个常量的比较，防抖逻辑整个删掉它照样绿。P2：把 §4.1 的 G1/G2 两条加进去（各 3 行）。
+
+### 4.3 chip 的颜色 —— 文字过，但 hover 是「没反馈」
+
+| | 比值 | 判定 |
+|---|---|---|
+| chip 文字 `#4A4438` on `#F3EDE2` | **8.29:1** | ✓ |
+| hover `#4A4438` on `#EAE2D2` | **7.50:1** | ✓ |
+| chip 表面 vs 白卡 `#F3EDE2` on `#FFFFFF` | **1.17:1** | 弱 —— 它读起来更像行尾一段文字，不像一个按钮 |
+| hover 相对常态的步长 `#EAE2D2` vs `#F3EDE2` | **1.105:1** | ✗ |
+
+**1.105:1 这个数字在同一个文件里已经被否决过一次。** `style.js:57-59` 的注释原话：
+
+> Hover is a 1px inner ring, not a tint: a tint on cream measures **1.06:1**, i.e. no feedback at all.
+
+行本身按这条原则做了（改用 3.56:1 的内环），**chip 却在 20 行之后犯了同一个错**。P2：chip 的 hover 换成 1px 内环或把底色再压一档（目标 ≥1.3:1 的表面步长）；层 3 的 `+N` hover 是 1.123:1，同一个毛病，一起改。
+
+另外：chip 18px 高 × 约 24px 宽，低于 WCAG 2.5.8（AA）的 24×24。行是 44px（满足 2.5.5 AAA），chip 是它里面唯一的小目标。桌面端只有鼠标，可以接受；记在案。
+
+## 5. 现在还剩什么
+
+### P0 · 阻塞（1 条，约 4 行）
+
+**chip 的事件冒泡**（§2）。加 `stopPropagation`（鼠标 + 键盘两处）+ `aria-label` + 一条断言。
+
+### P1 · 应修（1 条，2 行）
+
+**`attExpanded` 粘滞**（§3）。计数掉回 ≤3 时复位 + 一条断言。
+
+### P2 · 可选（4 条）
+
+1. `render-check.mjs:315` 的 `render(Board({t}))` → `mount(Board, {t})`（§4.2 的隔离隐患）。
+2. 补 idle↔busy 防抖的两条断言（§4.1 的 G1/G2）。**这是本次修复唯一动过却没被断言覆盖的逻辑。**
+3. chip 与 `+N` 的 hover 从 1.105:1 的 tint 换成 ≥1.3:1 的表面步长或 1px 内环（§4.3）—— 同一个文件已经写过为什么。
+4. `panel.js:96-98` 的注释「a real transition lands on the next poll」改成「lands on the poll after next（实测 2 个 poll = 3s）」；`panel.js:111-124` 与 `154-173` 现在是**两处各自足够**的修复（我分别单独回滚验证过：只留 `map.delete` 全绿，只留 Body 那半也全绿），建议加一句「两处冗余是故意的」，否则下一个人会当成死代码删掉一处。
+
+## 6. 只能真机验的（不阻塞交付）
+
+- **F2** 420×320、层 1 有 2 项时两项完整可见。我的算术给 295.93 ≤ 320（余 24.07），但这是预算不是实测。
+- **F3** 静置 60 秒零视觉变化。全 idle 时层 1 是 38px 一行、层 3 无时长、头部 `bb-pulse` 只在 busy 时开 —— 逻辑上应该是零变化，需要眼睛确认。
+- **E3** 键盘：Tab 进层 1 → Enter 开抽屉 → Esc → 焦点回到**那一行**。`panel.js:275-279` 的 `previous?.focus()` 逻辑没变，但 chip 现在也是可聚焦的，**Tab 顺序变成：行1 → 行2 → 行3 → chip → 行1…？** 不对 —— chip 是行的子节点，Tab 会先到行再进 chip。需要真机确认焦点环不会在同一个 44px 行里跳两次（行一次、chip 一次），这可能是**新的键盘噪音**，我在无 DOM 环境里验不了。**这条请在导出预览里重点看。**
+- 层 2 的 5.23px 灯在真实屏幕上是否还分得清菱形/方形（我算得出 5.23 ≥ 4，算不出「看起来够不够」）。
+
+## 7. 进入导出阶段要注意
+
+上一轮那四条仍然有效（等 P0 修完、两个固定视口、420 是默认、必须含六个退化态）。再加三条，都是这次新出现的：
+
+1. **必须导一个「4 件以上需要你」的态，并且真的点一下 `+2`。** 这是 P0 现场；静态 HTML 不点就看不见。
+2. **必须导一个「层 1 展开 5 行 + 320 面板」的态**，看层 2 剩 15px 时是什么样子 —— 那是 P1 的最坏情况，也是判断「要不要给展开加上界」的唯一依据。
+3. **560×480、3 件需要你、6 个在动**这一张现在是本版的核心卖点（478.86 ≤ 480，余 1.14px）。**请专门导这一张并量一下有没有滚动条** —— 1.14px 的余量是这一版全部高度算术的成败点，而它是唯一需要真实布局引擎才能确认的数字。

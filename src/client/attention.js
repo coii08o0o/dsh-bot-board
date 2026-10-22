@@ -72,9 +72,25 @@ export function Attention({ items, overflow = 0, expanded = false, t, onOpen, on
             title: expanded
               ? t('attention.collapse')
               : t('attention.overflow').replace('{n}', String(overflow)),
-            onClick: () => onExpand?.(),
+            'aria-label': expanded
+              ? t('attention.collapse')
+              : t('attention.overflow').replace('{n}', String(overflow)),
+            // The chip lives inside a row that is itself a button, so every
+            // activation bubbles: without stopPropagation, clicking `+2` opened
+            // the drawer of the Bot on that row (the drawer covers the panel, so
+            // the list looked like it had jumped to someone else's details).
+            // `preventDefault` is not enough on the keyboard path — the row's
+            // handler only looks at `event.key`, not at whether it was handled.
+            onClick: event => {
+              event.stopPropagation()
+              onExpand?.()
+            },
             onKeyDown: event => {
-              if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onExpand?.() }
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                event.stopPropagation()
+                onExpand?.()
+              }
             },
           }, expanded ? '−' : `+${overflow}`)
         : null,
