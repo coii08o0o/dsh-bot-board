@@ -11,13 +11,13 @@
 |---|---|---|---|
 | Chief | `whale` | `deepseek` | DS Bot 新建团队时给主 Bot 的默认长相，保持原样即可 |
 | Bob | `star` | `magenta` | 星形最跳，配品红，和主 Bot 的蓝鲸离得最远 |
-| Bot3 | `squircle` | `orange` | 圆角方最稳，橙色是「管事」的颜色 |
-| Bot4 | `hex` | `violet` | 花形 + 紫，和星形区分得开（星是尖角、花是圆瓣） |
-| Bot5 | `wave` | `cyan` | 浪 + 青，冷色里最亮的一档 |
-| Bot6 | `zed` | `green` | 牛角最容易被记住，配绿 |
-| Bot7 | `hex` | `green` | 和 Bot4 同形不同色——嫌撞就换 `moon` + `yellow` |
-| Bot8 | `moon` | `red` | 月形 + 红，暖色里最沉的一档 |
-| Bot9 | `star` | `sky` | 和 Bob 同形不同色；想彻底分开就换 `squircle` + `brown` |
+| Bot1 | `squircle` | `orange` | 圆角方最稳，橙色是「管事」的颜色 |
+| Bot2 | `hex` | `violet` | 花形 + 紫，和星形区分得开（星是尖角、花是圆瓣） |
+| Bot3 | `wave` | `cyan` | 浪 + 青，冷色里最亮的一档 |
+| Bot4 | `zed` | `green` | 牛角最容易被记住，配绿 |
+| Bot5 | `hex` | `green` | 和 Bot2 同形不同色——嫌撞就换 `moon` + `yellow` |
+| Bot6 | `moon` | `red` | 月形 + 红，暖色里最沉的一档 |
+| Bot7 | `star` | `sky` | 和 Bob 同形不同色；想彻底分开就换 `squircle` + `brown` |
 
 改完之后看板会在下一次轮询（约 5 秒）里跟着变，不用重启 DSH。
 

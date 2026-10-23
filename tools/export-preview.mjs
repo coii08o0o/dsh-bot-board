@@ -134,7 +134,7 @@ export function toHtml(node) {
 // (config.mainName), `Bob` is the placeholder its "name this Bot" input shows, and
 // the rest are numbered placeholders. There is no roster upstream — names are free
 // text — so the demo must not look like somebody's real team.
-const ROSTER = ['Chief', 'Bob', 'Bot3', 'Bot4', 'Bot5', 'Bot6', 'Bot7', 'Bot8', 'Bot9']
+const ROSTER = ['Chief', 'Bob', 'Bot1', 'Bot2', 'Bot3', 'Bot4', 'Bot5', 'Bot6', 'Bot7']
 // Identity comes from DS Bot now: `avatar.shape` (one of seven characters) plus
 // `color` (an ink id). The fixtures carry the same two fields a real roster does,
 // spread so every silhouette appears at least once. Chief is the upstream default
@@ -253,8 +253,8 @@ cases.push({
       { questions: { b7: { id: 'q1', question: '这段用哪个语气？', options: [{ label: '正式' }, { label: '轻松' }] } } },
       { errors: [{ botId: 'b8', at: NOW - 40 * 1000, message: '模型超时' }] },
       { works: [
-        { id: 'w1', fromId: 'b6', from: 'Bot7', toId: 'b0', to: 'Chief', open: 4, at: NOW - 12 * MIN, last: '草稿还没改完' },
-        { id: 'w2', fromId: 'b6', from: 'Bot7', toId: 'b3', to: 'Bot4', open: 3, at: NOW - 8 * MIN },
+        { id: 'w1', fromId: 'b6', from: 'Bot5', toId: 'b0', to: 'Chief', open: 4, at: NOW - 12 * MIN, last: '草稿还没改完' },
+        { id: 'w2', fromId: 'b6', from: 'Bot5', toId: 'b3', to: 'Bot2', open: 3, at: NOW - 8 * MIN },
       ] },
     )),
   })],
@@ -271,7 +271,7 @@ cases.push({
       working('b0', 4.2, 'Bash'), working('b3', 1, 'Read'),
       { approvals: [{ id: 'a1', botId: 'b1', tool: 'Bash' }] },
       { errors: [{ botId: 'b7', at: NOW - 40 * 1000, message: '模型超时' }] },
-      { works: [{ id: 'w1', fromId: 'b1', from: 'Bob', toId: 'b3', to: 'Bot4', open: 4, at: NOW - 12 * MIN }] },
+      { works: [{ id: 'w1', fromId: 'b1', from: 'Bob', toId: 'b3', to: 'Bot2', open: 4, at: NOW - 12 * MIN }] },
     )),
   })],
 })
@@ -318,13 +318,13 @@ const mutual = snapshot(merge(
   working('b2', 5, 'Bash'), working('b3', 3, 'Read'),
   { waiting: { b5: { bots: ['b2'], rooms: [], for: [] } } },
   { works: [
-    { id: 'w1', fromId: 'b2', from: 'Bot3', toId: 'b3', to: 'Bot4', open: 4, at: NOW - 12 * MIN },
-    { id: 'w2', fromId: 'b3', from: 'Bot4', toId: 'b2', to: 'Bot3', open: 3, at: NOW - 5 * MIN },
+    { id: 'w1', fromId: 'b2', from: 'Bot1', toId: 'b3', to: 'Bot2', open: 4, at: NOW - 12 * MIN },
+    { id: 'w2', fromId: 'b3', from: 'Bot2', toId: 'b2', to: 'Bot1', open: 3, at: NOW - 5 * MIN },
   ] },
 ))
 cases.push({
   title: '语义红线 · 接收方 busy 的边 + A↔B 互相等',
-  note: 'Bot3→Bot4 的接收方在干活 → 不带「被堵」（去催一个正在还账的人是错的）。两条边都标 `⇄ 互相等`，两侧各保留自己的计数。',
+  note: 'Bot1→Bot2 的接收方在干活 → 不带「被堵」（去催一个正在还账的人是错的）。两条边都标 `⇄ 互相等`，两侧各保留自己的计数。',
   panels: [panel({ w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 互相等', snap: mutual })],
 })
 
@@ -359,7 +359,7 @@ cases.push({
         { id: 's0', name: 'Chief', sessionId: 's0', color: 'deepseek', shape: 'whale' },
         { id: 's1', name: 'Bob', sessionId: 's1', shape: 'star' },
         // No upstream look at all: the board hashes both axes for this one.
-        { id: 's3', name: 'Bot3', sessionId: 's3' },
+        { id: 's3', name: 'Bot1', sessionId: 's3' },
       ],
       ...merge(working('s0', 4.2, 'Bash'), working('s1', 2, 'Bash'), working('s3', 0.2, 'Write')),
     }),
