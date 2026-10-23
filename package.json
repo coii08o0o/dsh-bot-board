@@ -1,9 +1,18 @@
 {
   "name": "dsh-bot-board",
   "version": "0.4.3",
-  "private": true,
   "type": "module",
-  "description": "Bot 看板 — 一眼看清 DS Bot 里每个 Bot 现在在干什么、跑了多久、卡在哪",
+  "description": "Bot 看板 — DS Bot 的浮动实时看板：每个 Bot 现在在干什么、跑了多久、卡在哪、谁在等谁交活",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "ds-bot",
+    "plugin",
+    "dashboard",
+    "bot",
+    "agent",
+    "monitor"
+  ],
   "main": "index.js",
   "exports": {
     ".": "./index.js",
@@ -30,6 +39,9 @@
   "devDependencies": {
     "esbuild": "^0.25.0"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "dsh": {
     "client": {
       "platform": "web"
@@ -38,5 +50,13 @@
       "patch": "./cordis.patch.yml"
     }
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jiahaosen07/dsh-bot-board.git"
+  },
+  "homepage": "https://github.com/jiahaosen07/dsh-bot-board",
+  "bugs": {
+    "url": "https://github.com/jiahaosen07/dsh-bot-board/issues"
+  }
 }

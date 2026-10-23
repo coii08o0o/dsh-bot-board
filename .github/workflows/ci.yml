@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      # 注意这里跑的是 `ci` 而不是 `check`：`check` 会先 build，会把「产物落后
+      # 于源码」这个状态静默修好，于是忘 build 的人看到一片绿。`ci` 不 build，
+      # 第一件事就是拿 client.js banner 里的 src 指纹和现算的比对，不一致即失败。
+      # smoke / render 两套检查都只需要 node，不依赖 esbuild 的平台二进制，
+      # 所以在 Linux runner 上也能跑（要 `npm run build` 请在本地或先 npm install）。
+      - run: npm run ci
