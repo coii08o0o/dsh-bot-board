@@ -4,6 +4,8 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 
+![1280×640, the real panel with the six lamps and the tagline](docs/social-preview.png)
+
 A floating board for [DS Bot](https://github.com/Fei2411/DeepSeek-Bot): what every Bot is doing right now, how long it has been running, what it is stuck on, and who is waiting on whom. No need to open each Bot's chat.
 
 ![560×480, three Bots need you, five running, one idle](docs/screenshot.png)

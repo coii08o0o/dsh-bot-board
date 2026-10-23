@@ -4,6 +4,8 @@
 
 [![npm](https://img.shields.io/npm/v/dsh-bot-board.svg)](https://www.npmjs.com/package/dsh-bot-board)
 
+![1280×640，真实面板配上六盏状态灯和那句标语](docs/social-preview.png)
+
 给 DS Bot 加一块浮动看板：谁在跑、跑了多久、卡在哪、谁在等谁交活。不用逐个点开他们的会话。
 
 ![560×480，三件需要你、五个在动、一个闲着](docs/screenshot.png)
