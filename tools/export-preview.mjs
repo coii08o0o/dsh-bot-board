@@ -135,11 +135,11 @@ const bots = ROSTER.map((name, index) => ({ id: `b${index}`, name, sessionId: `b
 const nameOf = id => bots.find(bot => bot.id === id)?.name ?? id
 
 function snapshot({
-  activity = {}, workBots = {}, waiting = {}, approvals = [], questions = {},
+  bots: botList = bots, activity = {}, workBots = {}, waiting = {}, approvals = [], questions = {},
   errors = [], works = [], waveMap = {}, noteMap = {}, rooms = {},
 } = {}) {
   const rows = buildRows({
-    bots, activity, workBots, waiting, approvals, questions, errors, works,
+    bots: botList, activity, workBots, waiting, approvals, questions, errors, works,
     rooms, waveMap, noteMap, t, nameOf, now: NOW,
   })
   return { rows, works }
@@ -333,6 +333,29 @@ cases.push({
     panel({ w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 审批抽屉', snap: withApproval, sheet: 'b6' }),
     panel({ w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 图例抽屉', snap: mutual, sheet: 'legend' }),
   ],
+})
+
+// 9. Where a face comes from. Every other scenario runs the nine-seat roster, so
+//    this is the only place the other two tiers are visible. `color` is what DS
+//    Bot stores when — and only when — the user picked a colour in its own UI
+//    (`roster.js`: "A color is only stored when the user picks one"), so a real
+//    roster is mostly tiers 2 and 3, and this panel is deliberately not one.
+cases.push({
+  title: '身份来源 · 上游 ink > 名册 > 哈希',
+  note: '三个 Bot，三种来源。Chief 带了上游 color（tier 1）：身体色用它，装饰仍取名册的冠和旗——用户在 DS Bot 里选的颜色是本来的身份，本地默认皮肤不该覆盖它。数学没有 color（tier 2）：整身取名册皮肤。第十个名字不在名册里（tier 3）：按 id 哈希出稳定的脸。注意两个选了同一个 ink 的 Bot 本该同色，那是用户的选择，所以只有哈希层去重。',
+  panels: [panel({
+    w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 身份',
+    snap: snapshot({
+      bots: [
+        { id: 's0', name: 'Chief', sessionId: 's0', color: 'deepseek' },
+        { id: 's1', name: '数学', sessionId: 's1' },
+        // An arbitrary id: its hash lands on a teal that is visibly neither the
+        // ink above nor the roster purple below, so the three tiers read apart.
+        { id: 's3', name: '第十个', sessionId: 's3' },
+      ],
+      ...merge(working('s0', 4.2, 'Bash'), working('s1', 2, 'Bash'), working('s3', 0.2, 'Write')),
+    }),
+  })],
 })
 
 // ── page ────────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 // GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
-// version: 0.4.3
-// src: 2566161969bf2109
+// version: 0.5.0
+// src: d3131666218e2a0a
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',
   factory: (require) => {
@@ -109,6 +109,33 @@ var __bbEntry = (() => {
     { name: "\u8BED\u6587", color: "#EF4444", face: "#F59C9C", head: "bowCream", prop: "books" },
     { name: "\u82F1\u8BED", color: "#F97316", face: "#FBB277", head: "headphones", prop: "mic" }
   ];
+  var INKS = {
+    deepseek: "#4D6BFE",
+    charcoal: "#141416",
+    graphite: "#2D2D2D",
+    rose: "#EC2F6B",
+    sky: "#0AA8D6",
+    tangerine: "#FF6900",
+    cobalt: "#082DFF",
+    black: "#000000",
+    brown: "#A27952",
+    red: "#FF3E51",
+    orange: "#FF781C",
+    yellow: "#FFAF38",
+    green: "#00C972",
+    cyan: "#1CC3B0",
+    blue: "#2A92FE",
+    violet: "#A97EFE",
+    magenta: "#FF5EB1",
+    gray: "#959595",
+    aurora: "#00B8D4"
+  };
+  var HEX = /^#[0-9a-f]{6}$/i;
+  function inkOf(value) {
+    const id = typeof value === "string" ? value.trim() : "";
+    if (Object.hasOwn(INKS, id)) return INKS[id];
+    return HEX.test(id) ? id : null;
+  }
   var PALETTE = [
     "#378ADD",
     "#EC4899",
@@ -133,24 +160,39 @@ var __bbEntry = (() => {
     const b = mix(n & 255);
     return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, "0")}`;
   }
-  function seatOf(bot, taken) {
-    const name = typeof bot?.name === "string" ? bot.name : "";
-    const fixed = ROSTER.find((item) => item.name === name);
-    if (fixed && !taken?.has(fixed.name)) {
-      taken?.add(fixed.name);
-      return fixed;
-    }
-    const id = String(bot?.id ?? name);
+  function hashSeat(id, attempt) {
+    const salted = attempt === 0 ? id : `${id}#${attempt}`;
     let hash = 0;
-    for (let i = 0; i < id.length; i += 1) hash = hash * 31 + id.charCodeAt(i) >>> 0;
+    for (let i = 0; i < salted.length; i += 1) hash = hash * 31 + salted.charCodeAt(i) >>> 0;
     const color = PALETTE[hash % PALETTE.length];
     return {
-      name,
       color,
       face: faceOf(color),
       head: HEADS[Math.floor(hash / PALETTE.length) % HEADS.length],
       prop: PROPS[Math.floor(hash / (PALETTE.length * HEADS.length)) % PROPS.length]
     };
+  }
+  function seatOf(bot, taken) {
+    const name = typeof bot?.name === "string" ? bot.name : "";
+    const id = String(bot?.id ?? name);
+    const ink = inkOf(bot?.color);
+    let fixed = ROSTER.find((item) => item.name === name);
+    if (fixed && !taken?.has(fixed.name)) taken?.add(fixed.name);
+    else if (fixed) fixed = null;
+    if (ink) {
+      const gear = fixed ?? hashSeat(id, 0);
+      return { name, color: ink, face: faceOf(ink), head: gear.head, prop: gear.prop };
+    }
+    if (fixed) return fixed;
+    for (let attempt = 0; attempt < PALETTE.length * HEADS.length * PROPS.length; attempt += 1) {
+      const seat = hashSeat(id, attempt);
+      const key = `${seat.color}|${seat.head}|${seat.prop}`;
+      if (!taken?.has(key)) {
+        taken?.add(key);
+        return { name, ...seat };
+      }
+    }
+    return { name, ...hashSeat(id, 0) };
   }
 
   // src/client/locale.js

@@ -38,9 +38,15 @@ section('host: snapshot')
         'session-aaa': {
           id: 'session-aaa', name: 'Chief', role: 'captain', model: 'deepseek-v4',
           sessionId: 'session-bbb', segments: [{ sessionId: 'session-ccc' }],
+          // The colour the user picked in DS Bot's own UI: a named ink there,
+          // forwarded here so the browser half can outrank the local roster.
+          color: 'deepseek',
         },
         // A Bot created without a model holds its setup greeting in `kickoff`.
         'session-ddd': { id: 'session-ddd', name: '数学', role: '', model: null, segments: [], kickoff: { text: 'hi' } },
+        // Nobody picked a colour for this one — which is what upstream stores
+        // for most Bots — and its zero-width space must not survive the trip.
+        'session-eee': { id: 'session-eee', name: '物理', role: '', color: 'bl\u200Bue' },
       },
       works: {
         w1: { from: 'session-aaa', to: 'session-ddd', at: 1792490000000, open: ['x', 'y'], results: [{ name: '数学', text: 'done one' }] },
@@ -99,6 +105,17 @@ section('host: snapshot')
     check(body.bots.find(bot => bot.id === 'session-aaa')?.waiting === false,
       'a Bot that has spoken is not waiting')
 
+    // `bot.color` is the identity the user picked in DS Bot's own UI, so it is
+    // forwarded rather than dropped. The host sanitises and the browser half
+    // validates — a string that is neither a known ink nor #rrggbb simply never
+    // resolves, which is why forwarding it raw is safe.
+    check(body.bots.find(bot => bot.id === 'session-aaa')?.color === 'deepseek',
+      'a picked ink id is forwarded to the browser half')
+    check(body.bots.find(bot => bot.id === 'session-ddd')?.color === null,
+      'a Bot with no picked colour forwards null, not undefined')
+    check(body.bots.find(bot => bot.id === 'session-eee')?.color === 'blue',
+      'a colour with a zero-width space is sanitised on the way through')
+
     // An old hand-off that is still open must outrank a newer closed record.
     const order = body.works.map(work => work.id)
     check(order.indexOf('w4') >= 0 && order.indexOf('w4') < order.indexOf('w2'),
@@ -122,7 +139,7 @@ section('host: snapshot')
     await writeFile(statePath, '{"bots": {"trunc')
     body = await read()
     check(body.stale === true, 'unreadable state.json marks the snapshot stale')
-    check(body.ok === true && body.bots.length === 2, 'unreadable state.json still serves the last good snapshot')
+    check(body.ok === true && body.bots.length === 3, 'unreadable state.json still serves the last good snapshot')
 
     // P1-3: a rewrite that changes the size must invalidate the cache.
     const good = JSON.stringify({
@@ -266,6 +283,47 @@ section('format + roster')
   check(stranger.face !== stranger.color && /^#[0-9a-f]{6}$/i.test(stranger.face), 'a stranger gets a two-tone face')
   check(['crown', 'glasses', 'bowRed', 'bowCream', 'hat', 'sprout', 'headphones', null].includes(stranger.head),
     'a stranger head comes from the allowed set')
+
+  // Identity has three tiers, and the top one belongs to DS Bot: `bot.color` is
+  // the colour the user picked in DS Bot's own UI, so it outranks the local
+  // default skin. A Bot nobody picked a colour for has no such key upstream,
+  // which is why most of a real roster arrives without one.
+  const { INKS, inkOf } = await import(new URL('../src/client/const.js', import.meta.url).href)
+  check(inkOf('blue') === INKS.blue && inkOf('aurora') === INKS.aurora,
+    'a DS Bot ink id resolves to its own hex, not to a board colour')
+  check(inkOf('#123ABC') === '#123ABC', 'a picked #rrggbb survives verbatim')
+  check(inkOf('chartreuse') === null && inkOf(42) === null && inkOf(undefined) === null,
+    'an unknown colour id is null, so it never reaches a fill')
+  const inked = seatOf({ name: 'Chief', id: 'x', color: 'deepseek' })
+  check(inked.color === INKS.deepseek && inked.head === 'crown' && inked.prop === 'flag',
+    'the picked ink wins on body colour, and a known name keeps its decorations')
+  check(seatOf({ name: 'Chief', id: 'x', color: 'chartreuse' }).color === ROSTER[0].color,
+    'an unrecognised colour falls back to the roster rather than to a random face')
+  const hexed = seatOf({ name: '第十个', id: 'x', color: '#123ABC' })
+  check(hexed.color === '#123ABC' && hexed.face !== hexed.color,
+    'a picked #hex also wins, and still gets a derived face disc')
+  // Two Bots that picked the same ink are meant to look alike — that is the
+  // user's choice — so the ink tier does not dedupe. Only the hash tier does.
+  const inkPair = new Set()
+  const inkA = seatOf({ name: 'Chief', id: 'a', color: 'blue' }, inkPair)
+  const inkB = seatOf({ name: 'Chief', id: 'b', color: 'blue' }, inkPair)
+  const strangerB = seatOf({ name: '乙', id: 'b' })
+  check(inkA.color === inkB.color && inkA.color === INKS.blue,
+    'two same-named Bots with the same picked ink share the colour')
+  check(inkA.head === 'crown' && inkB.head === strangerB.head && inkB.prop === strangerB.prop,
+    'the designed seat is claimed once: the second one decorates from its own id, like any stranger')
+
+  // Two strangers can hash onto one triple by chance (12 x 8 x 10 = 960
+  // combinations). This pair does; without dedup they would draw byte-identical
+  // dumplings, one working and one failing — the v0.4.2 finding #12 shape.
+  const clashTaken = new Set()
+  const clashA = seatOf({ name: '甲', id: 'session-1n-xx' }, clashTaken)
+  const clashB = seatOf({ name: '乙', id: 'session-30-xx' }, clashTaken)
+  const same = s => `${s.color}|${s.head}|${s.prop}`
+  check(same(clashA) !== same(clashB),
+    `two strangers on one hash triple get different seats (${same(clashA)} vs ${same(clashB)})`)
+  check(seatOf({ name: '甲', id: 'session-1n-xx' }).color === clashA.color,
+    'dedup only re-salts a clash: an unclashed stranger keeps its original seat')
 
   // An activity ds-bot adds later has no dictionary entry; printing the raw token
   // onto the card is worse than reading it as "working".

@@ -262,6 +262,13 @@ export function apply(ctx) {
         role: text(bot.role).slice(0, 120),
         model: bot.model ?? null,
         sessionId: bot.sessionId ?? null,
+        // The colour the user picked for this Bot in DS Bot's own UI (a named ink
+        // or #rrggbb). Forwarded as sanitised text and validated on the browser
+        // side, where it is only ever read as a key into the ink table — an
+        // unrecognised value degrades to the roster/hash seat instead of
+        // reaching a fill. Bots the user never picked a colour for have no such
+        // key upstream, so most of a real roster arrives without one.
+        color: text(bot.color).slice(0, 24) || null,
         // A held setup greeting: the Bot will not speak until the user picks its
         // model. `view()` exposes the same thing as `waiting`, so the browser half
         // reads one field whichever source it got its Bot list from.

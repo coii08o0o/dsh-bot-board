@@ -127,9 +127,9 @@ export const STATUS_KEY = {
 export const statusLabel = (status, t) => t(STATUS_KEY[status] ?? 'status.working')
 
 // Nine Bots = nine flat body colours + lighter face disc + one head accessory +
-// one desk prop. Identity is fixed by Bot name so a Bot keeps its face across
-// refreshes; strangers hash into the palette instead of colliding with a named
-// seat, and the three axes are independent so the tenth Bot still looks unique.
+// one desk prop. This is a *default skin* for known names, not an identity
+// system: a Bot nobody named after one of these falls through to the hash
+// below, and an upstream ink (see INKS) outranks all of it.
 export const ROSTER = [
   { name: 'Chief', color: '#378ADD', face: '#7FB4E8', head: 'crown', prop: 'flag' },
   { name: 'Researcher', color: '#EC4899', face: '#F5A3CD', head: 'glasses', prop: 'magnifier' },
@@ -141,6 +141,32 @@ export const ROSTER = [
   { name: '语文', color: '#EF4444', face: '#F59C9C', head: 'bowCream', prop: 'books' },
   { name: '英语', color: '#F97316', face: '#FBB277', head: 'headphones', prop: 'mic' },
 ]
+
+// DS Bot's own ink vocabulary (`ds-bot/src/client/inks.js` in the bundle's
+// client half): 13 named colours plus 6 deeper inks, and `bot.color` in
+// state.json holds one of these ids whenever the user picked a colour in DS
+// Bot's UI. A Bot the user never picked one for has no `color` key at all —
+// `roster.js` stores it only on an explicit choice. Each upstream entry is
+// [base, deeper]; the base is the body colour here and the face disc is derived
+// by washing it toward white, exactly like the roster's own faces.
+export const INKS = {
+  deepseek: '#4D6BFE', charcoal: '#141416', graphite: '#2D2D2D', rose: '#EC2F6B',
+  sky: '#0AA8D6', tangerine: '#FF6900', cobalt: '#082DFF', black: '#000000',
+  brown: '#A27952', red: '#FF3E51', orange: '#FF781C', yellow: '#FFAF38',
+  green: '#00C972', cyan: '#1CC3B0', blue: '#2A92FE', violet: '#A97EFE',
+  magenta: '#FF5EB1', gray: '#959595', aurora: '#00B8D4',
+}
+
+// The only way `bot.color` is ever read: as a key into INKS, or as a #rrggbb
+// literal (also a legal `bot.color` upstream). Anything else returns null and
+// the Bot falls through to the next tier, so an unrecognised string out of
+// another process's file can never reach a fill.
+const HEX = /^#[0-9a-f]{6}$/i
+export function inkOf(value) {
+  const id = typeof value === 'string' ? value.trim() : ''
+  if (Object.hasOwn(INKS, id)) return INKS[id]
+  return HEX.test(id) ? id : null
+}
 
 const PALETTE = [
   '#378ADD', '#EC4899', '#F59E0B', '#8B5CF6', '#14B8A6', '#22C55E',
@@ -160,27 +186,67 @@ function faceOf(color) {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
 }
 
-// `taken` is the set of named seats already claimed in this render. A Bot's name
-// is upstream-controlled free text, so a second Bot that renames itself to
-// 'Chief' used to draw a byte-identical Chief: two look-alikes, one working and
-// one failing, with no way to tell them apart (v0.4.2 audit, finding #12). A
-// duplicate now falls through to the hashed palette instead of impersonating.
-export function seatOf(bot, taken) {
-  const name = typeof bot?.name === 'string' ? bot.name : ''
-  const fixed = ROSTER.find(item => item.name === name)
-  if (fixed && !taken?.has(fixed.name)) {
-    taken?.add(fixed.name)
-    return fixed
-  }
-  const id = String(bot?.id ?? name)
+// The three decoration axes come from disjoint slices of one id hash, so a
+// stranger's look is stable across refreshes and two strangers differ. `attempt`
+// re-salts the hash: 0 for the first try, and it only moves when a computed
+// triple is already claimed — so every seat that existed before dedup is
+// byte-for-byte unchanged.
+function hashSeat(id, attempt) {
+  const salted = attempt === 0 ? id : `${id}#${attempt}`
   let hash = 0
-  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  for (let i = 0; i < salted.length; i += 1) hash = (hash * 31 + salted.charCodeAt(i)) >>> 0
   const color = PALETTE[hash % PALETTE.length]
   return {
-    name,
     color,
     face: faceOf(color),
     head: HEADS[Math.floor(hash / PALETTE.length) % HEADS.length],
     prop: PROPS[Math.floor(hash / (PALETTE.length * HEADS.length)) % PROPS.length],
   }
+}
+
+// Three tiers, in order:
+//
+//   1. the ink the user picked in DS Bot's own UI — the Bot's real identity,
+//      which a local default skin has no business overriding;
+//   2. the roster, when the Bot's name is one of the nine and nobody claimed
+//      that seat yet this render;
+//   3. the id hash, for everybody else.
+//
+// Tier 1 keeps the roster's decorations when the name is known (a Chief stays a
+// crowned Chief, in the colour its user chose) and takes them from the hash when
+// it is not. Two Bots that picked the same ink are *meant* to look alike — that
+// is the user's choice — so only tier 3 dedupes.
+//
+// `taken` holds claimed roster names and claimed hash triples. A Bot's name is
+// upstream-controlled free text, so a second Bot that renames itself to 'Chief'
+// used to draw a byte-identical Chief: two look-alikes, one working and one
+// failing, with no way to tell them apart (v0.4.2 audit, finding #12). A
+// duplicate now falls through instead of impersonating. The same argument
+// applies to the hash: two strangers can land on one triple by chance (12 x 8 x
+// 10 = 960 combinations) and an identical pair is indistinguishable from that
+// impersonation, so a claimed triple is re-hashed rather than reused.
+export function seatOf(bot, taken) {
+  const name = typeof bot?.name === 'string' ? bot.name : ''
+  const id = String(bot?.id ?? name)
+  const ink = inkOf(bot?.color)
+  let fixed = ROSTER.find(item => item.name === name)
+  // Claim the name for this render even when the ink overrides the body colour,
+  // or a same-named stranger would walk into the designed seat behind it.
+  if (fixed && !taken?.has(fixed.name)) taken?.add(fixed.name)
+  else if (fixed) fixed = null
+  if (ink) {
+    const gear = fixed ?? hashSeat(id, 0)
+    return { name, color: ink, face: faceOf(ink), head: gear.head, prop: gear.prop }
+  }
+  if (fixed) return fixed
+  for (let attempt = 0; attempt < PALETTE.length * HEADS.length * PROPS.length; attempt += 1) {
+    const seat = hashSeat(id, attempt)
+    const key = `${seat.color}|${seat.head}|${seat.prop}`
+    if (!taken?.has(key)) {
+      taken?.add(key)
+      return { name, ...seat }
+    }
+  }
+  // Every triple is taken (960 Bots on one board). Identical twins beat no face.
+  return { name, ...hashSeat(id, 0) }
 }
