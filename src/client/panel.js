@@ -215,11 +215,16 @@ export function Body({
     else resting.push(row)
   }
 
-  if (!rows.length) {
-    return h('div', { className: 'bb-body' },
-      notices.length ? h('div', { className: 'bb-notices' }, notices) : null,
-      empty)
-  }
+  // The empty board is returned at the END of this function, not here. It used to
+  // be here, and that was the v0.7.0 crash: `runRef` / `runOverflow` below are
+  // hooks, so the first render of a session — which always has no rows yet, the
+  // first poll has not answered — claimed three hook slots and the first render
+  // with data claimed five. React answers that with "Rendered more hooks than
+  // during the previous render", unmounts the subtree, and the boundary above
+  // degrades the whole panel to a pill. Worse, unmounting throws away the poll
+  // state, so every retry replayed [] → data → crash: the pill was permanent and
+  // the "reload to recover" it printed was false. Hooks may never sit behind a
+  // return, so the early exit lives below them now.
 
   // `+N` is a one-way reveal (design: the only path that may make layer 3 grow),
   // so the expanded line is the *untrimmed* roster — otherwise expanding would
@@ -332,6 +337,15 @@ export function Body({
     measureRun()
   }, [measureRun, moving.length, works.length, rows.length, attOpen, expanded, panelW, panelH])
   const idleVisible = idle.items.length > 0 || idle.overflow > 0
+
+  // No Bots at all — "载入中…" before the first answer, or "还没有 Bot" after it.
+  // Last, not first: every hook above has to run on every render (see the note
+  // where this block used to sit, above `idleLine`).
+  if (!rows.length) {
+    return h('div', { className: 'bb-body' },
+      notices.length ? h('div', { className: 'bb-notices' }, notices) : null,
+      empty)
+  }
 
   return h('div', { className: 'bb-body' },
     notices.length ? h('div', { className: 'bb-notices' }, notices) : null,

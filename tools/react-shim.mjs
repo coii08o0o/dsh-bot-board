@@ -84,6 +84,15 @@ export function resetRefs() {
   stores.clear()
 }
 
+// How many hook slots a component type has claimed so far. React requires that
+// number to be identical on every render of the same component — a hook behind an
+// early `return` makes the count change and React unmounts the tree with
+// "Rendered more hooks than during the previous render". The shim has no
+// reconciler, so it never throws on its own; the checks read the count instead.
+export function hookSlots(type) {
+  return (stores.get(type) ?? []).length
+}
+
 export function render(node) {
   if (node === null || node === undefined || node === false || node === true) return null
   if (Array.isArray(node)) return node.map(render).flat()

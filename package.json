@@ -1,6 +1,6 @@
 {
   "name": "dsh-bot-board",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "type": "module",
   "description": "A DeepSeek Harness plugin: a floating board for DS Bot that shows who is running, who is stuck, and who needs you.",
   "keywords": [

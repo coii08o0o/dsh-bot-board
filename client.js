@@ -1,6 +1,6 @@
 // GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
-// version: 0.7.2
-// src: b83d7e49fe81a546
+// version: 0.7.3
+// src: 0e253b07023ef3fd
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',
   factory: (require) => {
@@ -294,7 +294,7 @@ var __bbEntry = (() => {
     "panel.sumHandoff": "{n} \u9879\u5728\u4EA4\u63A5",
     "panel.dataVersion": "DS Bot \u6570\u636E\u7248\u672C\u53D8\u4E86\uFF0C\u663E\u793A\u7684\u5185\u5BB9\u53EF\u80FD\u4E0D\u51C6",
     "panel.viewStale": "\u8FDE\u4E0D\u4E0A DS Bot\uFF0C\u663E\u793A\u7684\u662F\u6700\u540E\u4E00\u6B21\u6570\u636E",
-    "panel.crashed": "\u770B\u677F\u51FA\u9519\u4E86\uFF0C\u5DF2\u9694\u79BB\uFF08\u5237\u65B0\u53EF\u6062\u590D\uFF09",
+    "panel.crashed": "\u770B\u677F\u51FA\u9519\u4E86\uFF0C\u5DF2\u9694\u79BB\uFF08\u4F1A\u81EA\u52A8\u91CD\u8BD5\uFF09",
     "panel.timeout": "\u8FDE\u63A5\u8D85\u65F6",
     "panel.total": "{n} \u4E2A",
     "run.overflow": "\u8FD8\u6709 {n} \u4E2A\u5728\u4E0B\u9762",
@@ -392,7 +392,7 @@ var __bbEntry = (() => {
     "panel.sumHandoff": "{n} open hand-offs",
     "panel.dataVersion": "DS Bot data format changed \u2014 what you see may be wrong",
     "panel.viewStale": "Cannot reach DS Bot \u2014 showing the last data",
-    "panel.crashed": "The board hit an error and was isolated (reload to recover)",
+    "panel.crashed": "The board hit an error and was isolated (retrying automatically)",
     "panel.timeout": "Connection timed out",
     "panel.total": "{n} total",
     "run.overflow": "{n} more below",
@@ -2423,14 +2423,6 @@ var __bbEntry = (() => {
       if (bucket === LAYER_RUNNING) moving.push(row);
       else resting.push(row);
     }
-    if (!rows.length) {
-      return (0, import_react9.createElement)(
-        "div",
-        { className: "bb-body" },
-        notices.length ? (0, import_react9.createElement)("div", { className: "bb-notices" }, notices) : null,
-        empty
-      );
-    }
     const idle = idleLine(resting, expanded ? Number.POSITIVE_INFINITY : void 0);
     const showRun = moving.length > 0 || (works ?? []).some((work) => Number(work?.open) > 0);
     const onlyAttention = !showRun && resting.length === 0;
@@ -2468,6 +2460,14 @@ var __bbEntry = (() => {
       measureRun();
     }, [measureRun, moving.length, works.length, rows.length, attOpen, expanded, panelW, panelH]);
     const idleVisible = idle.items.length > 0 || idle.overflow > 0;
+    if (!rows.length) {
+      return (0, import_react9.createElement)(
+        "div",
+        { className: "bb-body" },
+        notices.length ? (0, import_react9.createElement)("div", { className: "bb-notices" }, notices) : null,
+        empty
+      );
+    }
     return (0, import_react9.createElement)(
       "div",
       { className: "bb-body" },

@@ -5,7 +5,7 @@
 // command, six-state legend, stable workstation order).
 //
 // Run: node --import ./tools/register-shim.mjs tools/render-check.mjs
-import { findAll, mount, render, resetRefs, textOf, effects } from './react-shim.mjs'
+import { findAll, hookSlots, mount, render, resetRefs, textOf, effects } from './react-shim.mjs'
 
 let failed = 0
 const check = (ok, label) => {
@@ -421,6 +421,38 @@ const bandsOf = tree => {
   return (body?.children ?? []).filter(Boolean)
 }
 const hasClass = (tree, name) => findAll(tree, node => String(node.props?.className ?? '').split(' ').includes(name))
+
+console.log('\n-- hooks never sit behind a return --')
+// The v0.7.0 crash. `Body` returned the empty board before `runRef`/`runOverflow`
+// were declared, so a session that started with no rows (every session does — the
+// first poll has not answered yet) claimed three hook slots and the first render
+// with data claimed five. React throws "Rendered more hooks than during the
+// previous render", the boundary unmounts the subtree — and with it the poll
+// state — so the next retry walked [] → data → crash again. The panel was a
+// permanent pill, and the "reload to recover" it printed was a lie.
+//
+// The shim has no reconciler and cannot throw on its own, so the hook count is
+// read directly: it must be the same for every render of the same component,
+// whatever the data.
+{
+  resetRefs()
+  mount(Body, bodyProps([]))
+  const empty = hookSlots(Body)
+  mount(Body, bodyProps(layerRows({})))
+  const full = hookSlots(Body)
+  check(empty > 0 && empty === full,
+    `Body claims the same hook slots with no rows and with nine (${empty} vs ${full})`)
+
+  // The exact sequence a real session walks, twice over: first paint with no
+  // answer, data, then a poll failure that empties the list again.
+  resetRefs()
+  const seen = [[], layerRows({}), [], layerRows({})].map(rows => {
+    mount(Body, bodyProps(rows))
+    return hookSlots(Body)
+  })
+  check(new Set(seen).size === 1,
+    `and it stays constant across [] → 9 → [] → 9 (${seen.join(', ')})`)
+}
 
 console.log('\n-- the classroom draws the scene it declares --')
 // Read off the RENDERED tree, not compared against a literal typed here: the
