@@ -43,9 +43,11 @@ export function LegendSheet({ t, onClose }) {
       // the only symbol on the panel with no explanation anywhere. A Bot that
       // failed and then went quiet drops out of the header count (the red lamp is
       // about *now*), so the badge is the only trace left — it has to be named.
+      // Drawn at the lamps' 16px so the column of marks lines up; `.bb-lg-badge`
+      // keeps it in the flow, which is what the plain `.bb-badge` used to break.
       h('div', { className: 'bb-lg-row' },
         h('span', { className: 'bb-lg-lamp' },
-          h('span', { className: 'bb-badge bb-badge-inline' }, '!')),
+          h('span', { className: 'bb-badge bb-lg-badge' }, '!')),
         h('span', { className: 'bb-lg-name' }, t('legend.badge')),
         h('span', { className: 'bb-lg-hint' }, t('legend.hint.badge')))))
 }

@@ -1,6 +1,6 @@
 // GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
 // version: 0.7.0
-// src: b64732521d847595
+// src: b83d7e49fe81a546
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',
   factory: (require) => {
@@ -305,14 +305,14 @@ var __bbEntry = (() => {
     "legend.idle": "\u95F2\u7740",
     "legend.done": "\u5E72\u5B8C",
     "legend.help": "\u516D\u6001\u8BF4\u660E",
-    "legend.hint.busy": "\u6B63\u5728\u8DD1\u4E00\u8F6E\uFF0C\u4E0D\u7528\u4F60\u7BA1",
+    "legend.hint.busy": "\u6B63\u5728\u8DD1\u4E00\u8F6E\uFF0C\u8FD8\u6CA1\u51FA\u7ED3\u679C",
     "legend.hint.alert": "\u7B49\u4F60\u6279\u6216\u7B49\u4F60\u7B54",
     "legend.hint.waiting": "\u5728\u7B49\u53E6\u4E00\u4E2A Bot \u4EA4\u6D3B",
     "legend.hint.error": "\u51FA\u9519\u4E86\uFF0C\u8DD1\u4E0D\u52A8",
-    "legend.hint.idle": "\u95F2\u7740\uFF0C\u6CA1\u6709\u6D3B",
-    "legend.hint.done": "\u521A\u4EA4\u5B8C\u6D3B\uFF087 \u79D2\u540E\u56DE\u843D\u5230\u95F2\u7740\uFF09",
+    "legend.hint.idle": "\u6CA1\u6709\u6D3B\uFF0C\u968F\u65F6\u80FD\u63A5",
+    "legend.hint.done": "\u521A\u4EA4\u5B8C\u6D3B\uFF0C\u4E00\u4F1A\u513F\u5C31\u56DE\u843D\u5230\u95F2\u7740",
     "legend.badge": "\u62A5\u9519\u8FC7",
-    "legend.hint.badge": "\u62A5\u9519\u8FC7\u4F46\u5DF2\u7ECF\u5B89\u9759\u4E0B\u6765\uFF1B\u7EA2\u706F\u53EA\u8868\u793A\u73B0\u5728\u5361\u4F4F",
+    "legend.hint.badge": "\u4E4B\u524D\u62A5\u9519\u8FC7\uFF0C\u73B0\u5728\u5B89\u9759\u4E86",
     "attention.empty": "\u6CA1\u6709\u9700\u8981\u4F60\u7684\u4E8B",
     "attention.overflow": "\u8FD8\u6709 {n} \u4E2A",
     "attention.collapse": "\u6536\u8D77\u591A\u51FA\u6765\u7684",
@@ -403,14 +403,14 @@ var __bbEntry = (() => {
     "legend.idle": "Idle",
     "legend.done": "Done",
     "legend.help": "What the six states mean",
-    "legend.hint.busy": "Running a turn \u2014 nothing for you",
+    "legend.hint.busy": "Running a turn \u2014 not done yet",
     "legend.hint.alert": "Waiting for your approval or answer",
     "legend.hint.waiting": "Waiting for another Bot to hand back",
     "legend.hint.error": "Failed \u2014 it cannot continue",
-    "legend.hint.idle": "Idle, nothing running",
-    "legend.hint.done": "Just handed back (idle after 7s)",
+    "legend.hint.idle": "Nothing running \u2014 free to take work",
+    "legend.hint.done": "Just handed back \u2014 idle again in a moment",
     "legend.badge": "Failed before",
-    "legend.hint.badge": "Failed earlier and has gone quiet; the red lamp is about now",
+    "legend.hint.badge": "Failed earlier, quiet since",
     "attention.empty": "Nothing needs you",
     "attention.overflow": "{n} more",
     "attention.collapse": "Collapse the extras",
@@ -1092,7 +1092,10 @@ var __bbEntry = (() => {
         lampShape(scene),
         (0, import_react3.createElement)("g", { transform: "translate(-4 0)" }, deskProp(seat.prop))
       ),
-      badge ? (0, import_react3.createElement)("span", { className: "bb-badge", title: row.failure ?? "" }, "!") : null,
+      // The one place the badge overlays its container: the card is the positioned
+      // ancestor, so it sits on the card's top-right corner. Everywhere else it is
+      // a flex item (see `.bb-badge-inline` / `.bb-lg-badge` in style.js).
+      badge ? (0, import_react3.createElement)("span", { className: "bb-badge bb-badge-abs", title: row.failure ?? "" }, "!") : null,
       (0, import_react3.createElement)(
         "div",
         {
@@ -1283,13 +1286,15 @@ var __bbEntry = (() => {
         // the only symbol on the panel with no explanation anywhere. A Bot that
         // failed and then went quiet drops out of the header count (the red lamp is
         // about *now*), so the badge is the only trace left — it has to be named.
+        // Drawn at the lamps' 16px so the column of marks lines up; `.bb-lg-badge`
+        // keeps it in the flow, which is what the plain `.bb-badge` used to break.
         (0, import_react5.createElement)(
           "div",
           { className: "bb-lg-row" },
           (0, import_react5.createElement)(
             "span",
             { className: "bb-lg-lamp" },
-            (0, import_react5.createElement)("span", { className: "bb-badge bb-badge-inline" }, "!")
+            (0, import_react5.createElement)("span", { className: "bb-badge bb-lg-badge" }, "!")
           ),
           (0, import_react5.createElement)("span", { className: "bb-lg-name" }, t("legend.badge")),
           (0, import_react5.createElement)("span", { className: "bb-lg-hint" }, t("legend.hint.badge"))
@@ -2071,10 +2076,15 @@ var __bbEntry = (() => {
 .bb-idle-more{flex:none;padding:1px 3px;border-radius:4px;font-weight:600;color:#6B6558;
   cursor:pointer;outline:none}
 .bb-idle-more:hover{background:transparent;box-shadow:inset 0 0 0 1px #8F8776;color:#2C2C2A}
-/* The inline badge keeps the bb-badge class name (that is what D1 asserts) and
-   only changes its position: the badge must survive every compressed form. */
-.bb-badge-inline{position:static;flex:none;width:12px;height:12px;line-height:12px;font-size:9px;
-  margin-left:2px}
+/* The badge is two things in one class name: what it looks like (.bb-badge) and
+   where it sits (a modifier). Only the look is shared. This rule used to be a
+   plain .bb-badge-inline, declared *before* the base \u2014 same specificity, so the
+   base's position:absolute won and the "!" left its slot for the corner of the
+   nearest positioned ancestor. In the legend that pinned it over the \xD7 button and
+   left the \u62A5\u9519\u8FC7 row looking like it had no mark at all. A compounded selector
+   now beats the base whichever way round the file is read. */
+.bb-badge.bb-badge-inline{position:static;flex:none;width:12px;height:12px;line-height:12px;
+  font-size:9px;margin-left:2px}
 /* The one path that may grow layer 3 \u2014 and only because the user asked for it. */
 .bb-idle[data-expanded="true"]{height:auto;max-height:44px;flex-wrap:wrap;padding:4px 10px}
 
@@ -2153,8 +2163,17 @@ var __bbEntry = (() => {
 .bb-meta-act{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bb-meta-time{margin-left:auto;flex:none;min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
 .bb-stalled{color:#B45309;font-weight:600}
-.bb-badge{position:absolute;top:1px;right:3px;width:14px;height:14px;border-radius:50%;background:#B91C1C;
+/* Appearance only: the red disc and the glyph. Where it goes belongs to the
+   caller \u2014 .bb-badge-abs over a workstation card (the one place it overlays),
+   .bb-badge-inline in a name line or a roster row, .bb-lg-badge in the legend.
+   Folding position into the base is what made the inline form silently
+   absolute. */
+.bb-badge{width:14px;height:14px;border-radius:50%;background:#B91C1C;
   color:#fff;font-size:10px;font-weight:700;line-height:14px;text-align:center;pointer-events:none}
+.bb-badge.bb-badge-abs{position:absolute;top:1px;right:3px}
+/* Legend size: the same 16px slot the six lamps get, so the mark column reads as
+   one column and \u62A5\u9519\u8FC7 stops looking like a row with nothing in front of it. */
+.bb-badge.bb-lg-badge{width:16px;height:16px;line-height:16px;font-size:10px}
 
 /* Every control is reachable by Tab; without a ring you cannot tell where you
    are. This list is extended, never replaced. */

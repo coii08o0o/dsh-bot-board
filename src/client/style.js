@@ -177,10 +177,15 @@ export const CSS = `
 .bb-idle-more{flex:none;padding:1px 3px;border-radius:4px;font-weight:600;color:#6B6558;
   cursor:pointer;outline:none}
 .bb-idle-more:hover{background:transparent;box-shadow:inset 0 0 0 1px #8F8776;color:#2C2C2A}
-/* The inline badge keeps the bb-badge class name (that is what D1 asserts) and
-   only changes its position: the badge must survive every compressed form. */
-.bb-badge-inline{position:static;flex:none;width:12px;height:12px;line-height:12px;font-size:9px;
-  margin-left:2px}
+/* The badge is two things in one class name: what it looks like (.bb-badge) and
+   where it sits (a modifier). Only the look is shared. This rule used to be a
+   plain .bb-badge-inline, declared *before* the base — same specificity, so the
+   base's position:absolute won and the "!" left its slot for the corner of the
+   nearest positioned ancestor. In the legend that pinned it over the × button and
+   left the 报错过 row looking like it had no mark at all. A compounded selector
+   now beats the base whichever way round the file is read. */
+.bb-badge.bb-badge-inline{position:static;flex:none;width:12px;height:12px;line-height:12px;
+  font-size:9px;margin-left:2px}
 /* The one path that may grow layer 3 — and only because the user asked for it. */
 .bb-idle[data-expanded="true"]{height:auto;max-height:44px;flex-wrap:wrap;padding:4px 10px}
 
@@ -259,8 +264,17 @@ export const CSS = `
 .bb-meta-act{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bb-meta-time{margin-left:auto;flex:none;min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
 .bb-stalled{color:#B45309;font-weight:600}
-.bb-badge{position:absolute;top:1px;right:3px;width:14px;height:14px;border-radius:50%;background:#B91C1C;
+/* Appearance only: the red disc and the glyph. Where it goes belongs to the
+   caller — .bb-badge-abs over a workstation card (the one place it overlays),
+   .bb-badge-inline in a name line or a roster row, .bb-lg-badge in the legend.
+   Folding position into the base is what made the inline form silently
+   absolute. */
+.bb-badge{width:14px;height:14px;border-radius:50%;background:#B91C1C;
   color:#fff;font-size:10px;font-weight:700;line-height:14px;text-align:center;pointer-events:none}
+.bb-badge.bb-badge-abs{position:absolute;top:1px;right:3px}
+/* Legend size: the same 16px slot the six lamps get, so the mark column reads as
+   one column and 报错过 stops looking like a row with nothing in front of it. */
+.bb-badge.bb-lg-badge{width:16px;height:16px;line-height:16px;font-size:10px}
 
 /* Every control is reachable by Tab; without a ring you cannot tell where you
    are. This list is extended, never replaced. */

@@ -280,7 +280,10 @@ function StationView({ row, onOpen, note, t, compact = false }) {
         screenContent(scene)),
       lampShape(scene),
       h('g', { transform: 'translate(-4 0)' }, deskProp(seat.prop))),
-    badge ? h('span', { className: 'bb-badge', title: row.failure ?? '' }, '!') : null,
+    // The one place the badge overlays its container: the card is the positioned
+    // ancestor, so it sits on the card's top-right corner. Everywhere else it is
+    // a flex item (see `.bb-badge-inline` / `.bb-lg-badge` in style.js).
+    badge ? h('span', { className: 'bb-badge bb-badge-abs', title: row.failure ?? '' }, '!') : null,
     h('div', {
       className: 'bb-station-name',
       style: NAME_INK[scene] ? { color: NAME_INK[scene] } : undefined,

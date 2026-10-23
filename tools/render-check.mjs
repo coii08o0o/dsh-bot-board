@@ -263,7 +263,8 @@ check(/4m1\d s|4m1\ds/.test(textOf(chief).replace(/\s+/g, '')), 'the station sho
 check(findAll(chief, node => node.props?.className === 'bb-blob').length === 1, 'the station draws exactly one dumpling')
 check(findAll(chief, node => String(node.props?.className ?? '').includes('bb-wave')).length === 0,
   'a busy station does not wave')
-check(findAll(chief, node => node.props?.className === 'bb-badge').length === 0, 'a healthy station has no badge')
+check(findAll(chief, node => String(node.props?.className ?? '').split(' ').includes('bb-badge')).length === 0,
+  'a healthy station has no badge')
 
 const math = stations['Bob']
 check(textOf(math).includes('等你批 Bash'), 'an approval station says what it wants')
@@ -964,6 +965,11 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
   check(badged.length === 1, `D1 exactly one roster row carries the badge (${badged.length})`)
   check(textOf(badged[0]).includes('Bot1'), 'D1 and it is the Bot that failed, not somebody else')
   check(textOf(badged[0]).includes('!'), 'D1 the badge is a glyph, so it survives without colour')
+  // D1b: same cascade trap as C2b. The roster row is a flex container, not a
+  // positioned box, so an absolute badge would have escaped to the roster's
+  // corner and marked nobody.
+  check(findAll(badged[0], node => String(node.props?.className ?? '').split(' ').includes('bb-badge-inline')).length === 1,
+    'D1b the roster badge is a flex item, not an absolutely positioned one')
   check(hasClass(staleBody, 'bb-lamp').length === 0,
     'D1 and the roster still draws no lamp — the badge is the only mark that carries news')
 
@@ -1068,6 +1074,14 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
   check(circles === 4 && rects === 2, `C2 four circles plus the square and the diamond (${circles}/${rects})`)
   check(hasClass(sheet, 'bb-badge').length === 1 && textOf(sheet).includes(t('legend.badge')),
     'C2 the legend also explains the ! badge — the one mark that had no key anywhere')
+  // C2b: the badge used to carry `position:absolute` in its base class, so the
+  // legend's copy left its 16px slot and pinned itself to the drawer's corner —
+  // over the × button, with the 报错过 row left looking unmarked. Placement is a
+  // modifier now; a badge without one is the same bug again.
+  const placed = name => ['bb-badge-abs', 'bb-badge-inline', 'bb-lg-badge'].some(mod => name.split(' ').includes(mod))
+  const badgeNodes = findAll(sheet, node => String(node.props?.className ?? '').split(' ').includes('bb-badge'))
+  check(badgeNodes.length === 1 && placed(String(badgeNodes[0].props.className)),
+    `C2b the legend badge says where it goes (${badgeNodes.map(node => node.props.className).join(',') || 'none'})`)
   check(sheet?.props?.className === 'bb-drawer' && sheet?.props?.['aria-modal'] === 'true',
     'C2 the legend reuses the drawer, so it inherits the focus trap instead of adding a second one')
 
