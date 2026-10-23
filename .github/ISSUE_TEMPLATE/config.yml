@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Install, update and uninstall / 安装、更新、卸载
+    url: https://github.com/coii08o0o/dsh-bot-board#readme
+    about: The README covers the install command, the two manifest fields DSH needs, and how to remove the plugin. / README 里有安装命令、DSH 需要的两个 manifest 字段，以及怎么卸载。
+  - name: 中文说明 / Chinese README
+    url: https://github.com/coii08o0o/dsh-bot-board/blob/main/README.zh-CN.md
+    about: 中文的安装、配置与六态说明。
+  - name: What each lamp and word means / 六种状态分别是什么意思
+    url: https://github.com/coii08o0o/dsh-bot-board#six-states
+    about: Six states, six lamp shapes, and the one line each of them answers. If a state looks wrong, this is the page to check first. / 六种状态、六种灯的形态，各自回答的那一句话。觉得状态不对时先看这里。

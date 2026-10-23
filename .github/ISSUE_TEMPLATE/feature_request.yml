@@ -1,0 +1,47 @@
+name: Feature request / 功能建议
+description: Something the board should show, or should stop showing. / 看板应该显示什么，或者不该显示什么。
+title: '[feat] '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth knowing before you write: the board is read-only on purpose. It reads DS Bot's
+        `state.json` and its `api/bot`, and never writes back — a suggestion that needs the
+        board to change DS Bot's data (approve on its behalf, rename a Bot, start a turn) is a
+        different plugin, and it will not be built here.
+
+        先说明一件事：看板是故意只读的。它读 DS Bot 的 `state.json` 和 `api/bot`，从不写回。
+        需要看板去改 DS Bot 数据的建议（代你批准、改名、起一轮对话）属于另一个插件，不会做在这里。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What can't you tell from the board today / 现在从看板上看不出什么
+      description: Describe the moment, not the widget — "when six Bots run I can't tell which one is on the critical path" is more useful than "add a column". / 描述那个时刻，而不是控件——「六个 Bot 一起跑时看不出谁在关键路径上」比「加一列」有用得多。
+      placeholder: |
+        When two Bots wait on each other I can see both edges, but I still cannot tell
+        which one moved last, so I don't know who to unblock first.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind / 你想到的做法
+      description: Optional. A rough shape is fine; if you have none, say so and describe the moment only. / 可选。粗略想法就行；没有的话只写上面那个时刻也可以。
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which layer / 属于哪一层
+      options:
+        - 需要你 — the attention list at the top / 顶部的「需要你」
+        - 在动 — the workstations and the hand-off table / 「在动」的工位和交接表
+        - 闲着 — the idle roster / 「闲着」的花名册
+        - The panel itself — size, position, collapse, notices / 面板本身——大小、位置、收起、提示
+        - Not sure / 不确定
+    validations:
+      required: true
