@@ -2,7 +2,7 @@
   "name": "dsh-bot-board",
   "version": "0.7.0",
   "type": "module",
-  "description": "Bot 看板 — DS Bot 的浮动实时看板：每个 Bot 现在在干什么、跑了多久、卡在哪、谁在等谁交活",
+  "description": "A DeepSeek Harness plugin: a floating board for DS Bot that shows who is running, who is stuck, and who needs you.",
   "keywords": [
     "dsh",
     "deepseek-harness",
