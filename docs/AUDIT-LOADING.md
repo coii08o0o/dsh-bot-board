@@ -3,7 +3,7 @@
 **结论先行：面板确实会被 DSH 加载，而且已经在运行中的 DSH 里被加载过 143 次。**
 这一条不再是「待验证」，是「已确认」——依据是运行时留下的物证，不是代码推断。见 §3。
 
-**审查对象**：`/Users/admin/Documents/dsh-bot-board`
+**审查对象**：`dsh-bot-board` 仓库根目录
 **基线**：审计开始时 HEAD `bdd2e6d`（v0.4.2）。审计过程中 HEAD 前进到 `04cea17`
 （`fix: 排序方向与注释相反 + 闲着行宽度预算漏算盒模型 + 自环误标互相等`），
 **本文所有数字与结论都在 `04cea17` 上重新跑过一遍**，不是拿旧产物下的结论。
@@ -39,9 +39,9 @@
 | 17 | 宿主读真实数据 | 能解析出快照 | 对真实文件跑 `route.fetch()`：`ok:true`、`stale:false`、**9 个 bot**、3 条 work、rooms 名字映射 | **通** |
 | 18 | `package.json` dsh 字段 | `client.platform: "web"` + `bundle.patch` | `package.json:31-38`；与 ds-bot 的 `dsh` 字段**逐字段相同** | **通** |
 | 19 | `cordis.patch.yml` | `insert` 出 `id` + `name` | `id: bot-board` / `name: dsh-bot-board`；`EntryOptions` 里 `id`+`name` 必填、`config` 可选（`cordis-plugin-loader/src/config/entry.ts:13-27`） | **通** |
-| 20 | profile `dependencies` | 含 `dsh-bot-board` | `~/.dsh/profiles/desktop/package.json:8` → `file:/Users/admin/Documents/dsh-bot-board` | **通** |
+| 20 | profile `dependencies` | 含 `dsh-bot-board` | `~/.dsh/profiles/desktop/package.json:8` → `file:<仓库路径>` | **通** |
 | 21 | profile `dsh.profile.bundles` | 含 `dsh-bot-board` | 同文件 `:33`，位于列表末尾 | **通** |
-| 22 | 软链完整性 | 指向仓库、未断 | `node_modules/dsh-bot-board -> /Users/admin/Documents/dsh-bot-board`，可解析 | **通** |
+| 22 | 软链完整性 | 指向仓库、未断 | `node_modules/dsh-bot-board -> <仓库路径>`，可解析 | **通** |
 | 23 | 版本一致性 | 0.4.2 全线一致 | `package.json:3` 是 0.4.2；`client.js` **无版本标记**；README **无版本段**；`tools/export-preview.mjs` 仍写 v0.4.1 | **存疑** |
 | 24 | 宿主入口可导入 | 三个具名导出 | `import('index.js')` → `['apply','inject','name']`，`inject=["connection"]`，`isApplicable=true` | **通** |
 | 25 | 真机加载（客户端） | 被 DSH 拉取并执行 | **143 条 V8 code cache 物证**，含当前产物 rev，见 §3 | **通（运行时实证）** |

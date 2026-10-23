@@ -1,8 +1,8 @@
 # dsh-bot-board v0.4.0 需求摘要
 
-- 对象：`/Users/admin/Documents/dsh-bot-board`（v0.3.4 → 0.4.0）
+- 对象：`dsh-bot-board` 仓库（v0.3.4 → 0.4.0）
 - 作者：需求发现分析师 许明需
-- 依据：README、`src/client/{const,scene,rows,station,handoffs,panel,drawer,poll,style}.js`、`src/host/index.js`、`tools/{smoke,render-check}.mjs`、`docs/preview.png`、用户原话回答、主理人四条收敛
+- 依据：README、`src/client/{const,scene,rows,station,handoffs,panel,drawer,poll,style}.js`、`src/host/index.js`、`tools/{smoke,render-check}.mjs`、`docs/preview-0.4.3.html`、用户原话回答、主理人四条收敛
 - 原则：用户的三个痛点和他的方案选择都经过独立判断；主理人的四条收敛逐条判「同意 / 部分同意 / 反对」。**不为让任何一方舒服而附和。**
 
 ---

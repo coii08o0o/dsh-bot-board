@@ -2,7 +2,7 @@
 
 > **被测对象说明（2026-10-22 后补）**：本报告量的是 `docs/preview-0.4.1.html`（HEAD `bdd2e6d`）。该文件已由 `npm run preview` 生成的 `docs/preview-0.4.2.html` 取代，旧的已删除——重跑同一条命令即可复现同样的量法。两版差异：v0.4.2 改了 `attentionOf` 的排序方向、`idleLine` 的宽度预算、`topologyOf` 的自环判定，**都没有改动任何高度常量或 CSS 盒模型**，所以本报告的高度测量（C4c 的 0.72px、420×320 的 30px 溢出、展开态 13px）在 v0.4.2 上仍然成立。唯一会变的是 `闲着` 行的截断点（v0.4.2 会更早开始裁名字，因为预算终于算进了 padding 和 chip）。
 
-**方法**：真实 Chromium（Google Chrome for Testing 149.0.7827.55，Playwright 驱动，headless，macOS arm64）打开 `file:///Users/admin/Documents/dsh-bot-board/docs/preview-0.4.1.html`，用 `clientHeight` / `scrollHeight` / `getBoundingClientRect()` 读回布局结果。**没有用 JS 静态分析代替渲染**：下面每个数字都来自布局引擎。
+**方法**：真实 Chromium（Google Chrome for Testing 149.0.7827.55，Playwright 驱动，headless，macOS arm64）打开仓库里的 `docs/preview-0.4.1.html`，用 `clientHeight` / `scrollHeight` / `getBoundingClientRect()` 读回布局结果。**没有用 JS 静态分析代替渲染**：下面每个数字都来自布局引擎。
 
 **被测对象**：`docs/preview-0.4.1.html`（HEAD `bdd2e6d`），8 个场景 11 个面板，全部 11 个面板都量了。
 

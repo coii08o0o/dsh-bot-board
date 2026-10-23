@@ -1,6 +1,6 @@
 # dsh-bot-board 代码评审报告
 
-评审对象：`/Users/admin/Documents/dsh-bot-board`（v0.2.0）  
+评审对象：`dsh-bot-board`（v0.2.0）  
 评审范围：`index.js`（157 行，宿主侧）、`client.js`（767 行，浏览器侧）、`tools/smoke.mjs`、`package.json`、`README.md`  
 对照上游：`ds-bot@0.1.7`（`~/.dsh/profiles/desktop/node_modules/ds-bot`）、DSH 平台包（`/Applications/DeepSeek Harness.app/.../@deepseek-ai`）  
 评审时间：2026-10-20

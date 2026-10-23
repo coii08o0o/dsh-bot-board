@@ -1,6 +1,6 @@
 # dsh-bot-board 复审（v0.3.1）
 
-复审对象：`/Users/admin/Documents/dsh-bot-board`，v0.3.1（`src/` 拆分后的当前代码）
+复审对象：`dsh-bot-board`，v0.3.1（`src/` 拆分后的当前代码）
 对照上游：`ds-bot@0.1.7`（`~/.dsh/profiles/desktop/node_modules/ds-bot/src/host/`）
 复审时间：2026-10-20
 基线：`REVIEW.md`（针对 v0.2.0 的 23 项）已基本落地，本文件**只报 0.3.1 现存的问题**，不重复旧账。

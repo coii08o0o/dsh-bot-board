@@ -16,7 +16,7 @@
 | `version` | number `1` | |
 | `revision` | number `1355` | |
 | `workspaceId` | string uuid | |
-| `mainBotIds` | array[1] | 只存 `session-ee69cffc…`（Chief） |
+| `mainBotIds` | array[1] | 只存 `session-<第一段 id>…`（Chief） |
 | **`bots`** | **object（映射，非数组）** | 9 个键，**键 === `bot.id`**（已全量校验 `true`） |
 | **`works`** | **object（映射，非数组）** | 3 个键 = `exchangeId` uuid |
 | **`rooms`** | **object，空 `{}`** | 群聊从未使用过 |
@@ -43,9 +43,9 @@
 Chief 的真实形态（关键，用于切段验证）：
 
 ```
-id        = session-ee69cffc-…   ← 第一段会话 id，永不改变
-sessionId = session-fee83961-…   ← 当前分段（与 id 不同！）
-segments  = [{ sessionId: session-ee69cffc-…, endedAt: 1792501275444, … }]
+id        = session-<第一段 id>…   ← 第一段会话 id，永不改变
+sessionId = session-<当前分段 id>…   ← 当前分段（与 id 不同！）
+segments  = [{ sessionId: session-<第一段 id>…, endedAt: 1792501275444, … }]
 ```
 
 即 `segments[0].sessionId === bot.id`，`bot.sessionId !== bot.id`。上游 `store.js:345` `chatOf = botId => botOf(botId)?.sessionId ?? botId`，`store.js:350-358` 的 `chatOwners/pastOwners` 与之一致。
@@ -55,7 +55,7 @@ segments  = [{ sessionId: session-ee69cffc-…, endedAt: 1792501275444, … }]
 本机 3 条，字段完全一致：
 
 ```
-{ from: "session-9c5c6662-…", to: "session-7757166f-…", open: [], results: [], at: 1792431682064 }
+{ from: "session-<发送方 id>…", to: "session-<接收方 id>…", open: [], results: [], at: 1792431682064 }
 ```
 
 | 字段 | 真实类型 | 语义（上游 `handoffs.js`） |
@@ -173,7 +173,7 @@ segments  = [{ sessionId: session-ee69cffc-…, endedAt: 1792501275444, … }]
 - **假设**：`botOf(work.to)` 一定能映射到一个现存 Bot。
 - **现实**：`handoffs.js:133-137` `forgetBot` 只 `dropWork` 掉 `from === botId` 的记录，**`to === botId` 的记录保留**（作为「等待中」上报）。删 Bot 后，这些记录的 `to` 指向一个不存在的 Bot。
 - **触发条件**：删除一个正欠着别人活的 Bot（非 Main Bot）。
-- **后果**：`botOf` 返回原值 → `nameOf` 返回 `null` → 回落 `work.to`，交接表上出现 `session-9c5c6662-48f8-…` 这种裸 id 的幽灵边——正是 v0.3.x 踩过的那个坑；`toId` 同样查不到行，不可点、标「未开始」。
+- **后果**：`botOf` 返回原值 → `nameOf` 返回 `null` → 回落 `work.to`，交接表上出现 `session-<id>-<分段>…` 这种裸 id 的幽灵边——正是 v0.3.x 踩过的那个坑；`toId` 同样查不到行，不可点、标「未开始」。
 - **修法**：`nameOf` 返回 `null` 时不要回落原始 id，标成「已离开」并（或）在 `listed` 阶段过滤掉 `owners` 里查不到的 id。
 
 ### D7（P3）`topologyOf` 对原始 `open` 形状零兼容，喂错数据会静默空表
