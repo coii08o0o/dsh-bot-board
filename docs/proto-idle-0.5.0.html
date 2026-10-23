@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dsh-bot-board 0.5.0 · 层3「闲着」原型</title>
+<style>
+/* ── 令牌 · dsh-bot-board DESIGN-TOKENS 0.5.0 ──────────────────────────────
+   房间底 #FAF7F1 / 墨水 #2C2C2A / 分隔 #8F8776 / 琥珀 #B45309（仅层1 alert）
+   ROSTER 九人色与 LAMP 六态色原样取自 src/client/const.js。            */
+:root{
+  --room:#FAF7F1; --card:#FFFDF8;
+  --ink:#2C2C2A; --ink-2:#4A4438; --ink-3:#6B6558; --ink-4:#8F8776;
+  --rule:#DDD6C8; --amber:#B45309; --teal:#0F766E; --seat-ink:#5F594D;
+  --page:#F2EFE9;
+}
+*{box-sizing:border-box}
+code{font:600 11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:#EDE8DD;border-radius:4px;
+  padding:2px 5px;color:var(--ink)}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--page);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:13px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{min-width:1240px;padding:36px 32px 72px}
+
+/* ── 页面文字 ─────────────────────────────────────────────────────────── */
+.eyebrow{margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--ink-4);
+  text-transform:uppercase}
+h1{margin:0 0 10px;font-size:21px;line-height:1.35;font-weight:700;letter-spacing:-.01em;max-width:900px}
+.lede{margin:0;max-width:880px;font-size:13px;color:var(--ink-2)}
+.lede b{font-weight:600;color:var(--ink)}
+.lede code{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;background:#E9E4DA;
+  border-radius:4px;padding:2px 5px;color:var(--ink)}
+.tagline{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0;padding:0;list-style:none}
+.tagline li{font-size:11px;color:var(--ink-3);border:1px solid #DCD5C6;border-radius:999px;
+  padding:3px 10px;background:#F7F4ED}
+.tagline li b{font-weight:600;color:var(--ink-2)}
+.stamp{display:inline-block;margin-left:2px;font-size:11px;font-weight:600;color:var(--amber);
+  border:1px solid rgba(180,83,9,.35);background:#FDF3E7;border-radius:4px;padding:1px 6px}
+
+.sec{margin-top:44px}
+.sec>h2{display:flex;align-items:baseline;gap:10px;margin:0 0 6px;font-size:15px;font-weight:700}
+.sec-n{font-size:11px;font-weight:700;color:var(--ink-4);font-variant-numeric:tabular-nums;
+  letter-spacing:.06em}
+.sec-note{margin:0 0 20px;max-width:900px;font-size:12px;color:var(--ink-3)}
+
+/* ── 面板壳（照 src/client/style.js，类名不变，可原样搬回） ─────────────── */
+.bb-panel{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;position:relative;
+  background:#fff;border:1px solid rgba(0,0,0,.12);box-shadow:0 14px 38px rgba(0,0,0,.14)}
+.bb-head{flex:none;display:flex;align-items:center;gap:8px;padding:7px 10px;
+  border-bottom:1px solid rgba(0,0,0,.06)}
+.bb-dot{flex:none;width:7px;height:7px;border-radius:50%;border:1px solid #5B5648}
+.bb-title{font-weight:600;font-size:12px;white-space:nowrap}
+.bb-sum{display:flex;gap:7px;font-size:11px;opacity:.75;white-space:nowrap;overflow:hidden}
+.bb-sum-hot{font-weight:700;opacity:1}
+.bb-grow{flex:1}
+.bb-icon{flex:none;width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:8px;
+  background:transparent;color:var(--ink);opacity:.55;cursor:pointer;padding:0}
+.bb-icon:hover{opacity:1;background:rgba(0,0,0,.05)}
+.bb-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--room);color:var(--ink)}
+
+/* 层1 · 需要你（空态 38px = 6 + 28 + 4） */
+.bb-attention{flex:none;display:flex;flex-direction:column;gap:3px;padding:6px 10px 4px}
+.bb-att-empty{display:flex;align-items:center;gap:6px;height:28px;padding:0 2px;
+  font-size:11.5px;color:var(--ink-3)}
+.bb-att-empty b{color:var(--teal);font-weight:600}
+
+/* 层2 · 在动（面板唯一滚动区） */
+.bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px 4px}
+.bb-run-grid{display:grid;grid-template-columns:repeat(auto-fit,138px);gap:8px;justify-content:center}
+.bb-station{width:138px;padding:0 0 1px;border-radius:8px;cursor:pointer}
+.bb-station:hover{box-shadow:inset 0 0 0 1px var(--ink-4)}
+.bb-scene{display:block;width:100%;height:auto;aspect-ratio:170/132}
+.bb-station-name{display:flex;align-items:baseline;justify-content:center;gap:4px;margin-top:1px;
+  font-size:12px;font-weight:500;line-height:18px;color:var(--ink)}
+.bb-station-nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bb-station-time{flex:none;font-size:10.5px;font-weight:400;line-height:18px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums}
+
+/* ── 层3 · 闲着（0.5.0 新） ───────────────────────────────────────────────
+   24px 一行：计数 11px/700 + /9 11px/400（零间距）· 两个常驻时长槽 · 全部 ›
+   顶边用 inset 阴影而不是 border，好让「全部 ›」拿到真正的 24px 点击高度。
+   ⚠ 移植时 height:24px 与 .bb-idle3-all 的 24px 必须换成 const.js 的
+     IDLE_ROW_H 插值（HANDOFF §5.6）；这里的字面量只为本文件自洽。        */
+.bb-idle3{flex:none;height:24px;display:flex;align-items:center;gap:6px;padding:0 10px;
+  box-shadow:inset 0 1px 0 var(--rule);overflow:hidden;font-size:11px;background:transparent}
+.bb-idle3-k{flex:none;font-weight:600;color:var(--ink-3)}
+.bb-idle3-n{flex:none;display:inline-flex;align-items:baseline;font-variant-numeric:tabular-nums}
+.bb-idle3-n b{font-size:11px;font-weight:700;color:var(--ink)}
+.bb-idle3-n i{font-style:normal;font-size:11px;font-weight:400;color:var(--ink-3)}
+/* 分隔符是字形，不是线：#DDD6C8 只有 1.35:1，当线用可以，当字用读不出来。 */
+.bb-idle3-sep{flex:none;font-size:11px;line-height:1;color:var(--ink-4)}
+.bb-idle3-lbl{flex:none;font-size:11px;font-weight:400;color:var(--ink-3)}
+.bb-idle3-slot{flex:0 0 auto;display:inline-flex;align-items:baseline;gap:4px}
+.bb-idle3-slot.is-empty{min-width:62px}
+.bb-idle3-slot .nm{font-size:12px;font-weight:500;color:var(--ink);max-width:72px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bb-idle3-slot .tm{font-size:12px;font-weight:400;color:var(--ink-3);font-variant-numeric:tabular-nums}
+/* 时长只加粗，不上色：琥珀 #B45309 是层1 alert 左条的色位，不能变成常态。 */
+.bb-idle3-slot .tm[data-long="1"]{font-weight:700}
+.bb-idle3-grow{flex:1}
+.bb-idle3-all{flex:none;display:flex;align-items:center;height:24px;padding:0 2px 0 8px;
+  font-size:11px;font-weight:600;color:var(--ink-3);cursor:pointer;border-radius:6px}
+.bb-idle3-all:hover{box-shadow:inset 0 0 0 1px var(--ink-4);color:var(--ink)}
+.bb-idle3-all:focus-visible,.bb-roster-cell:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+.bb-idle3-all .chev{margin-left:3px;font-weight:400}
+
+/* 全 idle：24px 计数行 + 377px 名册区（正是层2 让出来的那 377px）。
+   教室不是卡片网格（style.js:101）：名册格无底色、无阴影，只靠 32px 行高对齐。 */
+.bb-roster{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.bb-roster-body{flex:1;min-height:0;padding:6px 10px 4px;overflow:hidden}
+.bb-roster-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;align-content:start}
+.bb-roster-cell{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-radius:6px;
+  cursor:pointer}
+.bb-roster-cell:hover{box-shadow:inset 0 0 0 1px var(--ink-4)}
+.bb-roster-cell .nm{flex:1;min-width:0;font-size:12px;font-weight:500;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bb-roster-cell .tm{flex:none;font-size:12px;font-weight:400;color:var(--ink-3);
+  font-variant-numeric:tabular-nums}
+.bb-roster-cell .tm[data-long="1"]{font-weight:700}
+
+/* ── A/B 条带：旧 0.4.3 行（名字串） vs 新 0.5.0 行 ─────────────────────── */
+.ab{display:flex;gap:24px;align-items:flex-start;margin-bottom:18px}
+.ab-col{flex:none}
+.ab-tag{display:flex;align-items:baseline;gap:6px;margin-bottom:6px;font-size:11px;font-weight:600;
+  color:var(--ink-3)}
+.ab-tag em{font-style:normal;font-weight:400;color:var(--ink-4);font-variant-numeric:tabular-nums}
+.ab-tag.is-new{color:var(--ink)}
+.ab-edge{background:var(--room);border:1px solid rgba(0,0,0,.10);border-radius:10px;overflow:hidden}
+.ab-cap{margin:7px 0 0;font-size:11px;line-height:1.5;color:var(--ink-3)}
+.ab-cap b{font-weight:600;color:var(--ink-2)}
+
+/* 旧行的 CSS 原样（0.4.3），border-top 版，高度同为 24px */
+.bb-idle{height:24px;display:flex;align-items:center;gap:6px;overflow:hidden;padding:0 10px;
+  border-top:1px solid var(--rule);font-size:11px}
+.bb-idle-k{flex:none;font-weight:600;color:var(--ink-3)}
+.bb-idle-name{flex:0 0 auto;padding:1px 2px;border-radius:4px;color:var(--seat-ink);white-space:nowrap}
+
+/* ── 面板展示位 ───────────────────────────────────────────────────────── */
+.pv-row{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap}
+.pv-fig{margin:0}
+.pv-cap{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;font-size:12px;font-weight:600}
+.pv-cap span{font-size:11px;font-weight:400;color:var(--ink-4);font-variant-numeric:tabular-nums}
+.pv-meta{margin:9px 0 0;font-size:11px;line-height:1.6;color:var(--ink-3);max-width:560px}
+.pv-meta b{font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.pv-meta .ok{color:var(--teal);font-weight:600}
+.pv-meta .warn{color:var(--amber);font-weight:600}
+.pv-side{max-width:420px;padding-top:2px}
+.pv-note{margin:0;font-size:12px;line-height:1.75;color:var(--ink-3)}
+.pv-note b{font-weight:600;color:var(--ink-2)}
+.warn-note{color:var(--amber)}
+.warn-note::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--amber);margin-right:6px;vertical-align:1px}
+
+/* ── 底部清单 ─────────────────────────────────────────────────────────── */
+.chk{width:100%;border-collapse:collapse;margin-top:4px;background:#FBF9F4;
+  border:1px solid #E2DCCF;border-radius:10px;overflow:hidden}
+.chk th{width:50%;text-align:left;padding:9px 14px;font-size:11px;font-weight:700;letter-spacing:.04em;
+  color:var(--ink-3);background:#F4F0E7;border-bottom:1px solid #E2DCCF}
+.chk td{vertical-align:top;padding:12px 14px;font-size:12px;line-height:1.65;color:var(--ink-2)}
+.chk td+td{border-left:1px solid #E2DCCF}
+.chk ol{margin:0;padding-left:18px}
+.chk li{margin:0 0 7px}
+.chk li:last-child{margin-bottom:0}
+.chk b{font-weight:600;color:var(--ink)}
+.risk{width:100%;margin-top:10px;border-collapse:collapse;background:#FDF6EC;
+  border:1px solid rgba(180,83,9,.28);border-radius:10px;overflow:hidden}
+.risk th{text-align:left;padding:8px 14px;font-size:11px;font-weight:700;color:var(--amber);
+  background:#FBEDDC;border-bottom:1px solid rgba(180,83,9,.18)}
+.risk td{padding:8px 14px;font-size:12px;line-height:1.6;color:var(--ink-2);vertical-align:top;
+  border-bottom:1px solid rgba(180,83,9,.12)}
+.risk tr:last-child td{border-bottom:0}
+.risk td:first-child{white-space:nowrap;font-weight:600;color:var(--ink)}
+.risk td:nth-child(2),.risk td:nth-child(3){white-space:nowrap;font-variant-numeric:tabular-nums}
+
+.sub{margin:26px 0 4px;font-size:13px;font-weight:700}
+.sub-note{margin:0 0 6px;max-width:980px;font-size:12px;line-height:1.65;color:var(--ink-3)}
+.map{width:100%;margin-top:10px;border-collapse:collapse;background:#FBF9F4;
+  border:1px solid #E2DCCF;border-radius:10px;overflow:hidden}
+.map th{text-align:left;padding:8px 14px;font-size:11px;font-weight:700;letter-spacing:.04em;
+  color:var(--ink-3);background:#F4F0E7;border-bottom:1px solid #E2DCCF}
+.map td{padding:6px 14px;font-size:12px;line-height:1.55;color:var(--ink-2);vertical-align:top;
+  border-bottom:1px solid #F0EBE0}
+.map tr:last-child td{border-bottom:0}
+.map td:first-child{width:118px}
+.map td:nth-child(2){width:118px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">dsh-bot-board · 0.5.0 · phase 3 原型</p>
+  <h1>层3「闲着」：从 9 个名字 → 还能派几个人 + 谁闲太久了</h1>
+  <p class="lede">
+    面板底部 24px 的带子只回答两件事：<b>还能派几个人</b>（计数 <code>6/9</code>）和<b>谁闲太久了</b>（时长；≥1h 只加粗，不上色）。
+    全 idle 时层2 不渲染，这条带子铺开成 9 人名册，用层2 让出来的像素，不借层1/层2 的版面。
+    <span class="stamp">未接入源码 · 仅视觉验证</span>
+  </p>
+  <ul class="tagline">
+    <li>设计系统 <b>DESIGN-TOKENS 0.5.0</b></li>
+    <li>房间底 <b>#FAF7F1</b></li>
+    <li>面板真实尺寸 <b>560×480 / 420×320</b></li>
+    <li>层3 <b>24px</b> 不变</li>
+    <li>颜色只给六态灯与层1 alert · 时长只加粗</li>
+  </ul>
+</header>
+
+<!-- ── 1 · A/B ─────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <h2><span class="sec-n">01</span>现状 vs 新方案</h2>
+  <p class="sec-note">两条都是 24px 实宽，与真实面板里的层3 同宽（560 面板内是 558，420 内是 418）。左边那条是 0.4.3 的真实结构：只排名字，读不出「还能派几个」，也读不出「谁闲太久」。要说明的是：真机上这一行受 <code>IDLE_BUDGET</code>（418 − 18 = 380px）约束，超了就从尾部丢名字补 <code>+N</code>；本文件里 9 个短名字还没顶到预算，所以下面的裁切是<b>边界样本</b>，不是现状的日常现象。</p>
+
+  <div class="ab">
+    <div class="ab-col">
+      <p class="ab-tag">现状 · 0.4.3<em>560 面板内宽 558</em></p>
+      <div class="ab-edge" style="width:560px">
+        <div class="bb-idle" id="old560">
+          <span class="bb-idle-k">闲着</span>
+          <span class="bb-idle-name">Chief</span><span class="bb-idle-name">Researcher</span>
+          <span class="bb-idle-name">班主任</span><span class="bb-idle-name">数学</span>
+          <span class="bb-idle-name">物理</span><span class="bb-idle-name">化学</span>
+          <span class="bb-idle-name">生物</span><span class="bb-idle-name">语文</span>
+          <span class="bb-idle-name">英语</span>
+        </div>
+      </div>
+      <p class="ab-cap">9 个名字连内距占 388px，558 里还<b data-fit="#old560">余 170px</b>。放得下——但这 24px 里没有一个数字回答「还能派几个」，也没有一个字说「谁闲了多久」。</p>
+    </div>
+
+    <div class="ab-col">
+      <p class="ab-tag is-new">新 · 0.5.0<em>560 面板内宽 558</em></p>
+      <div class="ab-edge" style="width:560px">
+        <div class="bb-idle3" id="new560">
+          <span class="bb-idle3-k">闲着</span>
+          <span class="bb-idle3-n"><b>6</b><i>/9</i></span>
+          <span class="bb-idle3-sep">·</span>
+          <span class="bb-idle3-lbl">最久</span>
+          <span class="bb-idle3-slot"><span class="nm">语文</span><span class="tm" data-long="1">2h</span></span>
+          <span class="bb-idle3-sep">·</span>
+          <span class="bb-idle3-slot"><span class="nm">英语</span><span class="tm">45m</span></span>
+          <span class="bb-idle3-grow"></span>
+          <span class="bb-idle3-all" role="button" tabindex="0">全部<span class="chev">›</span></span>
+        </div>
+      </div>
+      <p class="ab-cap">同一行高度，多出三件事：<b>6/9 还能派</b>、<b>语文已闲 2h</b>（加粗）、<b>次久是英语</b>。内容 <b data-fit="#new560">余 288px</b>，右侧「全部 ›」恒定 24px 热区。</p>
+    </div>
+  </div>
+
+  <div class="ab">
+    <div class="ab-col">
+      <p class="ab-tag">现状 · 0.4.3<em>420 面板内宽 418</em></p>
+      <div class="ab-edge" style="width:420px">
+        <div class="bb-idle" id="old420">
+          <span class="bb-idle-k">闲着</span>
+          <span class="bb-idle-name">Chief</span><span class="bb-idle-name">Researcher</span>
+          <span class="bb-idle-name">班主任</span><span class="bb-idle-name">数学</span>
+          <span class="bb-idle-name">物理</span><span class="bb-idle-name">化学</span>
+          <span class="bb-idle-name">生物</span><span class="bb-idle-name">语文</span>
+          <span class="bb-idle-name">英语</span>
+        </div>
+      </div>
+      <p class="ab-cap">最小尺寸：<b data-fit="#old420">余 30px</b>。名字再长一点，0.4.3 的兜底是从尾部丢名字补 <code>+N</code>——那一行会开始<b>少人</b>，而不是少像素。</p>
+    </div>
+
+    <div class="ab-col">
+      <p class="ab-tag is-new">新 · 0.5.0<em>420 面板内宽 418</em></p>
+      <div class="ab-edge" style="width:420px">
+        <div class="bb-idle3" id="new420">
+          <span class="bb-idle3-k">闲着</span>
+          <span class="bb-idle3-n"><b>6</b><i>/9</i></span>
+          <span class="bb-idle3-sep">·</span>
+          <span class="bb-idle3-lbl">最久</span>
+          <span class="bb-idle3-slot"><span class="nm">语文</span><span class="tm" data-long="1">2h</span></span>
+          <span class="bb-idle3-sep">·</span>
+          <span class="bb-idle3-slot"><span class="nm">英语</span><span class="tm">45m</span></span>
+          <span class="bb-idle3-grow"></span>
+          <span class="bb-idle3-all" role="button" tabindex="0">全部<span class="chev">›</span></span>
+        </div>
+      </div>
+      <p class="ab-cap">同一套内容在 418 里仍是一行，内容 <b data-fit="#new420">余 148px</b>——名字长短不再影响这一行占多少像素，因为只有两个槽。</p>
+    </div>
+  </div>
+
+  <div class="ab">
+    <div class="ab-col">
+      <p class="ab-tag">边界样本 · 名字变长后的现状<em>420 面板内宽 418</em></p>
+      <div class="ab-edge" style="width:420px">
+        <div class="bb-idle" id="oldLong">
+          <span class="bb-idle-k">闲着</span>
+          <span class="bb-idle-name">Chief</span><span class="bb-idle-name">Researcher</span>
+          <span class="bb-idle-name">班主任</span><span class="bb-idle-name">数学</span>
+          <span class="bb-idle-name">物理</span><span class="bb-idle-name">化学竞赛</span>
+          <span class="bb-idle-name">生物实验</span><span class="bb-idle-name">语文老师</span>
+          <span class="bb-idle-name">英语</span>
+        </div>
+      </div>
+      <p class="ab-cap">三个四字名就够了：<b data-fit="#oldLong">溢出 37px</b>。「语文老师」少了尾巴，「英语」整个不见了。0.4.3 用 <code>+N</code> 兜底，兜住的其实只是「少了人」这件事本身——被丢掉的 Bot 在这一行里没有名字。</p>
+    </div>
+
+    <div class="ab-col">
+      <p class="ab-tag is-new">同一批名字 · 新方案<em>420 面板内宽 418</em></p>
+      <div class="ab-edge" style="width:420px">
+        <div class="bb-idle3">
+          <span class="bb-idle3-k">闲着</span>
+          <span class="bb-idle3-n"><b>6</b><i>/9</i></span>
+          <span class="bb-idle3-sep">·</span>
+          <span class="bb-idle3-lbl">最久</span>
+          <span class="bb-idle3-slot"><span class="nm">语文老师</span><span class="tm" data-long="1">2h</span></span>
+          <span class="bb-idle3-sep">·</span>
+          <span class="bb-idle3-slot"><span class="nm">化学竞赛</span><span class="tm">45m</span></span>
+          <span class="bb-idle3-grow"></span>
+          <span class="bb-idle3-all" role="button" tabindex="0">全部<span class="chev">›</span></span>
+        </div>
+      </div>
+      <p class="ab-cap">四字名只让「名字」这一格变长（<code>max-width:64px</code> + 省略号兜底），行的结构和宽度不变。剩下 7 个人在「全部 ›」里。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── 2 · 场景一 560 ──────────────────────────────────────────────────── -->
+<section class="sec">
+  <h2><span class="sec-n">02</span>场景一 · 有 Bot 在动（560×480）</h2>
+  <p class="sec-note">层1 空态 38px，层2 三个工位（班主任 / 数学 / 化学，busy 绿），层3 一行 24px。这是最常出现的样子。</p>
+
+  <div class="pv-row">
+    <figure class="pv-fig">
+      <figcaption class="pv-cap">场景一 · 常态<b>560×480</b><span>border-box</span></figcaption>
+      <div class="bb-panel" id="p1" style="width:560px;height:480px">
+        <div class="bb-head">
+          <span class="bb-dot" style="background:#22C55E"></span>
+          <span class="bb-title">Bot 看板</span>
+          <span class="bb-sum"><b class="bb-sum-hot">等你 0</b><span>干活 3</span></span>
+          <span class="bb-grow"></span>
+          <button class="bb-icon" type="button" aria-label="收起">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+          <button class="bb-icon" type="button" aria-label="关闭">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="bb-body">
+          <div class="bb-attention">
+            <div class="bb-att-empty"><b>✓</b> 没有需要你的事</div>
+          </div>
+          <div class="bb-run">
+            <div class="bb-run-grid">
+              <div class="bb-station">
+                <svg class="bb-scene" viewBox="0 0 170 132" aria-hidden="true"><use href="#st-bz"/></svg>
+                <div class="bb-station-name"><span class="bb-station-nm">班主任</span><span class="bb-station-time">2m</span></div>
+              </div>
+              <div class="bb-station">
+                <svg class="bb-scene" viewBox="0 0 170 132" aria-hidden="true"><use href="#st-sx"/></svg>
+                <div class="bb-station-name"><span class="bb-station-nm">数学</span><span class="bb-station-time">6m</span></div>
+              </div>
+              <div class="bb-station">
+                <svg class="bb-scene" viewBox="0 0 170 132" aria-hidden="true"><use href="#st-hx"/></svg>
+                <div class="bb-station-name"><span class="bb-station-nm">化学</span><span class="bb-station-time">18s</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="bb-idle3">
+            <span class="bb-idle3-k">闲着</span>
+            <span class="bb-idle3-n"><b>6</b><i>/9</i></span>
+            <span class="bb-idle3-sep">·</span>
+            <span class="bb-idle3-lbl">最久</span>
+            <span class="bb-idle3-slot"><span class="nm">语文</span><span class="tm" data-long="1">2h</span></span>
+            <span class="bb-idle3-sep">·</span>
+            <span class="bb-idle3-slot"><span class="nm">英语</span><span class="tm">45m</span></span>
+            <span class="bb-idle3-grow"></span>
+            <span class="bb-idle3-all" role="button" tabindex="0">全部<span class="chev">›</span></span>
+          </div>
+        </div>
+      </div>
+      <p class="pv-meta">
+        层3 实测 <b data-measure="#p1 .bb-idle3">24px</b>（顶边规则画在 24px 内）· 层2 <b data-measure="#p1 .bb-run">377px</b> · 层1 <b data-measure="#p1 .bb-attention">38px</b> ·
+        38 + 377 + 24 = 439 = 478 − 39，面板不出现第二个滚动区
+      </p>
+    </figure>
+
+    <div class="pv-side">
+      <p class="pv-note">读数顺序是刻意的：<b>先数量</b>（还能派几个）→ <b>再最久</b>（谁最该被派活）→ <b>再次久</b>（备胎）。<br>
+        <br>两个时长槽是常驻的：只有一个够格时，第二个槽留空占位，行宽不跳。<br>
+        <br>≥1h 只加 700 字重，不上色：琥珀 #B45309 已经是层1 alert 左条的色位，层3 几乎每屏都有一个 ≥1h，占用它就等于把那个色位取消掉。红黄绿同样是灯的语言。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── 3 · 场景二 560 ──────────────────────────────────────────────────── -->
+<section class="sec">
+  <h2><span class="sec-n">03</span>场景二 · 全部 idle（560×480）</h2>
+  <p class="sec-note">层2 不渲染。层3 从 24px 涨成「24px 计数行 + 377px 名册区」，正好吃下原来层2 的那 377px；名册 3 列 × 3 行、格高 32px、总高 108px，靠上对齐，下面 269px 留白。</p>
+
+  <div class="pv-row">
+    <figure class="pv-fig">
+      <figcaption class="pv-cap">场景二 · 全 idle<b>560×480</b><span>border-box</span></figcaption>
+      <div class="bb-panel" id="p2" style="width:560px;height:480px">
+        <div class="bb-head">
+          <span class="bb-dot" style="background:#D3D1C7"></span>
+          <span class="bb-title">Bot 看板</span>
+          <span class="bb-sum"><b class="bb-sum-hot">等你 0</b><span>干活 0</span></span>
+          <span class="bb-grow"></span>
+          <button class="bb-icon" type="button" aria-label="收起">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+          <button class="bb-icon" type="button" aria-label="关闭">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="bb-body">
+          <div class="bb-attention">
+            <div class="bb-att-empty"><b>✓</b> 没有需要你的事</div>
+          </div>
+          <div class="bb-roster">
+            <div class="bb-idle3" id="roster560">
+              <span class="bb-idle3-k">闲着</span>
+              <span class="bb-idle3-n"><b>9</b><i>/9</i></span>
+              <span class="bb-idle3-sep">·</span>
+              <span class="bb-idle3-lbl">最久</span>
+              <span class="bb-idle3-slot"><span class="nm">语文</span><span class="tm" data-long="1">4h</span></span>
+              <span class="bb-idle3-slot is-empty" aria-hidden="true"></span>
+              <span class="bb-idle3-grow"></span>
+            </div>
+            <div class="bb-roster-body">
+              <div class="bb-roster-grid">
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">Chief</span><span class="tm">12m</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">Researcher</span><span class="tm">40m</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">班主任</span><span class="tm" data-long="1">2h</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">数学</span><span class="tm" data-long="1">3h</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">物理</span><span class="tm">8m</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">化学</span><span class="tm" data-long="1">1h</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">生物</span><span class="tm">25m</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">语文</span><span class="tm" data-long="1">4h</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">英语</span><span class="tm">45m</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pv-meta">
+        层3 实测 <b data-measure="#p2 .bb-roster">401px</b>（24px 计数行 + <b data-measure="#p2 .bb-roster-body">377px</b> 名册区）·
+        名册网格 <b data-measure="#p2 .bb-roster-grid">108px</b> · 名册区余 269px 留白 · 计数行 <b data-fit="#roster560">余 336px</b>（含 62px 空槽补齐）
+      </p>
+    </figure>
+
+    <div class="pv-side">
+      <p class="pv-note">名册按 ROSTER 座位顺序排：Chief / Researcher / 班主任 · 数学 / 物理 / 化学 · 生物 / 语文 / 英语。座位顺序固定，所以「物理在化学左边」这件事每次都成立，扫视靠位置记忆。<br>
+        <br>计数行与常态行是同一个组件（只去掉「全部 ›」，第二个时长槽留 62px 空位补齐），所以<b>行内</b>不重排、不跳宽。但整行会从面板底部（y≈415）移到顶部（y≈38）——<b>位移 377px（560）/ 217px（420）</b>，这是层2 消失的代价，不是免费的重排。<br>
+        <br>化学 1h 是 ≥1h 的边界样本：它加粗，8m / 12m / 25m 不加粗。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── 4 · 420×320 两张 ────────────────────────────────────────────────── -->
+<section class="sec">
+  <h2><span class="sec-n">04</span>最小尺寸 · 420×320 两张</h2>
+  <p class="sec-note">同一个面板缩到 SIZE_MIN。层3 两态都还成立：常态 24px、名册 241px（24 + 217）。名册在 418 宽里仍是 3 列 × 3 行 = 108px，在 217px 里余 109px。</p>
+
+  <div class="pv-row">
+    <figure class="pv-fig">
+      <figcaption class="pv-cap">场景一 · 常态<b>420×320</b><span>border-box</span></figcaption>
+      <div class="bb-panel" id="p3" style="width:420px;height:320px">
+        <div class="bb-head">
+          <span class="bb-dot" style="background:#22C55E"></span>
+          <span class="bb-title">Bot 看板</span>
+          <span class="bb-sum"><b class="bb-sum-hot">等你 0</b><span>干活 3</span></span>
+          <span class="bb-grow"></span>
+          <button class="bb-icon" type="button" aria-label="收起">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+          <button class="bb-icon" type="button" aria-label="关闭">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="bb-body">
+          <div class="bb-attention">
+            <div class="bb-att-empty"><b>✓</b> 没有需要你的事</div>
+          </div>
+          <div class="bb-run">
+            <div class="bb-run-grid">
+              <div class="bb-station">
+                <svg class="bb-scene" viewBox="0 0 170 132" aria-hidden="true"><use href="#st-bz"/></svg>
+                <div class="bb-station-name"><span class="bb-station-nm">班主任</span><span class="bb-station-time">2m</span></div>
+              </div>
+              <div class="bb-station">
+                <svg class="bb-scene" viewBox="0 0 170 132" aria-hidden="true"><use href="#st-sx"/></svg>
+                <div class="bb-station-name"><span class="bb-station-nm">数学</span><span class="bb-station-time">6m</span></div>
+              </div>
+              <div class="bb-station">
+                <svg class="bb-scene" viewBox="0 0 170 132" aria-hidden="true"><use href="#st-hx"/></svg>
+                <div class="bb-station-name"><span class="bb-station-nm">化学</span><span class="bb-station-time">18s</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="bb-idle3">
+            <span class="bb-idle3-k">闲着</span>
+            <span class="bb-idle3-n"><b>6</b><i>/9</i></span>
+            <span class="bb-idle3-sep">·</span>
+            <span class="bb-idle3-lbl">最久</span>
+            <span class="bb-idle3-slot"><span class="nm">语文</span><span class="tm" data-long="1">2h</span></span>
+            <span class="bb-idle3-sep">·</span>
+            <span class="bb-idle3-slot"><span class="nm">英语</span><span class="tm">45m</span></span>
+            <span class="bb-idle3-grow"></span>
+            <span class="bb-idle3-all" role="button" tabindex="0">全部<span class="chev">›</span></span>
+          </div>
+        </div>
+      </div>
+      <p class="pv-meta">
+        层3 实测 <b data-measure="#p3 .bb-idle3">24px</b> · 层2 <b data-measure="#p3 .bb-run">217px</b> · 层3 内容 <b data-fit="#p3 .bb-idle3">余 148px</b>
+      </p>
+      <p class="pv-meta warn-note">层2 在 418 宽里只放得下 2 个工位，第三个进滚动区——这是 0.4.3 的既有行为（`.bb-run` 是面板唯一的滚动区），新层3 没有多占一个像素。</p>
+    </figure>
+
+    <figure class="pv-fig">
+      <figcaption class="pv-cap">场景二 · 全 idle<b>420×320</b><span>border-box</span></figcaption>
+      <div class="bb-panel" id="p4" style="width:420px;height:320px">
+        <div class="bb-head">
+          <span class="bb-dot" style="background:#D3D1C7"></span>
+          <span class="bb-title">Bot 看板</span>
+          <span class="bb-sum"><b class="bb-sum-hot">等你 0</b><span>干活 0</span></span>
+          <span class="bb-grow"></span>
+          <button class="bb-icon" type="button" aria-label="收起">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+          <button class="bb-icon" type="button" aria-label="关闭">
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+        <div class="bb-body">
+          <div class="bb-attention">
+            <div class="bb-att-empty"><b>✓</b> 没有需要你的事</div>
+          </div>
+          <div class="bb-roster">
+            <div class="bb-idle3" id="roster420">
+              <span class="bb-idle3-k">闲着</span>
+              <span class="bb-idle3-n"><b>9</b><i>/9</i></span>
+              <span class="bb-idle3-sep">·</span>
+              <span class="bb-idle3-lbl">最久</span>
+              <span class="bb-idle3-slot"><span class="nm">语文</span><span class="tm" data-long="1">4h</span></span>
+              <span class="bb-idle3-slot is-empty" aria-hidden="true"></span>
+              <span class="bb-idle3-grow"></span>
+            </div>
+            <div class="bb-roster-body">
+              <div class="bb-roster-grid">
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">Chief</span><span class="tm">12m</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">Researcher</span><span class="tm">40m</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">班主任</span><span class="tm" data-long="1">2h</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">数学</span><span class="tm" data-long="1">3h</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">物理</span><span class="tm">8m</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">化学</span><span class="tm" data-long="1">1h</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">生物</span><span class="tm">25m</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">语文</span><span class="tm" data-long="1">4h</span></div>
+                <div class="bb-roster-cell" role="button" tabindex="0"><span class="nm">英语</span><span class="tm">45m</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="pv-meta">
+        层3 实测 <b data-measure="#p4 .bb-roster">241px</b>（24 + <b data-measure="#p4 .bb-roster-body">217px</b>）·
+        名册网格 <b data-measure="#p4 .bb-roster-grid">108px</b>（3 列 × 3 行）· 名册区余 109px
+      </p>
+      <p class="pv-meta">418 内宽减 20 padding = 398，3 列每格 128.67、格内 112.67；「Researcher 40m」实测只需 92px，装得下，所以最小尺寸不降列——2 列只会白花 76px 高度。</p>
+    </figure>
+  </div>
+</section>
+
+<!-- ── 5 · 清单 ────────────────────────────────────────────────────────── -->
+<section class="sec">
+  <h2><span class="sec-n">05</span>这个原型验证了什么 / 没验证什么</h2>
+  <p class="sec-note">面板与层高都是从真实 DOM 量出来的（见每个面板下面的实测值），不是按预算表推的。</p>
+
+  <table class="chk">
+    <tr><th>验证了（可以在真机上直接对照）</th><th>没验证（这一版原型管不到）</th></tr>
+    <tr>
+      <td>
+        <ol>
+          <li><b>24px 行在 558 / 418 两个内宽里都不换行、不裁切</b>：新行内容 270px，560 余 288px、420 余 148px；右侧「全部 ›」右对齐，行高恒 24px——旧行同高，480/320 的高度预算没有变化。</li>
+          <li><b>计数是两段字</b>：<code>6</code> 11px/700 + <code>/9</code> 11px/400，零间距，读起来是一个分数而不是两个词。</li>
+          <li><b>≥1h 只加粗，不上色</b>：琥珀 #B45309 留给层1 alert 左条，红黄绿六个灯色一个没动；<code>1h</code> 作为边界值也走加粗分支。</li>
+          <li><b>全 idle 时层2 让位、层3 铺开</b>：560 下 401px（24 计数 + 377 名册区），420 下 241px（24 + 217），都靠上对齐，无第二个滚动区。</li>
+          <li><b>两个常驻槽</b>：全 idle 计数行的第二个槽留 62px 空位（<code>.is-empty</code>），行内结构不重排；但整行会从底部移到顶部，位移 377px / 217px。</li>
+          <li><b>名册 3 列在两档都成立</b>：108px（3×3），560 余 269px、420 余 109px；格内 112.67px 装得下「Researcher 40m」（92px）。</li>
+        </ol>
+      </td>
+      <td>
+        <ol>
+          <li><b>真实数据</b>：时长是推导字段（最后一条消息 / 回合的时间戳），原型里是手写常量。跨天（<code>1d 3h</code>）、超过 24h、从未说过话（<code>—</code>）三种边界还没设计。</li>
+          <li><b>真实字体度量</b>：这里用系统字体，宿主 DSH 主题的 font-family 不同，Latin 名字宽度会差几 px；两个时长槽在「只有一个够格」时用 <code>.is-empty</code> 占 62px，这个占位宽度需要在真机上再校一次。</li>
+          <li><b>动效</b>：24px 行 ↔ 401px 名册之间怎么过渡（有没有动画、多长、层2 是淡出还是直接消失）完全没做，这是静态快照。</li>
+          <li><b>交互</b>：「全部 ›」的展开态、名册每格点开抽屉、hover 在深色主题下的观感都没做。键盘可达性只做到「能 Tab 到 + 有焦点环」（<code>role="button" tabindex="0"</code>），Enter/Space 的实际行为没有。</li>
+          <li><b>身份</b>：名册只有文字，9 个 seat 色在全 idle 时完全消失。要保住身份就得加 6px 色点，会占掉约 12px 宽——这个需要再拍一次。</li>
+        </ol>
+      </td>
+    </tr>
+  </table>
+
+  <h3 class="sub">变量 → 字面量（搬回 style.js 时按这张表替换）</h3>
+  <p class="sub-note">style.js 是纯字面量模板串，没有变量层：把 <code>var(--rule)</code> 原样搬过去会失效并回落成纯黑。这张表就是回写清单。</p>
+  <table class="map">
+    <tr><th>变量</th><th>字面量</th><th>用在哪</th></tr>
+    <tr><td><code>--room</code></td><td><code>#FAF7F1</code></td><td>房间底（<code>.bb-body</code>）</td></tr>
+    <tr><td><code>--ink</code></td><td><code>#2C2C2A</code></td><td>名字、计数 <code>6</code>、标题</td></tr>
+    <tr><td><code>--ink-2</code></td><td><code>#4A4438</code></td><td>层3 未用（层1 正文色，本文件只用于说明文字）</td></tr>
+    <tr><td><code>--ink-3</code></td><td><code>#6B6558</code></td><td>「闲着」「最久」、时长、次要文字</td></tr>
+    <tr><td><code>--ink-4</code></td><td><code>#8F8776</code></td><td>分隔符 <code>·</code>、hover 环、焦点外环</td></tr>
+    <tr><td><code>--rule</code></td><td><code>#DDD6C8</code></td><td>行顶 1px 规则（<code>inset 0 1px 0</code>）</td></tr>
+    <tr><td><code>--card</code></td><td><code>#FFFDF8</code></td><td>层3 已不使用（名册白卡已删，见下表第 2 条）</td></tr>
+    <tr><td><code>--amber</code></td><td><code>#B45309</code></td><td>层3 已不使用，保留给层1 alert 左条</td></tr>
+    <tr><td><code>--teal</code></td><td><code>#0F766E</code></td><td>空态 <code>✓</code></td></tr>
+    <tr><td><code>--seat-ink</code></td><td><code>#5F594D</code></td><td>旧行名字（0.4.3 原色）</td></tr>
+  </table>
+  <p class="sub-note">
+    另外三处必须改，否则搬回去会静默出错：① <code>.bb-idle3</code> 与 <code>.bb-idle3-all</code> 的 <code>height:24px</code> 两处字面量，必须换成 <code>const.js</code> 的 <code>IDLE_ROW_H</code> 插值（HANDOFF §5.6）；
+    ② <code>.bb-panel{background:#fff}</code> 在真机是 <code>var(--dsw-alias-bg-layer-1,#fff)</code>，深色主题下不能写死白；
+    ③ <code>.bb-idle3-all</code> 与 <code>.bb-roster-cell</code> 要追加到 <code>style.js:203-204</code> 的 focus-visible 选择器清单。
+  </p>
+
+  <h3 class="sub">偏离令牌的四处（都改了，都需要回写文档）</h3>
+  <table class="risk">
+    <tr><th>项</th><th>原令牌</th><th>改成</th><th>为什么</th></tr>
+    <tr>
+      <td>分隔符 <code>·</code></td><td>#DDD6C8（1.35:1）</td><td>#8F8776（3.33:1）</td>
+      <td>1.35:1 是线色，当字形用读不出来。3.33:1 就是项目自己的 hover 环色，不是新颜色。</td>
+    </tr>
+    <tr>
+      <td>名册格底色</td><td>#FFFDF8（1.045:1）</td><td>无底色</td>
+      <td>9 张白卡等于 9 次无效装饰，且违反 <code>style.js:101</code>「The classroom is not a card grid: no white fill」。32px 行高与 hover 环保留。</td>
+    </tr>
+    <tr>
+      <td>≥1h 的时长</td><td>700 + #B45309</td><td>只 700</td>
+      <td>琥珀是层1 alert 左条的色位；层3 几乎每屏都有一个 ≥1h，占着它就把 alert 稀释成常态。</td>
+    </tr>
+    <tr>
+      <td>现状的裁切</td><td>—</td><td>只出现在「边界样本」</td>
+      <td>真机由 <code>IDLE_BUDGET</code>（418 − 18 = 380px）触发；本文件里 9 个短名字还余 30px，复现不出来。硬造裁切就是假现象。</td>
+    </tr>
+  </table>
+</section>
+
+</div>
+
+<!-- 三个工位的画（ROSTER 色 / 头饰 / 道具各不同），用 symbol 复用 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="st-bz" viewBox="0 0 170 132">
+    <ellipse cx="88" cy="122" rx="42" ry="5" fill="rgba(0,0,0,.06)"/>
+    <g fill="#D9D4CB"><rect x="22" y="62" width="11" height="40" rx="5"/><rect x="22" y="96" width="38" height="10" rx="4"/><rect x="36" y="104" width="7" height="14" rx="2"/></g>
+    <circle cx="86" cy="64" r="26" fill="#F59E0B"/>
+    <circle cx="86" cy="62" r="18" fill="#FBCB74"/>
+    <ellipse cx="72" cy="69" rx="4.5" ry="2.8" fill="#F59E0B" opacity=".3"/>
+    <ellipse cx="100" cy="69" rx="4.5" ry="2.8" fill="#F59E0B" opacity=".3"/>
+    <g fill="#2C2C2A"><rect x="74.5" y="53.5" width="5" height="9" rx="2.5"/><rect x="92.5" y="53.5" width="5" height="9" rx="2.5"/></g>
+    <path d="M 82 68 q 4 5 8 0" fill="none" stroke="#2C2C2A" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="63" cy="80" r="4" fill="#F59E0B"/>
+    <circle cx="109" cy="80" r="4" fill="#F59E0B"/>
+    <path d="M 86 36 l -12 -8 v 15 z" fill="#DC2626"/>
+    <path d="M 86 36 l 12 -8 v 15 z" fill="#DC2626"/>
+    <circle cx="86" cy="36" r="3.2" fill="#B91C1C"/>
+    <rect x="50" y="88" width="104" height="10" rx="3" fill="#E8D9C0"/>
+    <rect x="58" y="98" width="9" height="22" rx="2" fill="#CBB89A"/>
+    <rect x="137" y="98" width="9" height="22" rx="2" fill="#CBB89A"/>
+    <rect x="104" y="52" width="52" height="34" rx="4" fill="#3A3F45"/>
+    <rect x="126" y="86" width="8" height="3" fill="#3A3F45"/>
+    <rect x="108" y="56" width="44" height="26" rx="2" fill="#B9D8F2"/>
+    <rect x="113" y="61" width="30" height="3" rx="1.5" fill="#FBCB74"/>
+    <rect x="113" y="67" width="34" height="3" rx="1.5" fill="#FBCB74"/>
+    <rect x="113" y="73" width="22" height="3" rx="1.5" fill="#FBCB74"/>
+    <circle cx="151" cy="85" r="3.8" fill="#FFFDF8"/>
+    <circle cx="151" cy="85" r="2.9" fill="#22C55E" stroke="#5B5648" stroke-width="1.2"/>
+    <line x1="57" y1="88" x2="57" y2="68" stroke="#A16207" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M 57 68 l 9 3.5 l -9 3.5 z" fill="#B91C1C"/>
+  </symbol>
+
+  <symbol id="st-sx" viewBox="0 0 170 132">
+    <ellipse cx="88" cy="122" rx="42" ry="5" fill="rgba(0,0,0,.06)"/>
+    <g fill="#D9D4CB"><rect x="22" y="62" width="11" height="40" rx="5"/><rect x="22" y="96" width="38" height="10" rx="4"/><rect x="36" y="104" width="7" height="14" rx="2"/></g>
+    <circle cx="86" cy="64" r="26" fill="#8B5CF6"/>
+    <circle cx="86" cy="62" r="18" fill="#BCA5F8"/>
+    <ellipse cx="72" cy="69" rx="4.5" ry="2.8" fill="#8B5CF6" opacity=".3"/>
+    <ellipse cx="100" cy="69" rx="4.5" ry="2.8" fill="#8B5CF6" opacity=".3"/>
+    <g fill="#2C2C2A"><rect x="74.5" y="53.5" width="5" height="9" rx="2.5"/><rect x="92.5" y="53.5" width="5" height="9" rx="2.5"/></g>
+    <path d="M 82 68 q 4 5 8 0" fill="none" stroke="#2C2C2A" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="63" cy="80" r="4" fill="#8B5CF6"/>
+    <circle cx="109" cy="80" r="4" fill="#8B5CF6"/>
+    <g fill="none" stroke="#2C2C2A" stroke-width="1.5">
+      <circle cx="76.5" cy="58" r="6.5"/><circle cx="95.5" cy="58" r="6.5"/><path d="M83 58h6"/>
+    </g>
+    <rect x="50" y="88" width="104" height="10" rx="3" fill="#E8D9C0"/>
+    <rect x="58" y="98" width="9" height="22" rx="2" fill="#CBB89A"/>
+    <rect x="137" y="98" width="9" height="22" rx="2" fill="#CBB89A"/>
+    <rect x="104" y="52" width="52" height="34" rx="4" fill="#3A3F45"/>
+    <rect x="126" y="86" width="8" height="3" fill="#3A3F45"/>
+    <rect x="108" y="56" width="44" height="26" rx="2" fill="#B9D8F2"/>
+    <rect x="113" y="61" width="30" height="3" rx="1.5" fill="#BCA5F8"/>
+    <rect x="113" y="67" width="34" height="3" rx="1.5" fill="#BCA5F8"/>
+    <rect x="113" y="73" width="22" height="3" rx="1.5" fill="#BCA5F8"/>
+    <circle cx="151" cy="85" r="3.8" fill="#FFFDF8"/>
+    <circle cx="151" cy="85" r="2.9" fill="#22C55E" stroke="#5B5648" stroke-width="1.2"/>
+    <g>
+      <rect x="42" y="66" width="24" height="20" rx="2" fill="#FFFDF8" stroke="#CBB89A" stroke-width="1.5"/>
+      <path d="M48 66v20M56 66v20M62 66v20" stroke="#CBB89A" stroke-width="1"/>
+      <circle cx="48" cy="72" r="1.9" fill="#8B5CF6"/><circle cx="48" cy="80" r="1.9" fill="#8B5CF6"/>
+      <circle cx="56" cy="74" r="1.9" fill="#8B5CF6"/><circle cx="62" cy="71" r="1.9" fill="#8B5CF6"/>
+      <circle cx="62" cy="81" r="1.9" fill="#8B5CF6"/>
+    </g>
+  </symbol>
+
+  <symbol id="st-hx" viewBox="0 0 170 132">
+    <ellipse cx="88" cy="122" rx="42" ry="5" fill="rgba(0,0,0,.06)"/>
+    <g fill="#D9D4CB"><rect x="22" y="62" width="11" height="40" rx="5"/><rect x="22" y="96" width="38" height="10" rx="4"/><rect x="36" y="104" width="7" height="14" rx="2"/></g>
+    <circle cx="86" cy="64" r="26" fill="#22C55E"/>
+    <circle cx="86" cy="62" r="18" fill="#86E5A3"/>
+    <ellipse cx="72" cy="69" rx="4.5" ry="2.8" fill="#22C55E" opacity=".3"/>
+    <ellipse cx="100" cy="69" rx="4.5" ry="2.8" fill="#22C55E" opacity=".3"/>
+    <g fill="#2C2C2A"><rect x="74.5" y="53.5" width="5" height="9" rx="2.5"/><rect x="92.5" y="53.5" width="5" height="9" rx="2.5"/></g>
+    <path d="M 82 68 q 4 5 8 0" fill="none" stroke="#2C2C2A" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="63" cy="80" r="4" fill="#22C55E"/>
+    <circle cx="109" cy="80" r="4" fill="#22C55E"/>
+    <path d="M 66 40 a 20 14 0 0 1 40 0 z" fill="#E2E8F0" stroke="#94A3B8" stroke-width="1.2" stroke-linejoin="round"/>
+    <rect x="61" y="38" width="50" height="5" rx="2.5" fill="#CBD5E1" stroke="#94A3B8" stroke-width="1"/>
+    <rect x="50" y="88" width="104" height="10" rx="3" fill="#E8D9C0"/>
+    <rect x="58" y="98" width="9" height="22" rx="2" fill="#CBB89A"/>
+    <rect x="137" y="98" width="9" height="22" rx="2" fill="#CBB89A"/>
+    <rect x="104" y="52" width="52" height="34" rx="4" fill="#3A3F45"/>
+    <rect x="126" y="86" width="8" height="3" fill="#3A3F45"/>
+    <rect x="108" y="56" width="44" height="26" rx="2" fill="#B9D8F2"/>
+    <rect x="113" y="61" width="30" height="3" rx="1.5" fill="#86E5A3"/>
+    <rect x="113" y="67" width="34" height="3" rx="1.5" fill="#86E5A3"/>
+    <rect x="113" y="73" width="22" height="3" rx="1.5" fill="#86E5A3"/>
+    <circle cx="151" cy="85" r="3.8" fill="#FFFDF8"/>
+    <circle cx="151" cy="85" r="2.9" fill="#22C55E" stroke="#5B5648" stroke-width="1.2"/>
+    <g>
+      <path d="M52 68h8l7 18H45z" fill="#DCFCE7" stroke="#86E5A3" stroke-width="1.4" stroke-linejoin="round"/>
+      <path d="M55 76h4l4 10H49z" fill="#22C55E"/>
+    </g>
+  </symbol>
+</svg>
+
+<script>
+/* 把实测值写回标注，避免「按预算表推出来的数字」冒充实测 */
+document.querySelectorAll('[data-measure]').forEach(el=>{
+  const t=document.querySelector(el.dataset.measure);
+  if(t) el.textContent=Math.round(t.getBoundingClientRect().height)+'px';
+});
+/* 量的必须是「内容自然宽」，不是 scrollWidth：行内有一个 flex:1 的 grow 撑着，
+   scrollWidth 永远等于 clientWidth，减出来恒为 0。grow 与 padding 都要单算。 */
+document.querySelectorAll('[data-fit]').forEach(el=>{
+  const t=document.querySelector(el.dataset.fit);
+  if(!t) return;
+  const cs=getComputedStyle(t);
+  const kids=[...t.children].filter(c=>!(c.className||'').includes('grow'));
+  const used=kids.reduce((sum,c)=>sum+c.getBoundingClientRect().width,0)
+    +(parseFloat(cs.columnGap)||0)*Math.max(0,kids.length-1)
+    +(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);
+  const slack=t.clientWidth-used;
+  el.textContent=(slack<0?'溢出 ':'余 ')+Math.abs(Math.round(slack))+'px';
+});
+</script>
+</body>
+</html>
