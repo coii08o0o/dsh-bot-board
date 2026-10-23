@@ -1,168 +1,33 @@
-# Bot 看板（dsh-bot-board）
+# dsh-bot-board
 
-[![ci](https://github.com/jiahaosen07/dsh-bot-board/actions/workflows/ci.yml/badge.svg)](https://github.com/jiahaosen07/dsh-bot-board/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 
-给 DS Bot 加一块浮动的实时看板，专为「派完活盯进度」设计：**每个 Bot 现在在干什么、跑了多久、卡在哪一步、谁在等谁交活**，一眼看完，不用逐个点开会话。
+A floating board for [DS Bot](https://github.com/Fei2411/DeepSeek-Bot): one panel that says what every Bot is doing right now, how long it has been running, what it is stuck on, and who is waiting on whom.
 
-![560×480 默认尺寸：3 件需要你 + 5 个在动 + 1 个闲着，零滚动](docs/screenshot.png)
+![560×480, three Bots need you, five running, one idle](docs/screenshot.png)
 
-这是一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件，配合 [DS Bot](https://github.com/Fei2411/DeepSeek-Bot)（包名 `ds-bot`）使用。它不改 DS Bot 的源码，只读它已有的接口和本地数据——连上游的 `uiLocale` 都不碰。
+It is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin and needs DS Bot installed — without DS Bot there is nothing to show, and the panel stays hidden. It reads DS Bot's own data and writes nothing: no `state.json` edits, no `api/bot` calls that change state, not even a `locale` field that would flip your UI language.
 
-**依赖**：DSH（Developer Preview 即可）+ DS Bot（在 `0.1.7` / `0.2.0` 上验证过）+ Node ≥ 20（只有开发构建需要）。
+Requirements: DSH (a Developer Preview build is fine), DS Bot `0.1.7` or `0.2.0` (the two this was built against), Node ≥ 20 to build from source.
 
-## 它显示什么
+## Install
 
-整体是**一间 Bot 教室**，从上到下三层，按「要不要你动手」递减：
-
-1. **需要你**（0–3 行，44px/行）：只有等你批 / 等你答 / 报错的 Bot。每行是团子小像（30px，就是教室里那张脸的裁剪）+ 名字 + **动作原文** + 已跑时长 + 状态灯。三个灯贴右对齐成一条竖轨，菱形和方形可以直接纵向比较。空的时候是一行「没有需要你的事」——不是空白，面板必须告诉你它查过了。**超过 3 个时，第 3 行动作列的右端会出现一个 `+N` chip**，点它（或 Tab + Enter）就地展开全部，再点收起：不占一行高度，也不会把第 4 个人变成无名氏。
-2. **在动**（整幅教室）：正在跑、在等别的 Bot 交活、以及刚交完活（7 秒内）的 Bot，按名册序排进网格（窄窗口自动 2 列，可滚动）。交接边表长在这一层里面，位置在工位网格**之前**。
-3. **闲着**（一行，24px）：只剩名字，没有图像、没有表面、没有灯。带「!」徽标的是「报错过但已经安静下来」的 Bot，徽标在任何压缩形态下都不丢。
-
-三层靠**图像 / 行高 / 字重 / 表面**四个通道递减，不用色块分区：层 1 有 30px 头像和白卡，层 2 是房间地面本身（无底色、无阴影），层 3 什么都没有。状态色只出现在层 1 的左侧 3px 状态条和灯上。
-
-每个工位从左到右是：椅子 + 木桌（桌上显示器、状态灯、桌面道具），桌后坐着一个圆圆的团子 Bot，工位下方是 Bot 名和已跑时长。
-
-### 六种状态
-
-| 状态 | 灯色 | 形状 | 含义 |
-|---|---|---|---|
-| 干活 | 绿 | 圆 | 正在跑（working / thinking / searching / sending / 转交中） |
-| 等你 | 黄 | **方** | 有审批、提问，或**新建的 Bot 在等你选模型** |
-| 等交活 | 蓝 | 圆 | 它在等**别的 Bot** 把活交回来，不是等你 |
-| 卡住 | 红 | **菱形** | 报错了，且当前没有在干活。超过 3 分钟仍无动静就降级成「闲着」+ 红色「!」徽标——红灯只表示**现在**卡住 |
-| 闲着 | 灰 | 圆 | 什么都没干 |
-| 干完 | 青 | 圆 | 刚接到一次干净的交接，7 秒后回落 |
-
-「等你」和「等交活」是**两个状态**：一个要你动手，一个不用。混在一起会让黄灯天天误报，最后你就开始忽略它。
-
-状态不只靠颜色：**卡住是菱形、等你方形、其余圆形**，每个灯都有描边（层 1 的 12px 灯描边 1.5px；工位里的小灯从 0.8 提到 1.2，因为在 138px 格宽下 0.8 只渲染成 0.65px，被抗锯齿摊成一层浅灰——`闲着` 的灰填充对比度只有 1.53:1，几乎看不见）。因为绿(#22C55E)和红(#EF4444)在红绿色盲下几乎是同一个点（ΔE 13.6），而它们在奶油底上的对比度只有 2.28:1 和 3.76:1——只靠颜色，最该分辨的一对反而最难分辨。显示器也分了六种画面：等你是一根竖线加感叹号，等交活是箭头，干活是三道进度条，干完是勾，卡住是红条，闲着是空屏。
-
-**格宽 138 / 格高 128 不是随手定的**：`480 − 2(面板边框) − 39(头) − 148(3 行需要你 + 间距 + 内边距) − 24(闲着) = 267` 留给「在动」，两整行 + grid gap 8 + `.bb-run` 下内边距 4 必须装进 267，所以 `2 × (0.7765W + 20) + 12 ≤ 267 → W ≤ 138.4`。取 138 后灯轮廓 5.19px，仍远在 4px 下限之上。**默认尺寸 560×480、3 件需要你 + 5 个在动 + 1 个闲着（9 个 Bot 满员），浏览器实测零滚动**（`npm run preview` 生成的 `docs/preview-0.5.0.html` 里每个面板下方的灰字是 `clientHeight` / `scrollHeight` 量出来的，不是算出来的；实测余量 **0.72px**，算术上是 **0.694px**——差额来自浏览器把格子渲染成 127.14 而不是 127.153。离破很近，改任何 padding 都要重跑）。
-
-### 工位上的信息
-
-```
-[团子 + 显示器 + 状态灯]
-Bot2 4m12s
-```
-
-- **已跑时长**：这一轮从什么时候开始，秒级刷新（只重绘这一个节点，SVG 不动）
-- **当前动作**：工位格只有 138px 宽，装不下第三行，所以动作在 **hover 的 title** 和**抽屉**里（`等你批 Bash` / `报错：模型超时` / `等 Chief、Bot5`）；层 1 的「需要你」列表里它是**常显的一列文字**。`waiting` 状态的「等谁」只有 title 这一条常驻线索——交接边表是 `works` 派生的**欠账**，不是 `waiting` 派生的**实时堵点**，两回事
-- **超时变色**：干活超过 5 分钟，时长变琥珀色并加粗（可能卡住了，但还没报错）
-- **失败徽标**：报错后又重新干活的 Bot，右上角留一个红色「!」，主状态回到绿色。这个徽标会自己消失：失败时间早于本轮起点，或 Bot 已连续干活超过 1 分钟，就判定为「已经恢复了」
-- **hover** 看完整 title；**点击**打开详情抽屉
-
-### Bot 的脸从哪来（DS Bot 说了算）
-
-看板不发明身份。每个 Bot 的长相由 DS Bot 自己的两个字段决定，看板只是把它们画出来：
-
-| 轴 | 来源 | 取值 |
-|---|---|---|
-| **角色**（身体轮廓） | `state.json` 的 `bots[].avatar.shape` | DS Bot 的七个角色：`whale` `star` `moon` `wave` `squircle` `zed`（Bull）`hex`（Blossom） |
-| **颜色** | `bots[].color` | 19 个命名 ink（`deepseek`/`blue`/`violet`…）或任意 `#rrggbb` |
-| **桌面道具** | 看板自己 | 10 种，按 Bot id 哈希（上游没有描述它的字段） |
-
-七个轮廓是**按 DS Bot 的形状重绘的**：鲸鱼有尾鳍和圆身、星形有五角、花形有花瓣、牛形有角，脸盘和眼睛按各自轮廓内缩（星形的凹角撑不住一个 18px 的脸盘），有圆边的轮廓才有手。所以「我的 Bot 是蓝色鲸鱼」在两个界面上是同一句话。
-
-DS Bot 只在用户**显式选过**时才存这两个字段——新建的 Bot 默认两个都没有。没有的部分按 Bot id 哈希补：12 色 × 7 轮廓 × 10 道具 = 840 种组合，同一个 Bot 每次刷新都是同一张脸，两个 Bot 撞到同一套组合时自动换一套。**上游给的部分永远优先**，哈希只填空白。
-
-**名字不参与身份。** 一个叫 `Chief` 的 Bot 不会因此得到任何特殊长相——名字是自由文本，随语言变，而 `avatar.shape` 是闭集七项。
-
-### 六态怎么认（图例是抽屉，不是常驻条）
-
-头部那个 `?` 按钮打开六态说明：每行一个灯 + 状态名 + 一句人话。它用的是和现场**同一个** `Lamp` 组件（12px 竖轨 / 16px 图例 / 14px 抽屉头部），所以图例不会和现场漂移。
-
-以前这条图例常驻在首屏，占 27px、每 1.5 秒重渲染一次、内容永不变化——最贵的像素给了最不需要看的东西。现在它按需打开，六态靠三层覆盖：层 1 的动作原文直接是词（`等你批` / `报错`）、工位的 title 带状态名、形状本身（菱形 / 方形 / 圆）。
-
-### 详情抽屉
-
-点工位打开，不用跳会话就能看到：
-
-- 角色、模型、状态、已跑时长、当前动作
-- **这一轮在哪跑**：只在这一轮发生在群聊里时才显示（`work.bots[botId].roomId`）
-- **等你审批时：这次调用要动的东西**（等宽代码块，可能是命令、文件路径或 URL——DS Bot 的 `detail.code` 取的是 `command|file_path|url|query` 里第一个非空值，所以标签写「具体内容」而不是「命令」）+ 审批原因
-- **等你回答时：问题原文 + 说明 + 所有可选项**。`multiSelect` 为真时编号换成 `☐`（编号会读成「选一个」），`allowCustom` 为真时末尾加一行「也可以自己说」
-- 最近一次报错的完整消息
-- 最近一次**这个 Bot** 交接回来的结果（`work.results[]` 每条带 `name`，按名字挑，不是取最后一条）
-- 底部「打开聊天 ↗」跳到那个 Bot 的会话
-
-### 正在交接（在「在动」里面，工位网格之前）
-
-只列 `open > 0` 的活。**按发送方分组**，组头是「共 N 项」——组最大的那个就是瓶颈：
-
-```
-Bot1 · 共 7 项
-  → Bot2   4 项待交   12 分钟前
-  → Bot3   3 项待交   未开工   8 分钟前
-Bot2 · 共 2 项
-  ⇄ Bot1  2 项待交   互相等   5 分钟前
-```
-
-- `→` 是**派活方向**（谁派给谁），欠账方向是反的。
-- **「共 N 项」是这一组的答案**，不是全局面板的总数：谁压着最多，谁就是瓶颈。
-- **`⇄` + `互相等`** 表示 A→B 和 B→A 同时开着，也就是死锁。两侧各保留一条边，各自的数量都是真的，没有一边的数字被合并掉。
-- **`被堵` 只给真的动不了的接收方**（`等你`/`卡住`）。接收方在 `干活` 时**绝不**标「被堵」——他正在飞快还账，去催他是错的。接收方闲着但账还开着，标「未开工」：该看一眼，但没人在堵它。
-
-点一行跳到接收方的抽屉。空的时候整块不渲染（连 0 高的空壳都没有）。
-
-**位置在工位网格之前，不是之后。** 6 个 Bot 在跑时，两行工位已经占满这一层（266.31px 里的 267px，余 0.694px），边表和网格不可能同时完整可见——而那一刻正是它最要紧的时候：刚对 Bot1 说完「八份都过一遍」，8 个在跑、8 条边同时开着。既然滚动不可避免，就先看关系：工位位置固定、靠位置记人，滚下去看格子代价小；哪些账还开着是每次都要重新读的新信息。完全不滚动时，头部的 `N 项在交接` 仍然回答「有没有在交接」。
-
-## 提醒
-
-- 只在「等你审批/回答」和「报错」时弹系统通知，其他情况只变色，不打扰。
-- 同一件事只弹一次；新的事才会再弹。
-- 面板收起来时，胶囊上带「N 忙 · N 待 · N 等 · N 错」。
-
-## 交互
-
-- **拖动标题栏**移动面板，位置记住。
-- **拖右下角**调整大小（默认 560×480，最小 420×320，最大 980×700），大小记住。
-- **× 收起**成右下角胶囊，再点展开。
-- **? 打开六态图例**（抽屉），Esc 或 × 关掉。
-- **点工位 / 点「需要你」里的一行 / 点「闲着」里的一个名字**都打开详情抽屉（抽屉里再点「打开聊天」跳会话）。
-- **Esc** 关闭抽屉；抽屉打开时焦点会移进去、Tab 在抽屉内循环，关掉后回到**刚才那一行**（不是回到网格）。交接边、列表行、闲着名字都可以 Tab + Enter 打开。
-- 名册顺序**永不改变**，分层只是在渲染期对行做过滤：一个 Bot 只在真的开始/结束一轮时才在「在动 / 闲着」之间换层（还有 1.2 秒的稳定窗，一次轮询的抖动不搬家）。位置是你记人的方式。
-- **「需要你」不走这个稳定窗。** 它是这块面板唯一不许滞后的答案：审批一来就得进列表，一处理就得离开。给它加防抖会让面板和自己的头部计数互相打脸（头部说「1 等你」，列表说「没有需要你的事」），处理完的那一刻还会让那个 Bot 三层都不在。
-
-## 数据从哪来
-
-| 数据 | 来源 |
-|---|---|
-| 每个 Bot 的实时状态、当前工具、已跑时长、审批与提问、**新建 Bot 待选模型** | DS Bot 的 `POST api/bot`（`endpoint: "state"`），有活在跑时 1.5 秒一次，全队闲着 90 秒后 6 秒一次 |
-| 派活记录（from/to/open/results）、房间名 | 宿主侧读 `~/.dsh/bot/state.json`，内存缓存，按 `mtime+size` 失效，5 秒一次 |
-| 报错 | 宿主侧订阅 DSH 的 `agent/error`，按会话映射回 Bot，保留 15 分钟 |
-
-只读取，不写任何文件，不改 DS Bot 的数据。
-
-**轮询会降频**：面板收起或窗口隐藏时，两个轮询都降到 30 秒；连续失败时指数退避（最多 8 倍、上限 30 秒）。**全队闲着**（没有任何 Bot 在跑、没有审批、没有等交活）超过 90 秒后，实时轮询从 1.5 秒降到 6 秒——一旦有人动起来，下一次 tick 就回到 1.5 秒。间隔还带 ±10% 抖动，免得和 DS Bot 自己的前端锁相。
-
-这不是省电，是因为 `api/bot` 的 `state` 端点在上游每次都会跑 `refresh + bootstrap + catalog + loadSecrets`，**`unchanged` 只省了响应体积，没省这些**。所以一个挂着不看、全员闲着的看板，每分钟仍然会让上游跑 40 次这几件事——降频降的是这个。
-
-轮询循环是**单飞**的（`src/client/pollLoop.js`）：请求在途时收到 wake 会被忽略，由请求自己在落地后排下一个 tick。早期版本会去清一个已经触发过的 timer 然后再 fire，结果是每折叠/展开一次就多挂一条永久轮询链。
-
-看板**不会**给 DS Bot 传 `locale`：那个字段在上游是全局 `uiLocale`，会改掉新建 Bot 的招呼语言和记忆语言。只读插件不该有这个副作用。
-
-## 安装
-
-插件目录就是本仓库。装 DS Bot 之前它没有东西可画——看板的数据全部来自 DS Bot。
-
-1. 拿代码并构建浏览器侧产物（源码在 `src/`，`client.js` 是生成的；仓库里已带一份与源码同步的产物，改了 `src/` 才需要重新构建）：
+The package is not on npm yet; install from the repository.
 
 ```sh
 git clone https://github.com/jiahaosen07/dsh-bot-board.git
 cd dsh-bot-board
-npm install     # 只装一个开发依赖 esbuild
-npm run build
+npm install
+npm run build        # only needed after you edit src/
 ```
 
-2. 登记进 profile 的 `package.json`（位置在 `~/.dsh/profiles/desktop/package.json`），把路径换成你的实际路径：
+Then register it in your profile's `package.json` (`~/.dsh/profiles/desktop/package.json`), pointing at wherever you cloned it:
 
 ```json
 {
   "dependencies": {
-    "dsh-bot-board": "file:/你的/路径/dsh-bot-board"
+    "dsh-bot-board": "file:/path/to/dsh-bot-board"
   },
   "dsh": {
     "profile": {
@@ -172,108 +37,147 @@ npm run build
 }
 ```
 
-3. 建立依赖链接（DSH 用 pnpm 管理 profile，`file:` 依赖也要链进 `node_modules` 才找得到）：
+Link it into the profile's `node_modules`, then restart DSH completely:
 
 ```sh
-ln -sfn /你的/路径/dsh-bot-board ~/.dsh/profiles/desktop/node_modules/dsh-bot-board
+ln -sfn /path/to/dsh-bot-board ~/.dsh/profiles/desktop/node_modules/dsh-bot-board
+killall -9 "DeepSeek Harness"    # osascript quit pops an automation prompt
 ```
 
-4. **完全退出** DeepSeek Harness 再打开（直接 `killall -9 "DeepSeek Harness"` 最干净；`osascript quit` 会弹系统自动化权限窗），右下角出现「Bot 看板」面板。
+The panel appears bottom-right. The client half hot-reloads after `npm run build`; changes under `src/host/` need a restart.
 
-> 客户端半边有 HMR：改完 `src/client/**` 后 `npm run build` 即生效，不用重启；改 `src/host/**` 才需要重启 DSH。
->
-> **长相在 DS Bot 里设，不在看板里设**：打开 Bot 的设置，给它选一个角色（七个轮廓之一）和颜色。看板下一次轮询就会跟着变——它只读，不写你的数据。没选过的 Bot 会按 id 哈希出稳定的脸，也完全能用。详见上面「Bot 的脸从哪来」。
+Windows: `ln -sfn` is Unix-only. Use `mklink /D "%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-bot-board" "C:\path\to\dsh-bot-board"` from an elevated `cmd`, or let `pnpm install` in the profile create the link from the `file:` dependency.
 
-## 开发
+## What it shows
+
+Three bands, ordered by whether you have to do anything:
+
+1. Needs you — up to three rows of Bots waiting on an approval, a question, or a failed turn. Each row: the Bot's face, its name, the action in its own words, how long it has waited, and a lamp. When more than three are waiting the third row grows a `+N` chip that expands the list in place.
+2. Moving — the classroom floor: Bots that are running, waiting on another Bot, or just finished (7 seconds). Hand-off edges sit above the grid.
+3. Idle — one line of names. A `!` badge sits on a Bot that failed and has since gone quiet.
+
+The three bands differ by image, row height, weight and surface, not by background colour. Status colour appears only on the 3px bar and the lamps.
+
+### Six states
+
+| State | Lamp | Shape | Means |
+|---|---|---|---|
+| Working | green | circle | running, thinking, searching, sending, handing over |
+| Needs you | yellow | **square** | an approval, a question, or a new Bot waiting for a model pick |
+| Waiting on a Bot | blue | circle | it is waiting for another Bot to hand work back, not for you |
+| Stuck | red | **diamond** | failed, and not working now. After 3 quiet minutes it drops to idle with a red `!` |
+| Idle | grey | circle | nothing running |
+| Just finished | teal | circle | a clean hand-off landed; falls back after 7 seconds |
+
+Colour alone does not carry the state: stuck is a diamond, needs-you is a square, the rest are circles, and each lamp has an outline. Green and red sit 13.6 ΔE apart for red-green colour blindness — close enough that shape has to do the work.
+
+### Where the faces come from
+
+A Bot's look is DS Bot's, not this board's. Two fields decide it:
+
+| Axis | Source | Values |
+|---|---|---|
+| Character (body outline) | `bots[].avatar.shape` | `whale` `star` `moon` `wave` `squircle` `zed` `hex` |
+| Colour | `bots[].color` | 19 named inks or any `#rrggbb` |
+| Desk prop | this board | 10 props, hashed from the Bot id |
+
+The seven outlines are redrawn from DS Bot's own shapes: the whale keeps its tail, the bull its horns, the blossom its petals. Face disc and eyes shrink per outline, because a star's concave points cannot hold an 18px disc; the two silhouettes without a round edge have no hands.
+
+DS Bot stores those two fields only when the user picked them, so a new Bot usually has neither. Whatever is missing is hashed from the Bot id: 12 colours × 7 outlines × 10 props = 840 combinations, stable across refreshes, and a collision is re-rolled. Upstream always wins over the hash.
+
+Names are not part of identity. A Bot called `Chief` gets nothing extra for the name — `avatar.shape` is a closed set of seven, and names are free text in whatever language you type.
+
+## Where the data comes from
+
+| What | From |
+|---|---|
+| Live status, current tool, elapsed time, approvals, questions, a new Bot waiting for a model | DS Bot's `POST api/bot` (`endpoint: "state"`), 1.5s while anything runs, 6s after 90s of a fully idle team |
+| Hand-offs (`from`/`to`/`open`/`results`), room names | `~/.dsh/bot/state.json`, read by the host half, cached on `mtime+size`, polled every 5s |
+| Failures | DSH's `agent/error`, mapped back to a Bot by session, kept for 15 minutes |
+
+Polling slows down when the panel is collapsed, the window is hidden, or requests keep failing (exponential backoff, 8× cap, 30s ceiling). This is not about battery: `api/bot` runs `refresh + bootstrap + catalog + loadSecrets` on every call, and `unchanged` only saves response size. An idle board left open still costs the upstream 40 of those a minute, and that is what the slow-down reduces.
+
+If you moved DS Bot's data folder (`bot.home` in its config), point this plugin at the same folder:
+
+```yaml
+- id: bot-board
+  name: dsh-bot-board
+  config:
+    home: /path/to/bot-data   # default $DSH_HOME/bot
+```
+
+`state.json` carries DS Bot's data format version. If it is not `1`, the panel says so — a moved field fails by reading the wrong value, not by crashing, and silence would be worse.
+
+## Known limits
+
+- The panel lives in every DSH session, not only DS Bot's. It hides itself when there is no state file to read.
+- Hand-offs only show what `state.json` still holds. DS Bot deletes a sub-record when the sub-task finishes, so chains break; there is no graph view, only the "in flight" table.
+- No group-chat panel: `rooms[].log[]` has no timestamps, and group chat went unused on the machine this was built on.
+- Failures cover what DSH's `agent/error` reports (model and tool steps); a dropped network connection is not one of them.
+- The classroom is a light island by design. In a dark theme the room stays cream and the text stays dark.
+- DS Bot's `avatar.image` (an uploaded photo, up to 160KB as a data URL) is not drawn. Seven outlines is the whole vocabulary here; a photo inside a 138px workstation is a different problem.
+- DS Bot changing `api/bot` fields will need a matching change here. The ink values come from its `src/client/inks.js`.
+
+## Development
 
 ```
-src/host/index.js      宿主侧：快照路由 + 失败存储
-src/client/index.js    apply / slot 注册
-src/client/rows.js     行构造（纯函数，可单测）
-src/client/scene.js    状态优先级（纯函数，可单测）
-src/client/layers.js   三层归属 + 交接边表 + 闲着降级（纯函数，可单测）
-src/client/station.js  工位 SVG + 灯组件 Lamp + 元信息行
-src/client/attention.js 「需要你」列表 + 「闲着」一行
-src/client/elapsed.js  每秒跳一次的时长节点（工位和抽屉共用）
-src/client/drawer.js   详情抽屉
-src/client/legend.js   六态图例（复用抽屉）
-src/client/handoffs.js 交接分组边表
-src/client/panel.js    外壳、拖动、缩放、折叠、三层主体
-src/client/poll.js     两个轮询器（钩子）
-src/client/pollLoop.js 轮询循环（纯对象，可用假时钟测试）
-src/client/cadence.js  轮询节奏（纯函数：全队闲着就放慢）
-src/client/clock.js    共享的一秒心跳
-src/client/bridge.js   打开会话的桥
-src/client/const.js    可调参数 + 六态 + 工位名册
-src/client/format.js   elapsed / ago / clip
-src/client/style.js    CSS
-src/client/locale.js   中/英文案
-tools/build.mjs        esbuild 打包成 __ModuleLoader__ 格式
-tools/smoke.mjs        宿主快照 + 纯逻辑 + 产物契约 + CSS
-tools/render-check.mjs 用 React 垫片真渲染一遍组件树
+src/host/index.js       host half: snapshot route, failure store
+src/client/index.js     apply / slot registration
+src/client/rows.js      row building (pure)
+src/client/scene.js     state priority (pure)
+src/client/layers.js    band membership, hand-off edges, idle demotion (pure)
+src/client/station.js   workstation SVG, lamp component, blob
+src/client/panel.js     shell, drag, resize, collapse, three bands
+src/client/poll.js      the two pollers
+src/client/cadence.js   polling rhythm (pure: slow down when the team is idle)
+src/client/const.js     tunables, six states, seven characters, 19 inks
+tools/build.mjs         esbuild bundle in __ModuleLoader__ format
+tools/smoke.mjs         host snapshot + pure logic + artifact contract + CSS
+tools/render-check.mjs  renders the component tree through a React shim
 ```
 
 ```sh
-npm run build    # 改完 src/ 必须重新构建
+npm run build    # rebuild client.js after editing src/
 npm run smoke
 npm run render
-npm run check    # 上面三步一起（build + smoke + render）
-npm run verify   # 只查一件事：client.js 是不是当前 src/client/*.js 构建出来的
-npm run ci       # 发布前跑这个：verify + smoke + render，不前置 build
-npm run freeze   # 构建 + 打印 src/产物 两个指纹 + 跑两套检查（复核用）
+npm run check    # all three, build first
+npm run verify   # only: is client.js the build of the current src/?
+npm run ci       # verify + smoke + render, no build
+npm run preview  # static HTML of nine scenarios, measured in a browser
 ```
 
-`verify` 和 `ci` 存在的意义是**它们不 build**。`check` 永远先跑 build，所以「产物过期」这个状态在 `check` 里根本无法表达——把旧 `client.js` 放回 HEAD 再跑 `check`，378 条断言照样全绿。`verify` 拿 `client.js` banner 里的 src 指纹和现算的指纹比对（不比对字节，因为 esbuild 是 `^0.25.0` 且没有 lockfile，补丁版本变了会假红）；`ci` 在此基础上再跑两套检查，所以**忘记 build 的产物会被 `ci` 拦在发布之前**。改了 `src/` 而没重新构建时，`npm run ci` 会直接失败在第一步。
+`verify` and `ci` exist because they do not build. `check` always builds first, so "the artifact is stale" cannot be expressed there — put an old `client.js` back and all 435 assertions still pass. `verify` compares the src fingerprint in the bundle banner against a fresh hash, and `ci` runs that plus both suites, so a forgotten build fails before release.
 
-复核时注意**指纹要说是算哪一批文件**：`src/` 单独算、`src+tools+产物` 一起算，得到的值完全不同。之前两个人对着报「哈希不一致」，其实是算法不同。
+The `preview` export is not a mockup. It renders the real components with the real CSS and prints `clientHeight`/`scrollHeight` under each panel. That is how the 0.72px margin at 560×480 was measured.
 
-`react` / `react-dom` 在构建时保持 external，由 `__ModuleLoader__` 注入——打进 bundle 会产生第二份 React，hooks 直接报错。
+`react` and `react-dom` stay external at build time and are injected by `__ModuleLoader__`; bundling a second React breaks hooks.
 
-## 已踩过的坑（给下次写插件的人）
+## Notes for the next plugin
 
-- `connection.fetch.register` 的 `path` 必须**带前导斜杠**（`/api/bot-board`），不带斜杠会 404；路由是**精确路径名匹配**，不是前缀。
-- `connection` 服务可能在 `apply()` 之后才就绪，必须用 `ctx.inject(['connection'], cb)` 等它，一次性 `if (!ctx.connection) return` 会让路由永不注册且毫无报错。
-- 客户端 bundle 的 `__ModuleLoader__.load({id})` 里 id 必须等于包名，改名后不重打包会静默不加载。
-- 面板挂在 `shell.overlay` 插槽，order 取 500 以上，避开 ds-bot 的 50/55/60。
-- `rooms[].log[]` **没有时间字段**（只有 `seq`），想显示「几分钟前」得自己记。
-- `works[].room` 是**房间 id**，不是 Bot id；用 Bot 表去查永远查不到名字。
-- `bots[].sessionId` 是当前分段，`segments[]` 里只有已结束的分段——做会话→Bot 映射时两个都要收，否则 Bot 切过段之后新会话的报错会丢。
-- `api/bot` 的 `state` 不是纯读接口，每次都跑 `refresh/bootstrap/catalog/loadSecrets`，别拿它做高频轮询。
-- 桌面端改完插件必须**整个退出重开**；`osascript quit` 会触发系统自动化权限弹窗，直接 `killall -9 "DeepSeek Harness"` 最干净。
+- `connection.fetch.register` needs a leading slash (`/api/bot-board`); paths match exactly, not by prefix.
+- The `connection` service may arrive after `apply()`. Wait with `ctx.inject(['connection'], cb)` — an early `if (!ctx.connection) return` registers nothing and says nothing.
+- The id in `__ModuleLoader__.load({ id })` must equal the package name; rename the package without rebuilding and the bundle silently never loads.
+- The panel sits in the `shell.overlay` slot above order 500, clear of DS Bot's 50/55/60.
+- `rooms[].log[]` has no time field (only `seq`), so "3 minutes ago" has to be tracked yourself.
+- `works[].room` is a room id, not a Bot id.
+- `bots[].sessionId` is the current part; `segments[]` holds only ended parts. Collect both when mapping a session to a Bot, or errors from a Bot that rolled over a part go missing.
+- `api/bot`'s `state` is not a pure read. Do not poll it at high frequency.
+- After changing a host-half plugin, quit DSH entirely. `killall -9 "DeepSeek Harness"` is cleaner than `osascript quit`.
 
-## 已知边界
+## Uninstall
 
-- 面板常驻所有会话，不只在 DS Bot 里。
-- 派活只显示 `state.json` 里还留着的记录；DS Bot 在子任务完成时会删掉子记录，历史链路会断，所以这里**不做链路图**，只做「正在交接」列表。
-- 群聊面板没有做：`rooms[].log[]` 无时间字段，且本机实测群聊 0 使用率。
-- 报错只能抓到 DSH `agent/error` 能覆盖的（模型/工具步骤失败）；网络层中断另说。
-- 教室是刻意的浅色岛，文字固定深色。暗色主题下房间仍是奶油色——这是设计选择，不是漏改。
-- **DS Bot 的 `avatar` 不渲染**：上游支持 `{shape}` 和用户上传的图片（`avatar.image`，最大 160KB 的 data URL），看板只用 `color`。图片要缩进 138px 的工位、而大多数 Bot 根本没有 avatar，收益不抵成本——真需要的话从抽屉里显示原图开始。
-- DS Bot 升级后如果改了 `api/bot` 的字段，看板需要跟着调整。`color` 的取值域来自 ds-bot 的 `src/client/inks.js`，上游加新色时这里要同步（加不上的未知名会安全地回落到名册/哈希）。
+Remove `dsh-bot-board` from the profile's `bundles` and `dependencies`, drop the link, restart.
 
-## 卸载
+## Issues
 
-从 profile 的 `bundles` 和 `dependencies` 里删掉 `dsh-bot-board`，删掉软链，重启。
+Include three things: your DSH version, your `ds-bot` version, and what the panel header says (or a screenshot). A DS Bot upgrade changing a field is the most common failure here, and the version number saves a round trip. Run `npm run ci` before opening a PR — it checks that `client.js` matches `src/`.
 
-## 反馈与贡献
+## License
 
-提 Issue 请带上三个信息：DSH 版本、`ds-bot` 版本、面板头部显示的内容（或截图）。DS Bot 升级后改字段是这类插件最常见的问题，版本号能省掉一轮问答。提 PR 前跑一遍 `npm run ci`——它会先校验 `client.js` 与 `src/` 是否同步，忘 build 的产物到不了主分支。
+MIT. See [LICENSE](LICENSE).
 
-## 许可与致谢
+The seven character outlines come from [DS Bot](https://github.com/Fei2411/DeepSeek-Bot) (Apache-2.0), and the 19 ink values from its `inks.js`. The board redraws them as dumplings — face, eyes, hands and desk props are this project's. DS Bot is Apache-2.0 and the attribution stays here.
 
-[MIT](LICENSE)。
+---
 
-看板里的**七个角色轮廓**取自 [DS Bot](https://github.com/Fei2411/DeepSeek-Bot)（Apache-2.0）的 `CHARACTERS`，19 个颜色 ink 的色值取自它的 `inks.js`；看板把它们按自己的画法重绘成团子（脸盘、眼睛、手、桌面道具都是本项目的）。上游是 Apache-2.0，这里保留出处与许可说明。
-
-## 版本
-
-- `0.6.0` — **身份改成 DS Bot 自己的两轴**：`avatar.shape`（七个角色轮廓，按 DS Bot 的形状重绘）× `color`（19 ink 或 #hex），桌面道具仍由 id 哈希。**按名字的名册整个删掉**——名字不再参与身份，公开版的默认值里不再有作者自己的团队。哈希兜底覆盖没设过长相的 Bot，撞车自动重排（12×7×10 = 840）。灯、尺寸、三层轴不变。断言 437 → 447。
-- `0.5.0` — **Bot 的身份改成三级解析**：上游 `color`（用户在 DS Bot 界面里选的颜色，19 个命名 ink 或 `#rrggbb`）压过本地名册，名册压不过就按 id 哈希；名册名字被认领后不再发出（防冒充），哈希层新增 `(色, 头饰, 道具)` 三重去重（原来两个陌生人有约 1/960 概率画成同一张脸）。`INKS` 表逐字取自 ds-bot 的 `src/client/inks.js`，看板与 DS Bot 同色。DS Bot 的 `avatar` 不渲染（见已知边界）。新增预览场景「身份来源」。断言 424 → **437**。
-- `0.4.3` — 审计修复 + 文档对齐。**代码**：格宽 139 → **138**（`480 − 39 − 148 − 24 = 269` 漏了 `PANEL_BORDER` 2px，层 2 实际只有 267px，139 宽会让第二行工位溢出 0.9px；改 138 后 C4c = 479.31 ≤ 480，余 0.694px，浏览器实测 0.72px）；`SCENE_VB` 成为 `viewBox` 与 `cellHeight()` 的唯一来源，`RUNNING_CELL_H` 改由 `Math.ceil(cellHeight())` 推导；`IDLE_BUDGET` 从裸的 380 改成 `SIZE_MIN.w − PANEL_BORDER − 20 − IDLE_SLOP` 并补上界断言；`nameWidth` 补 CJK 扩展B；`waitSince` 改用审批到达时刻（`approval.at`），`attentionOf` 在名额 ≥2 时保留最老的 error；层 1 展开态的 `−` 移到第一行（420×320 下原本被裁掉、无法撤销）；交接表的「还有 N 项」变成可点击展开的控件；灯加浅色底座（轮廓 1.45:1 → 7.20:1）；同名 Bot 不再能冒用同一个座位；宿主侧 `works` 上限修好、`bots/rooms/works/segments` 四类脏数据不再让快照永久失效、`readAt` 驱动 `stale`、控制字符与 RLO 被剔除；新增 `npm run verify`（`client.js` banner 带 `src` 指纹，防止产物落后源码而检查全绿）。断言 378 → 424。**文档**：设计规范与需求文档的数字全部按 `const.js` 重算，交接表位置、§8.3 跨层错误、420 与 560 的定位一并改正。
-- `0.4.0 – 0.4.2` — 三层注意力轴：条件渲染的「需要你」短列表（0–3 行 + `+N`）、按发送方分组的交接边表、闲着压成一行名字；常驻图例降级成抽屉；格宽从 176 收到 139/128。两轮审计补上的：C4c 原先漏算 grid gap 8 与 `.bb-run` 下内边距 4；`attentionOf` 在名额 ≥2 时保留最老的 error；`waitSince` 改用审批到达时刻；`idleLine` 的预算从裸的 380 改成从 `SIZE_MIN.w` 推导并加上界；`nameWidth` 补上 CJK 扩展B；灯底座圆盘盖住灯的外径。新增 `npm run verify`：`client.js` banner 带 src 指纹。
-- `0.3.0` — 拆分源码 + 构建；修 8 个 P0（报错压制、暗色可读、工位跳动、waiting 语义、灯色、room 查错表、切段丢报错、群聊死代码）；新增已跑时长、审批详情、详情抽屉、交接列表；六态形状通道；轮询单飞 + 降频；i18n。
-- `0.3.4` — 键盘可用：抽屉加 `aria-modal`、打开时移入焦点、Tab 在抽屉内循环、Esc 关闭、关闭后焦点回到原工位；交接行补 `role/tabIndex` 和 Enter/Space；所有控件补 `:focus-visible` 焦点环。报错红灯改为只表示「现在」：安静超过 3 分钟降级成「闲着」+ `!` 徽标，消息留在抽屉里。删掉 `sinceKnown` 死字段；失败表按 `at` 淘汰而不是插入序；字典里没有的 activity 兜底成「干活中」而不是打印原始 token。
-- `0.3.3` — 把上游已经给了但被丢掉的数据接上：新建 Bot 等你选模型时亮黄灯（`bot.waiting`）、问题的说明行与「可多选/可自己说」、这一轮是否在群里跑、交活结果按 Bot 名归属；「正在交接」先按 `open > 0` 排再截断，老但没交完的活不再被新的已结束记录挤掉。轮询改为自适应：全队闲着 90 秒后从 1.5 秒降到 6 秒，带 ±10% 抖动。
-- `0.3.2` — 修 3 处看得见的错：干完不再盖掉干活（交接落地同一秒接了下一轮的 Bot 会被画成干完 7 秒）、抽屉的已跑时长改为跟心跳走（此前打开后就冻住）、面板位置恢复和缩放后夹回视口（此前窗口变小可能拖不回来）。补 4 条回归断言。
-- `0.3.1` — 修 0.3.0 引入的轮询双链；去掉会改写上游 `uiLocale` 的 `locale` 字段；头部计数不再硬编码颜色；抽屉标签按真实契约改为「具体内容」；`ago()` 走 i18n；交接记录按 owners 表解析归属（切段后不再显示 session id）；失败徽标随恢复自动消失；默认高度 480。
-- `0.2.0` — 教室场景、六种表情动作、拖动缩放。
+[中文说明](README.zh-CN.md)
