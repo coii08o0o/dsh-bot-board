@@ -1,8 +1,16 @@
 # Bot 看板（dsh-bot-board）
 
+[![ci](https://github.com/jiahaosen07/dsh-bot-board/actions/workflows/ci.yml/badge.svg)](https://github.com/jiahaosen07/dsh-bot-board/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
+
 给 DS Bot 加一块浮动的实时看板，专为「派完活盯进度」设计：**每个 Bot 现在在干什么、跑了多久、卡在哪一步、谁在等谁交活**，一眼看完，不用逐个点开会话。
 
-这是一个 DSH 插件，配合 [DS Bot](https://github.com/Fei2411/DeepSeek-Bot)（包名 `ds-bot`）使用。它不改 DS Bot 的源码，只读它已有的接口和本地数据。
+![560×480 默认尺寸：3 件需要你 + 5 个在动 + 1 个闲着，零滚动](docs/screenshot.png)
+
+这是一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）插件，配合 [DS Bot](https://github.com/Fei2411/DeepSeek-Bot)（包名 `ds-bot`）使用。它不改 DS Bot 的源码，只读它已有的接口和本地数据——连上游的 `uiLocale` 都不碰。
+
+**依赖**：DSH（Developer Preview 即可）+ DS Bot（在 `0.1.7` / `0.2.0` 上验证过）+ Node ≥ 20（只有开发构建需要）。
 
 ## 它显示什么
 
@@ -31,7 +39,7 @@
 
 状态不只靠颜色：**卡住是菱形、等你方形、其余圆形**，每个灯都有描边（层 1 的 12px 灯描边 1.5px；工位里的小灯从 0.8 提到 1.2，因为在 138px 格宽下 0.8 只渲染成 0.65px，被抗锯齿摊成一层浅灰——`闲着` 的灰填充对比度只有 1.53:1，几乎看不见）。因为绿(#22C55E)和红(#EF4444)在红绿色盲下几乎是同一个点（ΔE 13.6），而它们在奶油底上的对比度只有 2.28:1 和 3.76:1——只靠颜色，最该分辨的一对反而最难分辨。显示器也分了六种画面：等你是一根竖线加感叹号，等交活是箭头，干活是三道进度条，干完是勾，卡住是红条，闲着是空屏。
 
-**格宽 138 / 格高 128 不是随手定的**：`480 − 2(面板边框) − 39(头) − 148(3 行需要你 + 间距 + 内边距) − 24(闲着) = 267` 留给「在动」，两整行 + grid gap 8 + `.bb-run` 下内边距 4 必须装进 267，所以 `2 × (0.7765W + 20) + 12 ≤ 267 → W ≤ 138.4`。取 138 后灯轮廓 5.19px，仍远在 4px 下限之上。**默认尺寸 560×480、3 件需要你 + 6 个在动 + 闲着，浏览器实测零滚动**（`npm run preview` 生成的 `docs/preview-0.4.2.html` 里每个面板下方的灰字是 `clientHeight` / `scrollHeight` 量出来的，不是算出来的；实测余量 **0.72px**，算术上是 **0.694px**——差额来自浏览器把格子渲染成 127.14 而不是 127.153。离破很近，改任何 padding 都要重跑）。
+**格宽 138 / 格高 128 不是随手定的**：`480 − 2(面板边框) − 39(头) − 148(3 行需要你 + 间距 + 内边距) − 24(闲着) = 267` 留给「在动」，两整行 + grid gap 8 + `.bb-run` 下内边距 4 必须装进 267，所以 `2 × (0.7765W + 20) + 12 ≤ 267 → W ≤ 138.4`。取 138 后灯轮廓 5.19px，仍远在 4px 下限之上。**默认尺寸 560×480、3 件需要你 + 5 个在动 + 1 个闲着（9 个 Bot 满员），浏览器实测零滚动**（`npm run preview` 生成的 `docs/preview-0.4.3.html` 里每个面板下方的灰字是 `clientHeight` / `scrollHeight` 量出来的，不是算出来的；实测余量 **0.72px**，算术上是 **0.694px**——差额来自浏览器把格子渲染成 127.14 而不是 127.153。离破很近，改任何 padding 都要重跑）。
 
 ### 工位上的信息
 
@@ -122,21 +130,23 @@
 
 ## 安装
 
-插件目录就是本仓库，安装分四步：
+插件目录就是本仓库。装 DS Bot 之前它没有东西可画——看板的数据全部来自 DS Bot。
 
-1. 构建浏览器侧产物（源码在 `src/`，`client.js` 是生成的）：
+1. 拿代码并构建浏览器侧产物（源码在 `src/`，`client.js` 是生成的；仓库里已带一份与源码同步的产物，改了 `src/` 才需要重新构建）：
 
 ```sh
-npm install     # 只为 esbuild
+git clone https://github.com/jiahaosen07/dsh-bot-board.git
+cd dsh-bot-board
+npm install     # 只装一个开发依赖 esbuild
 npm run build
 ```
 
-2. 在 profile 的 `package.json` 里登记（`~/.dsh/profiles/desktop/package.json`）：
+2. 登记进 profile 的 `package.json`（位置在 `~/.dsh/profiles/desktop/package.json`），把路径换成你的实际路径：
 
 ```json
 {
   "dependencies": {
-    "dsh-bot-board": "file:/Users/admin/Documents/dsh-bot-board"
+    "dsh-bot-board": "file:/你的/路径/dsh-bot-board"
   },
   "dsh": {
     "profile": {
@@ -146,13 +156,17 @@ npm run build
 }
 ```
 
-3. 建立依赖链接（本机网络不通时 pnpm 会卡在 GitHub 依赖上，软链最稳）：
+3. 建立依赖链接（DSH 用 pnpm 管理 profile，`file:` 依赖也要链进 `node_modules` 才找得到）：
 
 ```sh
-ln -sfn ~/Documents/dsh-bot-board ~/.dsh/profiles/desktop/node_modules/dsh-bot-board
+ln -sfn /你的/路径/dsh-bot-board ~/.dsh/profiles/desktop/node_modules/dsh-bot-board
 ```
 
-4. 完全退出 DeepSeek Harness 再打开，右下角出现「Bot 看板」面板。
+4. **完全退出** DeepSeek Harness 再打开（直接 `killall -9 "DeepSeek Harness"` 最干净；`osascript quit` 会弹系统自动化权限窗），右下角出现「Bot 看板」面板。
+
+> 客户端半边有 HMR：改完 `src/client/**` 后 `npm run build` 即生效，不用重启；改 `src/host/**` 才需要重启 DSH。
+>
+> 名册在 `src/client/const.js` 的 `ROSTER`：九个名字、配色、头饰和桌面道具。改成你自己的 Bot 名字即可，认不出的名字会哈希进调色板，不会和命名工位撞脸。
 
 ## 开发
 
@@ -223,6 +237,14 @@ npm run freeze   # 构建 + 打印 src/产物 两个指纹 + 跑两套检查（�
 ## 卸载
 
 从 profile 的 `bundles` 和 `dependencies` 里删掉 `dsh-bot-board`，删掉软链，重启。
+
+## 反馈与贡献
+
+提 Issue 请带上三个信息：DSH 版本、`ds-bot` 版本、面板头部显示的内容（或截图）。DS Bot 升级后改字段是这类插件最常见的问题，版本号能省掉一轮问答。提 PR 前跑一遍 `npm run ci`——它会先校验 `client.js` 与 `src/` 是否同步，忘 build 的产物到不了主分支。
+
+## 许可
+
+[MIT](LICENSE)。
 
 ## 版本
 

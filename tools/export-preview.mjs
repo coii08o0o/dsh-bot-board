@@ -208,12 +208,15 @@ function panel({ w, h: height, snap, sheet = null, initialAttExpanded = false, b
 // Review §5.4: exporting "3 need-you + 2 running" would prove nothing.
 const cases = []
 
-// 1. The C4c case: exactly 3 need-you + 6 running + the idle line, and NO open
-//    hand-offs, so the 480px budget is the only thing under test. This is the
-//    layout that used to overflow by 12.8px and show a scrollbar.
+// 1. The C4c case: exactly 3 need-you + 5 running + 1 idle (nine Bots in total,
+//    the roster is full), and NO open hand-offs, so the 480px budget is the only
+//    thing under test. This is the layout that used to overflow by 12.8px and
+//    show a scrollbar. Note the fixture cannot be "3 + 6": with a nine-Bot roster
+//    that would leave nobody for the idle line, and the idle line is one of the
+//    terms in the budget being tested.
 cases.push({
-  title: '默认尺寸 · 3 件需要你 + 6 个在动（C4c 临界）',
-  note: 'C4c 的全部项：2(面板边框) + 39 + 3×44 + 2×3 + 10 + 2×127.15 + 8 + 4 + 24 = 479.31 ≤ 480。v0.4.0 在这里超 12.8px 出滚动条；v0.4.1 第一版按 139 收窄仍然超 0.9px，是这份导出量出来的。现在 267/267，第二行名字完整、零滚动。',
+  title: '默认尺寸 · 3 件需要你 + 5 个在动（C4c 临界）',
+  note: '9 个 Bot 满员：3 需要你 + 5 在动 + 1 闲着。C4c 的全部项：2(面板边框) + 39 + 3×44 + 2×3 + 10 + 2×127.15 + 8 + 4 + 24 = 479.31 ≤ 480。v0.4.0 在这里超 12.8px 出滚动条；v0.4.1 第一版按 139 收窄仍然超 0.9px，是这份导出量出来的。现在 267/267，第二行名字完整、零滚动。',
   panels: [panel({
     w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · C4c',
     snap: snapshot(merge(
@@ -230,7 +233,7 @@ cases.push({
 //     which is the panel's only scroll area, so it may extend below the fold —
 //     that is the design, not a budget break, and the note says so.
 cases.push({
-  title: '默认尺寸 · 同样 6 个在动，但带交接边表',
+  title: '默认尺寸 · 同样 5 个在动，但带交接边表',
   note: '⚠ 的 70px 全部来自交接边表。`.bb-run` 是面板唯一的滚动区，边表向下延伸需要滚才看全——这是有意的：它解释的是上面那些人，不必常驻。工位网格本身完整。',
   panels: [panel({
     w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 带边表',
