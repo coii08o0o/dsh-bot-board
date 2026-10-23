@@ -72,7 +72,7 @@
 ### D7 抽屉的"最近一次交活结果"可能张冠李戴
 
 - **位置**：`src/host/index.js:160`（`last: text(results.at(-1)?.text)`）、`src/client/rows.js:136`（`works.find(item => item.toId === bot.id)?.last`）
-- **现象**：`work.results[]` 是**整条派活**的结果列表，每条形如 `{ name, text }`（`handoffs.js:80-86` 的 `answerText` 就是按 `result.name` 拼的）。宿主只取了最后一条，抽屉却把它当作"这个 Bot 交回来的结果"。一次 `班主任 → 数学` 派 4 项，最后一条可能是物理的。
+- **现象**：`work.results[]` 是**整条派活**的结果列表，每条形如 `{ name, text }`（`handoffs.js:80-86` 的 `answerText` 就是按 `result.name` 拼的）。宿主只取了最后一条，抽屉却把它当作"这个 Bot 交回来的结果"。一次 `Bot1 → Bot2` 派 4 项，最后一条可能是 Bot4 的。
 - **改法**：宿主多发一点——`results: results.slice(-6).map(r => ({ name: text(r.name), text: text(r.text).slice(0,240) }))`，抽屉按 `row.bot.name` 挑自己那条，挑不到再退回最后一条。数据本来就在手上。
 
 ### D8 `WORKS_MAX` 截断会吃掉更早的待交

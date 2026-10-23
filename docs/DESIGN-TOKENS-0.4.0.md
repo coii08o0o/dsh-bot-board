@@ -1,6 +1,5 @@
 # dsh-bot-board v0.4.0 设计令牌与视觉规范
 
-- 作者：设计系统专家 彩格调（Cai）
 - 依据：`docs/REQUIREMENTS-0.4.0.md`（全文）、`src/client/{style,station,const,handoffs,panel,rows,scene,format,locale}.js`、`tools/{smoke,render-check}.mjs`、`docs/preview-class.png`
 - 定位：把「三层注意力轴」落成可直接粘贴的 CSS 数值。**本文不改任何 `src/` 文件。**
 - 设计基因：**Default (Neutral Modern) + 现有奶油教室的局部语汇**。不引入新设计系统——这块面板的身份是教室，教室承担「这是谁」，本次只补「要不要我管」的面积。视觉预算只花在尺寸、字重、缩进、计数、边界、底色层级上（需求 §8-B 的正向预算）。
@@ -322,12 +321,12 @@ const SHAPE = {
 ```
 .bb-handoffs
   .bb-ho-group                      ← 分组，margin-bottom:6px
-    .bb-ho-group-head               班主任 · 共 7 项
-    .bb-handoff[role=button]        → 数学 4 项 · 12 分钟前
-    .bb-handoff[role=button]        → 物理 3 项 · 8 分钟前
+    .bb-ho-group-head               Bot1 · 共 7 项
+    .bb-handoff[role=button]        → Bot2 4 项 · 12 分钟前
+    .bb-handoff[role=button]        → Bot4 3 项 · 8 分钟前
   .bb-ho-group
-    .bb-ho-group-head               数学 · 共 4 项
-    .bb-handoff[data-mutual=true]   ⇄ 班主任 3 项 · 5 分钟前 · 互相等
+    .bb-ho-group-head               Bot2 · 共 4 项
+    .bb-handoff[data-mutual=true]   ⇄ Bot1 3 项 · 5 分钟前 · 互相等
 ```
 
 ### 5.3 数值
@@ -372,8 +371,8 @@ const SHAPE = {
 可用宽 = 420 − 2(面板边框) − 20(层左右内边距) = 398
 预算 = 398 − 18(IDLE_SLOP，吸收估算误差) = 380（= layers.js 的 IDLE_BUDGET，推导不是手写）
 前缀「闲着」 = 2 × 11 = 22，+ gap 6 = 28（IDLE_PREFIX）
-9 个名字 = 班主任 33 + 数学 22 + 物理 22 + 化学 22 + 生物 22 + 语文 22 + 英语 22
-          + Chief 31 + Researcher 62  = 258（nameWidth：CJK 11px/字，拉丁 6.2px/字）
+9 个名字 = (33 + 22 × 6) + Chief 31 + Researcher 62 = 258
+          （nameWidth：CJK 11px/字，拉丁 6.2px/字；33 = 一个三字名，22 × 6 = 六个两字名）
 每个名字的 `.bb-idle-name` 左右内边距 = 4 × 9 = 36（NAME_PAD）
 8 个 item 之间的 gap = 8 × 6 = 48（gap 只在项之间，不在末尾）
 合计（无徽标）= 28 + 258 + 36 + 48 = 370 ≤ 380 ✓（余 10）
@@ -417,7 +416,7 @@ const SHAPE = {
 ```
 [✓] 没有需要你的事                                  ← 层 1 空态，28px
 （层 2 不存在）
-闲着  数学  物理  化学  生物  语文  英语  Chief  Researcher   ← 层 3，24px
+闲着  Bot2  Bot3  Bot4  Bot5  Bot6  Bot7  Chief  Researcher   ← 层 3，24px
 ```
 
 主体区 52px，其余是房间的空白。这处编码了什么：**「我查过了，没事」**。安静本身是内容，不是缺失。
@@ -905,4 +904,4 @@ export const RUNNING_MIN_H = 96     // 层 2 的可见下限
 
 ### 14.3 证据
 
-`docs/preview-0.5.0.html` 场景 9「身份来源 · 上游 ink > 名册 > 哈希」：三个 Bot 同屏，分别落在三级上（Chief 带 `color:'deepseek'` 保留冠和旗、数学走名册、第十个按 id 哈希出青绿色）。
+`docs/preview-0.7.0.html` 场景 9「身份来源 · 上游 shape/color > 哈希」：三个 Bot 同屏，分别落在三级上（Chief 带了 `color:'deepseek'`，保留冠和旗；Bob 只带 `shape:'star'`，轮廓听上游、颜色按 id 哈希补；第三个两轴都缺，整张脸由哈希决定）。

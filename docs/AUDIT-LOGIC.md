@@ -173,7 +173,7 @@
 | 33 | `results[].text = ""` | `lastResult = ""`（空串穿透 `??`） | 错值（轻微） |
 | 34 | `wait.bots` 是对象 / 字符串 | `TypeError: (wait.bots ?? []).map is not a function` | 崩溃（宿主不可达） |
 | 35 | `wait.for` 含 `undefined` | 被 `filter(name => name && ...)` 滤掉 | OK |
-| 36 | 未知 Bot 排序 | `Chief,数学,aaa,zzz`（名册序 → 100 → id 字典序） | OK |
+| 36 | 未知 Bot 排序 | `Chief,Bot2,aaa,zzz`（名册序 → 100 → id 字典序） | OK |
 | 37 | 重复跑 100 次 | `distinct = 1` | OK · 稳定 |
 | 38 | 输入 `bots` 是否被改写 | 未改写 | OK |
 
@@ -314,7 +314,7 @@ buildRows({ bots: [{id:'b1',name:'Chief'}], waiting: { b1: { bots: ['b2'] } },
             errors: [{ botId: 'b1', at: now - 1000, message: 'boom' }] })
 ```
 **实际**：`scene = 'waiting'`（蓝灯），`action = "报错 boom"`
-**期望**：灯和文案说同一件事。要么 `waiting` 时 `action = "等 数学"` 并把 failure 降级成 badge，要么反过来。
+**期望**：灯和文案说同一件事。要么 `waiting` 时 `action = "等 Bot2"` 并把 failure 降级成 badge，要么反过来。
 **为什么算 bug**：`statusOf` 的注释明写「a failure never outranks live work」，`waiting` 属于 live work；`describe` 的优先级却把 failure 排在 wait 前面。同一个格子里，颜色说「不卡」、文字说「卡住了」。
 **修法**：`describe` 里把 `if (wait)` 提到 `if (failure)` 之前（failure 仍由 `badge` 保留），或让 `buildRows` 在 `scene === 'waiting'` 时把 `detail` 换成 wait 分支。
 

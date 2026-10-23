@@ -73,9 +73,9 @@ segments  = [{ sessionId: session-<第一段 id>…, endedAt: 1792501275444, …
 
 | work | from → to | open | results | at | 年龄 |
 |---|---|---|---|---|---|
-| `53329ec7` | 班主任 → Researcher | `[]` | `[]` | 1792431560756 | 2.9 天 |
-| `27297aaf` | 班主任 → 生物 | `[]` | `[]` | 1792431613115 | 2.9 天 |
-| `cce1c859` | 班主任 → 数学 | `[]` | `[]` | 1792431682064 | 2.9 天 |
+| `53329ec7` | Bot1 → Researcher | `[]` | `[]` | 1792431560756 | 2.9 天 |
+| `27297aaf` | Bot1 → Bot6 | `[]` | `[]` | 1792431613115 | 2.9 天 |
+| `cce1c859` | Bot1 → Bot2 | `[]` | `[]` | 1792431682064 | 2.9 天 |
 
 `closeWork` 会 `delete works()[id]`（`handoffs.js:42`），所以**记录存在 === 还没交回**。这 3 条是 3 天前派出、至今未回收的派活。
 
@@ -105,7 +105,7 @@ segments  = [{ sessionId: session-<第一段 id>…, endedAt: 1792501275444, …
 | `rows.js:109` | `waiting[bot.id]` | `waitingView()` 的键是 `work.to` = Bot id | 成立 |
 | `rows.js:72` | `wait.rooms[]` 是房间 id | `child.room` 是房间 id（`handoffs.js:126`） | 成立 |
 | `handoffs.js:51,73` | `edge.toId` 能查到行 | 群聊 work / 已删 Bot 的 `toId` 查不到 | **错误**（见 D3、D6） |
-| `rows.js:11` `seatOrder` | `ROSTER.name` 与真实 Bot 名一致 | 9 个名字逐一对应（Chief/Researcher/班主任/数学/物理/化学/生物/语文/英语） | **成立** |
+| `rows.js:11` `seatOrder` | `ROSTER.name` 与真实 Bot 名一致 | 9 个名字逐一对应，名册顺序与真实 Bot 名完全对齐 | **成立** |
 | 全链路 | `bots` 是数组 | `state.json` 里是映射；客户端拿的是 `api/bot` 的 `view().bots`（`channel.js:41` 已 `Object.values`） | 成立（容易误读，见 §4） |
 
 ---
