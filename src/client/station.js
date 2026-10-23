@@ -1,64 +1,12 @@
 // One workstation: chair + desk + monitor + lamp + dumpling + prop + name, plus
 // the one-line meta strip that answers "what is it doing and for how long".
 import { memo, createElement as h } from 'react'
-import { LAMP, LAMP_BASE, LAMP_BASE_R, LAMP_R, LAMP_STROKE, LAMP_STROKE_W, NAME_INK, SCENE_VB, seatOf, statusLabel } from './const.js'
+import { CHARACTERS, LAMP, LAMP_BASE, LAMP_BASE_R, LAMP_R, LAMP_STROKE, LAMP_STROKE_W, NAME_INK, SCENE_VB, seatOf, statusLabel } from './const.js'
 import { Elapsed } from './elapsed.js'
 
 const DARK = '#2C2C2A'
 const FACE_X = 86
 const FACE_Y = 62
-const BODY_R = 26
-
-// Head accessories that sit on top of the blob body.
-function headGear(kind) {
-  const cx = FACE_X
-  const top = FACE_Y - BODY_R
-  if (kind === 'crown') {
-    return h('path', {
-      d: `M ${cx - 13} ${top + 2} L ${cx - 9} ${top - 8} L ${cx - 4} ${top - 1} L ${cx} ${top - 10} L ${cx + 4} ${top - 1} L ${cx + 9} ${top - 8} L ${cx + 13} ${top + 2} Z`,
-      fill: '#FBBF24', stroke: '#D97706', strokeWidth: 1.5, strokeLinejoin: 'round',
-    })
-  }
-  if (kind === 'bowRed' || kind === 'bowCream') {
-    const fill = kind === 'bowRed' ? '#DC2626' : '#FDE68A'
-    return h('g', null,
-      h('path', { d: `M ${cx + 14} ${top + 4} l -9 -6 v 12 z`, fill }),
-      h('path', { d: `M ${cx + 14} ${top + 4} l 9 -6 v 12 z`, fill }),
-      h('circle', { cx: cx + 14, cy: top + 4, r: 3, fill }))
-  }
-  if (kind === 'hat') {
-    return h('g', null,
-      h('path', { d: `M ${cx - 15} ${top + 1} a 15 13 0 0 1 30 0 z`, fill: '#15803D' }),
-      h('rect', { x: cx - 19, y: top, width: 38, height: 5, rx: 2.5, fill: '#166534' }))
-  }
-  if (kind === 'sprout') {
-    return h('g', null,
-      h('line', { x1: cx, y1: top + 2, x2: cx, y2: top - 8, stroke: '#15803D', strokeWidth: 2, strokeLinecap: 'round' }),
-      h('ellipse', { cx: cx - 6, cy: top - 10, rx: 6, ry: 3.5, fill: '#16A34A', transform: `rotate(-24 ${cx - 6} ${top - 10})` }),
-      h('ellipse', { cx: cx + 6, cy: top - 10, rx: 6, ry: 3.5, fill: '#22C55E', transform: `rotate(24 ${cx + 6} ${top - 10})` }))
-  }
-  return null
-}
-
-// Face-level accessories drawn over the face disc.
-function faceGear(kind) {
-  if (kind === 'glasses') {
-    return h('g', { fill: 'none', stroke: DARK, strokeWidth: 2 },
-      h('circle', { cx: FACE_X - 9, cy: FACE_Y - 4, r: 6.5 }),
-      h('circle', { cx: FACE_X + 9, cy: FACE_Y - 4, r: 6.5 }),
-      h('line', { x1: FACE_X - 2.5, y1: FACE_Y - 4, x2: FACE_X + 2.5, y2: FACE_Y - 4 }))
-  }
-  if (kind === 'headphones') {
-    return h('g', null,
-      h('path', {
-        d: `M ${FACE_X - 20} ${FACE_Y - 2} a 20 20 0 0 1 40 0`,
-        fill: 'none', stroke: DARK, strokeWidth: 4, strokeLinecap: 'round',
-      }),
-      h('rect', { x: FACE_X - 23, y: FACE_Y - 5, width: 8, height: 13, rx: 4, fill: DARK }),
-      h('rect', { x: FACE_X + 15, y: FACE_Y - 5, width: 8, height: 13, rx: 4, fill: DARK }))
-  }
-  return null
-}
 
 // The desk prop, sitting on the desk top (surface y = 88).
 function deskProp(kind) {
@@ -213,66 +161,81 @@ function screenContent(scene) {
     h('rect', { x: 113, y: 73, width: 22, height: 3, rx: 1.5, fill: '#7FB4E8' }))
 }
 
-// The dumpling: one big circle body, lighter face disc, capsule eyes, arc mouth,
-// blush, two small hands. No legs. Breathing lives on .bb-blob.
+// The dumpling. Its **body outline is DS Bot's character** (`avatar.shape`): the
+// whale, star, moon, wave, squircle, bull and blossom silhouettes are the same
+// seven shapes the user picked upstream, so a Bot reads as the same character in
+// both places. The face disc and every feature on it scale with that character's
+// `faceR`, because a star's concave points cannot hold an 18px disc; `hands` is off
+// for the two silhouettes with no round edge to put a hand on.
 //
 // Exported because the 「需要你」 list crops this same face with
-// `viewBox="56 24 60 60"` — it must be the same drawing, or the person in the
+// `viewBox="54 32 64 64"` — it must be the same drawing, or the person in the
 // list stops being the dumpling in the classroom and the user has to learn the
 // mapping twice.
 export function blobSeat(scene, seat) {
+  const ch = CHARACTERS[seat.shape] ?? CHARACTERS.squircle
   const cx = FACE_X
   const cy = FACE_Y + 2
+  const s = ch.fit / 100
+  const fx = FACE_X + ch.dx
+  const fy = FACE_Y + ch.dy
+  const r = ch.faceR
+  const k = r / 18
   const moon = scene === 'done'
   const squint = scene === 'error'
   const oMouth = scene === 'alert' || scene === 'waiting'
   const eyes = squint
     ? h('g', null,
-        h('rect', { x: FACE_X - 12, y: FACE_Y - 5.5, width: 6, height: 2.5, rx: 1.25, fill: DARK }),
-        h('rect', { x: FACE_X + 6, y: FACE_Y - 5.5, width: 6, height: 2.5, rx: 1.25, fill: DARK }))
+        h('rect', { x: fx - 12 * k, y: fy - 5.5 * k, width: 6 * k, height: 2.5 * k, rx: 1.25 * k, fill: DARK }),
+        h('rect', { x: fx + 6 * k, y: fy - 5.5 * k, width: 6 * k, height: 2.5 * k, rx: 1.25 * k, fill: DARK }))
     : moon
-      ? h('g', { fill: 'none', stroke: DARK, strokeWidth: 2.5, strokeLinecap: 'round' },
-          h('path', { d: `M ${FACE_X - 13} ${FACE_Y - 1} q 4 -6 8 0` }),
-          h('path', { d: `M ${FACE_X + 5} ${FACE_Y - 1} q 4 -6 8 0` }))
+      ? h('g', { fill: 'none', stroke: DARK, strokeWidth: 2.5 * k, strokeLinecap: 'round' },
+          h('path', { d: `M ${fx - 13 * k} ${fy - k} q ${4 * k} ${-6 * k} ${8 * k} 0` }),
+          h('path', { d: `M ${fx + 5 * k} ${fy - k} q ${4 * k} ${-6 * k} ${8 * k} 0` }))
       : h('g', {
           className: scene === 'busy' ? 'bb-eyes' : scene === 'idle' ? 'bb-eyes bb-eyes-slow' : undefined,
           fill: DARK,
         },
-          h('rect', { x: FACE_X - 11.5, y: FACE_Y - 8.5, width: 5, height: 9, rx: 2.5 }),
-          h('rect', { x: FACE_X + 6.5, y: FACE_Y - 8.5, width: 5, height: 9, rx: 2.5 }))
+          h('rect', { x: fx - 11.5 * k, y: fy - 8.5 * k, width: 5 * k, height: 9 * k, rx: 2.5 * k }),
+          h('rect', { x: fx + 6.5 * k, y: fy - 8.5 * k, width: 5 * k, height: 9 * k, rx: 2.5 * k }))
   const mouth = oMouth
-    ? h('circle', { cx: FACE_X, cy: FACE_Y + 9, r: 3, fill: DARK })
+    ? h('circle', { cx: fx, cy: fy + 9 * k, r: 3 * k, fill: DARK })
     : squint
       ? h('path', {
-          d: `M ${FACE_X - 4} ${FACE_Y + 10} q 4 -3 8 0`,
-          fill: 'none', stroke: DARK, strokeWidth: 2, strokeLinecap: 'round',
+          d: `M ${fx - 4 * k} ${fy + 10 * k} q ${4 * k} ${-3 * k} ${8 * k} 0`,
+          fill: 'none', stroke: DARK, strokeWidth: 2 * k, strokeLinecap: 'round',
         })
       : h('path', {
-          d: `M ${FACE_X - 4} ${FACE_Y + 6} q 4 5 8 0`,
-          fill: 'none', stroke: DARK, strokeWidth: 2, strokeLinecap: 'round',
+          d: `M ${fx - 4 * k} ${fy + 6 * k} q ${4 * k} ${5 * k} ${8 * k} 0`,
+          fill: 'none', stroke: DARK, strokeWidth: 2 * k, strokeLinecap: 'round',
         })
   // 等你 and 干完 wave; 等交活 keeps a plain hand so the two waiting states read
   // differently at a glance.
   const wavingNow = scene === 'done' || scene === 'alert'
-  const handL = h('circle', {
-    cx: cx - 23, cy: cy + 16, r: 4, fill: seat.color,
-    className: scene === 'busy' ? 'bb-hand bb-tap' : 'bb-hand',
-  })
-  const handR = h('circle', {
-    cx: cx + 23, cy: cy + 16, r: 4, fill: seat.color,
-    className: wavingNow ? 'bb-hand bb-wave' : scene === 'busy' ? 'bb-hand bb-tap' : 'bb-hand',
-  })
+  const hands = ch.hands
+    ? [
+        h('circle', {
+          key: 'l', cx: cx - ch.handDX, cy: cy + ch.handDY, r: 4, fill: seat.color,
+          className: scene === 'busy' ? 'bb-hand bb-tap' : 'bb-hand',
+        }),
+        h('circle', {
+          key: 'r', cx: cx + ch.handDX, cy: cy + ch.handDY, r: 4, fill: seat.color,
+          className: wavingNow ? 'bb-hand bb-wave' : scene === 'busy' ? 'bb-hand bb-tap' : 'bb-hand',
+        }),
+      ]
+    : null
   return h('g', { className: 'bb-blob' },
-    h('circle', { cx, cy, r: BODY_R, fill: seat.color }),
-    h('circle', { cx: FACE_X, cy: FACE_Y, r: 18, fill: seat.face }),
-    h('ellipse', { cx: FACE_X - 14, cy: FACE_Y + 7, rx: 4.5, ry: 2.8, fill: seat.color, opacity: .3 }),
-    h('ellipse', { cx: FACE_X + 14, cy: FACE_Y + 7, rx: 4.5, ry: 2.8, fill: seat.color, opacity: .3 }),
+    h('path', {
+      d: ch.d,
+      fill: seat.color,
+      transform: `translate(${cx - s * 50} ${cy - s * 50}) scale(${s})`,
+    }),
+    h('circle', { cx: fx, cy: fy, r, fill: seat.face }),
+    h('ellipse', { cx: fx - 14 * k, cy: fy + 7 * k, rx: 4.5 * k, ry: 2.8 * k, fill: seat.color, opacity: .3 }),
+    h('ellipse', { cx: fx + 14 * k, cy: fy + 7 * k, rx: 4.5 * k, ry: 2.8 * k, fill: seat.color, opacity: .3 }),
     eyes,
     mouth,
-    handL,
-    handR,
-    faceGear(seat.head),
-    headGear(seat.head))
+    hands)
 }
 
 // Only this node re-renders once a second; the SVG above stays put. (Moved to
@@ -314,7 +277,7 @@ function StationView({ row, onOpen, note, t, compact = false }) {
         h('rect', { x: 126, y: 86, width: 8, height: 3, fill: '#3A3F45' }),
         screenContent(scene)),
       lampShape(scene),
-      deskProp(seat.prop)),
+      h('g', { transform: 'translate(-4 0)' }, deskProp(seat.prop))),
     badge ? h('span', { className: 'bb-badge', title: row.failure ?? '' }, '!') : null,
     h('div', {
       className: 'bb-station-name',

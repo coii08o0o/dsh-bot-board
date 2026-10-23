@@ -5,13 +5,32 @@
 // the browser half polls directly.
 import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 export const name = 'dsh-bot-board'
 export const inject = ['connection']
 
-const HOME = process.env.DSH_HOME ?? join(homedir(), '.dsh')
-const STATE = join(HOME, 'bot', 'state.json')
+// DS Bot resolves its data folder in two steps: expand `~`/relative DSH_HOME and
+// resolve it, then take `bot` under that — unless `config.home` moved the folder.
+// The board has to take the same two steps. Reading `$DSH_HOME/bot` literally was
+// wrong twice over: `DSH_HOME=~/data` never expanded, and anyone who moved the
+// folder in DS Bot's own config got a board that says "no state file" forever.
+const expandHome = value => {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text) return ''
+  if (text === '~') return homedir()
+  if (text.startsWith('~/') || text.startsWith('~\\')) return join(homedir(), text.slice(2))
+  return text
+}
+
+// `config.home` is the folder that holds state.json, exactly like DS Bot's own
+// `bot.home`. Unset means `$DSH_HOME/bot`, which is where DS Bot puts it too.
+export const statePathOf = config => {
+  const configured = expandHome(config?.home)
+  if (configured) return join(resolve(configured), 'state.json')
+  const dshHome = expandHome(process.env.DSH_HOME) || join(homedir(), '.dsh')
+  return join(resolve(dshHome), 'bot', 'state.json')
+}
 
 const ROUTE = '/api/bot-board'
 const FAILURE_TTL = 15 * 60 * 1000
@@ -48,10 +67,11 @@ const blank = (reason, stale = false) => ({
 // state.json, and that is exactly the case a "generated just now" timestamp hides.
 const readIsStale = readAt => readAt > 0 && Date.now() - readAt > READ_STALE_MS
 
-export function apply(ctx) {
+export function apply(ctx, config = {}) {
   const warn = (message, ...args) => {
     try { ctx.logger?.warn?.(message, ...args) } catch {}
   }
+  const statePath = statePathOf(config)
 
   // `readAt` rides along with the cache: a cache hit means the file did not change,
   // which is precisely when the age of the last real read must be preserved rather
@@ -111,7 +131,7 @@ export function apply(ctx) {
   async function readState() {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        return { state: JSON.parse(await readFile(STATE, 'utf8')) }
+        return { state: JSON.parse(await readFile(statePath, 'utf8')) }
       } catch (error) {
         if (error?.code === 'ENOENT') return { missing: true }
         if (attempt === 0) await sleep(12)
@@ -155,7 +175,7 @@ export function apply(ctx) {
   async function snapshot() {
     let info
     try {
-      info = await stat(STATE)
+      info = await stat(statePath)
     } catch {
       return blank('no-state')
     }
@@ -254,6 +274,11 @@ export function apply(ctx) {
       // hit, and only the second one can show that the writer went quiet.
       updatedAt: Date.now(),
       readAt,
+      // DS Bot stamps its own data format version on state.json (1 today). The
+      // board reads that file directly, so this is the only version contract it
+      // can actually check — and a mismatch has to be *said out loud*, because
+      // the failure mode of a moved field is a board that looks right and is not.
+      dataVersion: Number(state.version) || null,
       bots: safeBots.map(bot => ({
         id: bot.id,
         // Names are short, but they are also the one field the user uses to tell two
@@ -269,6 +294,10 @@ export function apply(ctx) {
         // reaching a fill. Bots the user never picked a colour for have no such
         // key upstream, so most of a real roster arrives without one.
         color: text(bot.color).slice(0, 24) || null,
+        // The character the user picked in DS Bot's UI. It is the same seven-id
+        // vocabulary the board redraws, so a Bot keeps its character across the
+        // two surfaces. Unknown ids fall through to the board's hash.
+        shape: text(bot.avatar?.shape).slice(0, 24) || null,
         // A held setup greeting: the Bot will not speak until the user picks its
         // model. `view()` exposes the same thing as `waiting`, so the browser half
         // reads one field whichever source it got its Bot list from.

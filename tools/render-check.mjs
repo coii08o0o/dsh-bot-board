@@ -39,14 +39,17 @@ const { attentionOf } = await import('../src/client/layers.js')
 const t = fallbackT('zh')
 const now = Date.now()
 
+// Each Bot carries the look DS Bot would give it (`avatar.shape`), because the
+// drawing now depends on it: the wave and the tap animations only exist for the
+// silhouettes that have a hand. 数学 is a whale so the approval test has one.
 const bots = [
-  { id: 'session-chief', name: 'Chief', role: '主理人', model: 'deepseek-v4', sessionId: 'session-chief' },
-  { id: 'session-math', name: '数学', role: '算题', model: 'deepseek-v4', sessionId: 'session-math' },
-  { id: 'session-phy', name: '物理', role: '', model: null, sessionId: 'session-phy' },
-  { id: 'session-chem', name: '化学', role: '', model: null, sessionId: 'session-chem' },
-  { id: 'session-bio', name: '生物', role: '', model: null, sessionId: 'session-bio' },
-  { id: 'session-cn', name: '语文', role: '', model: null, sessionId: 'session-cn' },
-  { id: 'session-en', name: '英语', role: '', model: null, sessionId: 'session-en' },
+  { id: 'session-chief', name: 'Chief', role: '主理人', model: 'deepseek-v4', sessionId: 'session-chief', shape: 'whale' },
+  { id: 'session-math', name: '数学', role: '算题', model: 'deepseek-v4', sessionId: 'session-math', shape: 'whale' },
+  { id: 'session-phy', name: '物理', role: '', model: null, sessionId: 'session-phy', shape: 'moon' },
+  { id: 'session-chem', name: '化学', role: '', model: null, sessionId: 'session-chem', shape: 'squircle' },
+  { id: 'session-bio', name: '生物', role: '', model: null, sessionId: 'session-bio', shape: 'star' },
+  { id: 'session-cn', name: '语文', role: '', model: null, sessionId: 'session-cn', shape: 'wave' },
+  { id: 'session-en', name: '英语', role: '', model: null, sessionId: 'session-en', shape: 'zed' },
 ]
 const nameOf = id => bots.find(bot => bot.id === id)?.name ?? id
 
@@ -459,7 +462,7 @@ const hotBody = renderBody(hotRows)
   check(textOf(rowsInBand[0]).includes('Researcher') && textOf(rowsInBand[0]).includes('等你批 Bash'),
     'C1 a row is a face + a name + the action in its own words')
   check(hasClass(rowsInBand[0], 'bb-lamp').length === 1, 'C1 the row carries exactly one lamp')
-  check(findAll(rowsInBand[0], node => node.type === 'svg' && node.props?.viewBox === '56 24 60 60').length === 1,
+  check(findAll(rowsInBand[0], node => node.type === 'svg' && node.props?.viewBox === '54 32 64 64').length === 1,
     'C1 the face is a crop of the same dumpling, not a second avatar drawing')
   check(hasClass(rowsInBand[0], 'bb-att-avatar').length === 1, 'C1 and it sits in the avatar slot')
   check(hasClass(hotBody, 'bb-run').length === 1, 'C1 在动 still renders below it')

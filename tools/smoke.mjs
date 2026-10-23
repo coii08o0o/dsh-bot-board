@@ -264,7 +264,7 @@ section('scene: status priority')
 section('format + roster')
 {
   const { elapsed, ago, clip } = await import(new URL('../src/client/format.js', import.meta.url).href)
-  const { seatOf, ROSTER, statusLabel } = await import(new URL('../src/client/const.js', import.meta.url).href)
+  const { seatOf, statusLabel } = await import(new URL('../src/client/const.js', import.meta.url).href)
   const { fallbackT } = await import(new URL('../src/client/locale.js', import.meta.url).href)
 
   const now = 1_000_000_000
@@ -277,52 +277,57 @@ section('format + roster')
   check(clip('abcdef', 3) === 'abc…', 'clip truncates with an ellipsis')
   check(elapsed('abc', now) === '' && ago('abc', now) === '', 'non-numeric timestamps print nothing, not NaN')
 
-  const chief = seatOf({ name: 'Chief', id: 'x' })
-  check(chief.color === ROSTER[0].color && chief.head === 'crown', 'a known Bot keeps its fixed seat')
+  const { INKS, inkOf, CHARACTERS, SHAPES, shapeOf } = await import(new URL('../src/client/const.js', import.meta.url).href)
+
+  // Identity is `avatar.shape` x `color`, both owned by DS Bot, plus the board's
+  // own desk prop. A Bot with neither upstream field hashes both axes.
   const stranger = seatOf({ name: '第十个', id: 'session-zzz' })
-  check(stranger.face !== stranger.color && /^#[0-9a-f]{6}$/i.test(stranger.face), 'a stranger gets a two-tone face')
-  check(['crown', 'glasses', 'bowRed', 'bowCream', 'hat', 'sprout', 'headphones', null].includes(stranger.head),
-    'a stranger head comes from the allowed set')
+  check(SHAPES.includes(stranger.shape) && stranger.face !== stranger.color,
+    'a Bot with no upstream look gets a character and a two-tone face from its id')
+  check(/^#[0-9a-f]{6}$/i.test(stranger.color) && /^#[0-9a-f]{6}$/i.test(stranger.face),
+    'both the body and the face are plain hex, never a named colour')
+  const strangerAgain = seatOf({ name: '第十个', id: 'session-zzz' })
+  check(strangerAgain.shape === stranger.shape && strangerAgain.color === stranger.color,
+    'the hashed look is stable across renders')
 
-  // Identity has three tiers, and the top one belongs to DS Bot: `bot.color` is
-  // the colour the user picked in DS Bot's own UI, so it outranks the local
-  // default skin. A Bot nobody picked a colour for has no such key upstream,
-  // which is why most of a real roster arrives without one.
-  const { INKS, inkOf } = await import(new URL('../src/client/const.js', import.meta.url).href)
-  check(inkOf('blue') === INKS.blue && inkOf('aurora') === INKS.aurora,
-    'a DS Bot ink id resolves to its own hex, not to a board colour')
-  check(inkOf('#123ABC') === '#123ABC', 'a picked #rrggbb survives verbatim')
-  check(inkOf('chartreuse') === null && inkOf(42) === null && inkOf(undefined) === null,
-    'an unknown colour id is null, so it never reaches a fill')
-  const inked = seatOf({ name: 'Chief', id: 'x', color: 'deepseek' })
-  check(inked.color === INKS.deepseek && inked.head === 'crown' && inked.prop === 'flag',
-    'the picked ink wins on body colour, and a known name keeps its decorations')
-  check(seatOf({ name: 'Chief', id: 'x', color: 'chartreuse' }).color === ROSTER[0].color,
-    'an unrecognised colour falls back to the roster rather than to a random face')
-  const hexed = seatOf({ name: '第十个', id: 'x', color: '#123ABC' })
-  check(hexed.color === '#123ABC' && hexed.face !== hexed.color,
-    'a picked #hex also wins, and still gets a derived face disc')
-  // Two Bots that picked the same ink are meant to look alike — that is the
-  // user's choice — so the ink tier does not dedupe. Only the hash tier does.
-  const inkPair = new Set()
-  const inkA = seatOf({ name: 'Chief', id: 'a', color: 'blue' }, inkPair)
-  const inkB = seatOf({ name: 'Chief', id: 'b', color: 'blue' }, inkPair)
-  const strangerB = seatOf({ name: '乙', id: 'b' })
-  check(inkA.color === inkB.color && inkA.color === INKS.blue,
-    'two same-named Bots with the same picked ink share the colour')
-  check(inkA.head === 'crown' && inkB.head === strangerB.head && inkB.prop === strangerB.prop,
-    'the designed seat is claimed once: the second one decorates from its own id, like any stranger')
+  // The seven characters are DS Bot's own set; a name is not part of identity any
+  // more, so a Bot called Chief gets no special treatment.
+  check(SHAPES.length === 7 && Object.keys(CHARACTERS).join(',') === 'whale,star,moon,wave,squircle,zed,hex',
+    'the character set is DS Bot\'s seven, in its own order')
+  check(shapeOf('whale') === 'whale' && shapeOf('unicorn') === null && shapeOf(null) === null,
+    'an unknown character id is null, so it falls through to the hash')
 
-  // Two strangers can hash onto one triple by chance (12 x 8 x 10 = 960
+  const inked = seatOf({ name: 'Chief', id: 'x', color: 'deepseek', shape: 'whale' })
+  check(inked.color === INKS.deepseek && inked.shape === 'whale',
+    'the picked ink and the picked character both win over the hash')
+  const shapeOnly = seatOf({ name: '数学', id: 'x', shape: 'star' })
+  check(shapeOnly.shape === 'star' && /^#[0-9a-f]{6}$/i.test(shapeOnly.color),
+    'a picked character survives when no colour was picked, and the colour is hashed')
+  const inkOnly = seatOf({ name: '数学', id: 'x', color: 'blue' })
+  check(inkOnly.color === INKS.blue && SHAPES.includes(inkOnly.shape),
+    'a picked colour survives when no character was picked')
+  check(seatOf({ name: '甲', id: 'x', color: 'chartreuse', shape: 'unicorn' }).color !== 'chartreuse',
+    'unrecognised upstream values never reach a fill')
+
+  // Two Bots that picked the same character and colour are meant to look alike —
+  // that is the user's choice — so the pair is not de-duplicated. Only looks that
+  // were hashed are.
+  const chosen = new Set()
+  const lookA = seatOf({ name: 'A', id: 'a', color: 'blue', shape: 'whale' }, chosen)
+  const lookB = seatOf({ name: 'B', id: 'b', color: 'blue', shape: 'whale' }, chosen)
+  check(lookA.shape === lookB.shape && lookA.color === lookB.color,
+    'two Bots that picked the same look look the same, on purpose')
+
+  // Two strangers can hash onto one triple by chance (12 x 7 x 10 = 840
   // combinations). This pair does; without dedup they would draw byte-identical
   // dumplings, one working and one failing — the v0.4.2 finding #12 shape.
   const clashTaken = new Set()
   const clashA = seatOf({ name: '甲', id: 'session-1n-xx' }, clashTaken)
   const clashB = seatOf({ name: '乙', id: 'session-30-xx' }, clashTaken)
-  const same = s => `${s.color}|${s.head}|${s.prop}`
+  const same = s => `${s.shape}|${s.color}|${s.prop}`
   check(same(clashA) !== same(clashB),
     `two strangers on one hash triple get different seats (${same(clashA)} vs ${same(clashB)})`)
-  check(seatOf({ name: '甲', id: 'session-1n-xx' }).color === clashA.color,
+  check(same(seatOf({ name: '甲', id: 'session-1n-xx' })) === same(clashA),
     'dedup only re-salts a clash: an unclashed stranger keeps its original seat')
 
   // An activity ds-bot adds later has no dictionary entry; printing the raw token
@@ -386,7 +391,7 @@ section('layers: 需要你 / 在动 / 闲着')
   const {
     HEAD_H, ATTENTION_ROW_H, ATTENTION_GAP, ATTENTION_PAD_V, IDLE_ROW_H, PANEL_BORDER,
     RUNNING_CELL_W, RUNNING_CELL_H, cellHeight, RUN_GRID_GAP, RUN_PAD_B, RUNNING_MIN_H,
-    LAYER_STABLE_MS, POLL_MS, ROSTER, SCENE_VB,
+    LAYER_STABLE_MS, POLL_MS, SCENE_VB,
   } = await import(new URL('../src/client/const.js', import.meta.url).href)
   const { buildRows } = await import(new URL('../src/client/rows.js', import.meta.url).href)
   const { fallbackT } = await import(new URL('../src/client/locale.js', import.meta.url).href)
@@ -500,7 +505,10 @@ section('layers: 需要你 / 在动 / 闲着')
     'B6 and neither is mutual — one direction cannot be a cycle, and two a→a records paired with each other printed 互相等 for a Bot waiting on nobody')
 
   // ── A2 · layering is a view; the rows never reorder ──────────────────────
-  const bots = ROSTER.map((item, index) => ({ id: `session-${index}`, name: item.name, sessionId: `session-${index}` }))
+  // Names are only labels now: identity is `avatar.shape` + `color`, so a fixture
+  // of nine arbitrary names is as good as any other.
+  const NAMES = ['Chief', 'Researcher', '班主任', '数学', '物理', '化学', '生物', '语文', '英语']
+  const bots = NAMES.map((name, index) => ({ id: `session-${index}`, name, sessionId: `session-${index}` }))
   const nameOf = id => bots.find(bot => bot.id === id)?.name ?? id
   const base = { bots, works: [], rooms: {}, waveMap: {}, noteMap: {}, t, nameOf }
   const scenarios = [
@@ -516,7 +524,7 @@ section('layers: 需要你 / 在动 / 闲着')
       errors: [{ botId: 'session-8', at: 1, message: 'x' }], questions: {},
     },
   ]
-  const rosterNames = ROSTER.map(item => item.name).join(',')
+  const rosterNames = NAMES.join(',')
   const sequences = scenarios.map(scene => buildRows({ ...base, ...scene }).map(item => item.bot.name).join(','))
   check(sequences.every(sequence => sequence === rosterNames),
     'A2 buildRows keeps roster order under every status mix (the grid can never move)')
@@ -538,17 +546,16 @@ section('layers: 需要你 / 在动 / 闲着')
   check(bands[2].every(item => item.scene === 'idle'), 'A2 闲着 holds only idle')
 
   // ── B7 · a second Bot cannot impersonate the first ───────────────────────
-  // `bot.name` is upstream free text. A second Bot that renames itself to
-  // 'Chief' used to draw a byte-identical Chief — two look-alikes, one working
-  // and one failing, with no way to tell them apart. The seat is claimed once
-  // per render, so the duplicate falls through to the hashed palette.
+  // `bot.name` is upstream free text and is not identity any more, so two Bots
+  // with one name are two hashed looks — never one drawing copied twice. That is
+  // the v0.4.2 finding #12 shape (two identical dumplings, one working and one
+  // failing) and it stays impossible.
   {
     const twins = [{ id: 'b1', name: 'Chief' }, { id: 'b2', name: 'Chief' }]
     const twinRows = buildRows({ ...base, bots: twins })
-    check(twinRows.length === 2 && twinRows[0].seat === ROSTER[0],
-      'B7 the first Bot to claim a roster name gets that seat')
-    check(twinRows[1].seat !== ROSTER[0] && twinRows[1].seat.color !== twinRows[0].seat.color,
-      `B7 the second one is a stranger, not a twin (${twinRows[0].seat.color} vs ${twinRows[1].seat.color})`)
+    const key = seat => `${seat.shape}|${seat.color}|${seat.prop}`
+    check(twinRows.length === 2 && key(twinRows[0].seat) !== key(twinRows[1].seat),
+      `B7 two Bots sharing a name still get two looks (${key(twinRows[0].seat)} vs ${key(twinRows[1].seat)})`)
   }
 
   // ── B1/B2/B3 · the hand-off edge table ───────────────────────────────────
@@ -579,7 +586,7 @@ section('layers: 需要你 / 在动 / 闲着')
   check(topologyOf([]).length === 0 && topologyOf(null).length === 0, 'B3 no works means no table')
 
   // ── A5 · 闲着 keeps roster order, and never loses a badge ────────────────
-  const idleRows = ROSTER.map((item, index) => ({ bot: { id: `session-${index}`, name: item.name }, badge: false }))
+  const idleRows = NAMES.map((name, index) => ({ bot: { id: `session-${index}`, name }, badge: false }))
   const fits = idleLine(idleRows)
   check(fits.items.map(item => item.bot.name).join(',') === rosterNames,
     'A5 nine names fit the 400px line without reordering')
@@ -590,7 +597,7 @@ section('layers: 需要你 / 在动 / 闲着')
     'A5 when the line is too tight, unbadged names go first — the badge never does')
   const mixed = idleRows.map((item, index) => ({ ...item, badge: index === 8 }))
   const trimmed = idleLine(mixed, 200)
-  check(trimmed.items.some(item => item.bot.name === ROSTER[8].name),
+  check(trimmed.items.some(item => item.bot.name === NAMES[8]),
     'A5 a badge at the tail survives a trim that removes everything else after it')
   check(trimmed.items.length + trimmed.overflow === mixed.length,
     'A5 the trim is counted, not silent')

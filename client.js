@@ -1,6 +1,6 @@
 // GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
-// version: 0.5.0
-// src: d3131666218e2a0a
+// version: 0.6.0
+// src: 7dd2b1e063ed481a
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',
   factory: (require) => {
@@ -98,17 +98,83 @@ var __bbEntry = (() => {
     idle: "status.idle"
   };
   var statusLabel = (status, t) => t(STATUS_KEY[status] ?? "status.working");
-  var ROSTER = [
-    { name: "Chief", color: "#378ADD", face: "#7FB4E8", head: "crown", prop: "flag" },
-    { name: "Researcher", color: "#EC4899", face: "#F5A3CD", head: "glasses", prop: "magnifier" },
-    { name: "\u73ED\u4E3B\u4EFB", color: "#F59E0B", face: "#FBCB74", head: "bowRed", prop: "pointer" },
-    { name: "\u6570\u5B66", color: "#8B5CF6", face: "#BCA5F8", head: "glasses", prop: "abacus" },
-    { name: "\u7269\u7406", color: "#14B8A6", face: "#7FD8CE", head: "headphones", prop: "bolt" },
-    { name: "\u5316\u5B66", color: "#22C55E", face: "#86E5A3", head: "hat", prop: "flask" },
-    { name: "\u751F\u7269", color: "#84CC16", face: "#BDE873", head: "sprout", prop: "leaf" },
-    { name: "\u8BED\u6587", color: "#EF4444", face: "#F59C9C", head: "bowCream", prop: "books" },
-    { name: "\u82F1\u8BED", color: "#F97316", face: "#FBB277", head: "headphones", prop: "mic" }
-  ];
+  var CHARACTERS = {
+    whale: {
+      label: "Whale",
+      fit: 58,
+      faceR: 12,
+      dx: 4,
+      dy: 0,
+      hands: true,
+      handDX: 17,
+      handDY: 12,
+      d: "M65.3 20.9l5.1 .1 4.8 .9 4.8 1.7 4.3 2.3 3.8 3.1 3 3.4 2.3 3.8 1.6 4.3 .9 4.3 0 4.8-.8 4.8-1.4 4.3-2.3 4.3-3.2 4.3-3.4 3.3-4.3 3.1-7.2 3.5-7.6 1.7-7.2 .1-9.6-1.6-3.3-1-2.9-1.7-8.8-8.9-6-4.7-3.3-.5-7.7 1.1-4.8-.1-4.7-1.2-1.9-1.2-1-1-.5-1.5 .4-1.4 1.1-1.3 1.9-1.3 4.7-1.5 7.7-.6 1.1-.5 .7-1 0-1.4-2.8-7.2-1.2-5.3-.1-4.3 .4-1.4 .9-1.2 1.9-.2 2 1 2.2 2.3 2.2 3.4 3.2 7.6 1.9 9.7 .5-.1 1.1-7.2 1.8-4.8 3.2-5.2 3.9-4.3 4.9-3.9 5.6-2.9 5.8-1.9z"
+    },
+    star: {
+      label: "Star",
+      fit: 56,
+      faceR: 10,
+      dx: 0,
+      dy: 0,
+      hands: false,
+      d: "M40.1 4.4l1.5-.4 1.9 .1 5.2 1.1 1.9 .9 13.2 14.9 17.1-.8 5.2 1.1 1.8 .9 1.7 1.6 .7 2.4-.4 1.9-9.7 23.6 5.6 23.7 .1 1.9-.6 1.4-2.1 1.8-2.3 .5-19.9-1.8-16.6 15.5-1.9 1-1.9 .3-7-1.5-2.6-2.1-.9-2.4-2.8-24.1-16-13.6-1.1-1.5-.5-1.9 .4-1.9 1.2-1.5 18.9-13.6 7.1-24.6 1-1.7z"
+    },
+    moon: {
+      label: "Moon",
+      fit: 54,
+      faceR: 15,
+      dx: -2,
+      dy: 2,
+      hands: true,
+      handDX: 17,
+      handDY: 14,
+      d: "M45.8 4.2l4.7-.2 4.2 .4 10.2 2.4 3.7 1.6 3.6 2.1 3.3 2.5 3 3.1 4.6 6.7 3.4 8.3 1.5 8.8 .1 4.6-.8 7.8-2.6 8.8-3.9 7.7-5.1 6.7-6.1 5.3-4.1 2.6-3.6 1.6-27.2 10.2-2.8 .7-2.6 0-5.7-1.3-2-.8-1.9-1.7-1.1-2.6-6.5-37.7-.2-5.2 .8-7.7 1.3-5.2 3.1-7.8 4.2-6.7 3-3.6 3.9-3.6 6.3-4.2 4.1-1.8z"
+    },
+    wave: {
+      label: "Wave",
+      fit: 54,
+      faceR: 15,
+      dx: 0,
+      dy: -1,
+      hands: true,
+      handDX: 18,
+      handDY: 14,
+      d: "M46.1 4l6.1 .3 9.6 2.1 4.5 1.8 4.1 2.4 3.5 2.8 4.4 4.8 2.6 4 2.1 4.1 2.2 6 4.8 26 .5 5.3-.3 4.1-1.2 3.8-1.5 2.8-2.4 2.5-2.1 1.4-3.1 1-3 .3-8.1-1.5-3.2 5.3-2.1 2.1-2.5 1.5-2.8 1-3 .4-9.1-1.6-2.7 4.2-3.4 3.1-4 1.7-4.6 .1-7-1.5-3.5-1.9-3.4-3.5-2.1-4-1.5-5.6-3.7-20.7-.6-5.6-.1-5 .5-6.1 2.3-9.6 2.3-5.5 2.7-4.9 2.7-3.7 3.2-3.6 4.2-3.6 4.7-2.9 4.4-2 4-1.2z"
+    },
+    squircle: {
+      label: "Squircle",
+      fit: 52,
+      faceR: 16,
+      dx: 0,
+      dy: 0,
+      hands: true,
+      handDX: 21,
+      handDY: 15,
+      d: "M54.5 4.2l3.9-.2 3.7 .3 11.6 2.7 3.1 1.6 2.8 1.9 2.6 2.7 2.2 3.1 2.4 4.8 1.9 5.8 3.7 19.4 .8 11.1-.4 4.7-1 4.7-1.3 3.5-1.8 3.4-4.8 5.8-6.4 4.7-8 4-14.2 5.3-9.5 2.2-7.4 .1-10.5-2.2-5.3-2.5-4.3-3.7-3.3-4.8-2.7-6.3-2.4-9.5-2.8-17.9-.2-7.8 1.3-7.9 2.2-5.3 2.8-4.2 4.1-4.2 4.3-3.1 6.3-3.4 11.6-4.6 7.9-2.7z"
+    },
+    zed: {
+      label: "Bull",
+      fit: 54,
+      faceR: 13,
+      dx: 0,
+      dy: 2,
+      hands: true,
+      handDX: 15,
+      handDY: 14,
+      d: "M77 4.4l1.1-.4 1.1 .2 1.2 1.3 2 9.8 2.2 5.9 .4 2.8-.3 2.1-.8 1.7-4.7 5.1-1.3 1.9-.4 1.7 .1 1.6 1 1.7 4.4 .2 3.8 1.3 2 1.7 .6 1.6-.3 1.7-.7 1.1-3.5 2.7 1.7 6 .4 5.9-.8 6.6-1.9 6-3.4 5.9-4.4 5.3-5.5 4.4-6 3.1-6.5 2-7.1 .7-6.5-.7-6.5-2.1-6-3.4-4.8-4.4-3.5-4.9-3.1-6.7-3.3 1.1-2.7 .3-2-.6-1.1-1.1-.3-2.2 .9-2.7 2.9-3.8 4.6-3.8 1.8-7.1-6.3-1.8-1.6-1.3-1.3-1.8-.6-2.7 0-6.6-1.4-8.7 .2-1.1 1.5-1.4 1.1-.1 1 .5 5.5 7.9 2.2 2.2 2.7 1.4 4.9 .4 .5-.1 6.5-5.1 6.6-3.2 6-1.6 8.7-.7 3.8-.9 2.7-1.5 3.9-3.2 3-3.8 2.4-4.9 2.1-10z"
+    },
+    hex: {
+      label: "Blossom",
+      fit: 54,
+      faceR: 12,
+      dx: 0,
+      dy: 0,
+      hands: false,
+      d: "M38.8 4.2l2.6-.1 6 1.3 2 1.3 3 3.3 12-4.5 2-.5 6.5 1.1 2.9 1.6 4.9 6 .8 2 .3 2-.2 2.5-1.9 7-1.3 2.2-1.9 1.8 2.9 1.3 1.8 1.7 10.1 12.5 1.5 3 .1 4-1.8 7-.9 2-2.8 2.7-7.1 2.7-5.2 20-.8 2-1.4 1.9-1.5 1.1-6.5 2.6-3 .2-6.5-1.6-2-1.4-4-4.9-16 5.7-2 .1-4.5-1-3-1.2-5.2-6-1.3-3 0-3.5 2-8.5-10.8-13.4-1.4-3-.3-2 .3-2.5 1.7-6.5 1.8-3 2.2-1.8 5.9-2.2 2.1-.4 2.5 .3 .4-.4-.7-2.5 .1-2.5 4.8-18.5 1-2.5 2.9-2.9z"
+    }
+  };
+  var SHAPES = Object.keys(CHARACTERS);
+  var shapeOf = (value) => typeof value === "string" && Object.hasOwn(CHARACTERS, value) ? value : null;
   var INKS = {
     deepseek: "#4D6BFE",
     charcoal: "#141416",
@@ -150,7 +216,6 @@ var __bbEntry = (() => {
     "#A855F7",
     "#D97706"
   ];
-  var HEADS = ["crown", "glasses", "bowRed", "bowCream", "hat", "sprout", "headphones", null];
   var PROPS = ["flag", "magnifier", "pointer", "abacus", "bolt", "flask", "leaf", "books", "mic", null];
   function faceOf(color) {
     const n = parseInt(color.slice(1), 16);
@@ -166,33 +231,34 @@ var __bbEntry = (() => {
     for (let i = 0; i < salted.length; i += 1) hash = hash * 31 + salted.charCodeAt(i) >>> 0;
     const color = PALETTE[hash % PALETTE.length];
     return {
+      shape: SHAPES[Math.floor(hash / PALETTE.length) % SHAPES.length],
       color,
-      face: faceOf(color),
-      head: HEADS[Math.floor(hash / PALETTE.length) % HEADS.length],
-      prop: PROPS[Math.floor(hash / (PALETTE.length * HEADS.length)) % PROPS.length]
+      prop: PROPS[Math.floor(hash / (PALETTE.length * SHAPES.length)) % PROPS.length]
     };
   }
   function seatOf(bot, taken) {
     const name = typeof bot?.name === "string" ? bot.name : "";
     const id = String(bot?.id ?? name);
     const ink = inkOf(bot?.color);
-    let fixed = ROSTER.find((item) => item.name === name);
-    if (fixed && !taken?.has(fixed.name)) taken?.add(fixed.name);
-    else if (fixed) fixed = null;
-    if (ink) {
-      const gear = fixed ?? hashSeat(id, 0);
-      return { name, color: ink, face: faceOf(ink), head: gear.head, prop: gear.prop };
-    }
-    if (fixed) return fixed;
-    for (let attempt = 0; attempt < PALETTE.length * HEADS.length * PROPS.length; attempt += 1) {
-      const seat = hashSeat(id, attempt);
-      const key = `${seat.color}|${seat.head}|${seat.prop}`;
-      if (!taken?.has(key)) {
+    const shape = shapeOf(bot?.shape);
+    const free = !ink || !shape;
+    for (let attempt = 0; attempt < (free ? SHAPES.length * PALETTE.length * PROPS.length : 1); attempt += 1) {
+      const base2 = hashSeat(id, attempt);
+      const seat = {
+        name,
+        shape: shape ?? base2.shape,
+        color: ink ?? base2.color,
+        face: faceOf(ink ?? base2.color),
+        prop: base2.prop
+      };
+      const key = `${seat.shape}|${seat.color}|${seat.prop}`;
+      if (!free || !taken?.has(key)) {
         taken?.add(key);
-        return { name, ...seat };
+        return seat;
       }
     }
-    return { name, ...hashSeat(id, 0) };
+    const base = hashSeat(id, 0);
+    return { name, shape: shape ?? base.shape, color: ink ?? base.color, face: faceOf(ink ?? base.color), prop: base.prop };
   }
 
   // src/client/locale.js
@@ -457,10 +523,7 @@ var __bbEntry = (() => {
   }
 
   // src/client/rows.js
-  var seatOrder = (bot) => {
-    const index = ROSTER.findIndex((item) => item.name === bot?.name);
-    return index < 0 ? 100 : index;
-  };
+  var orderOf = (bots) => new Map(bots.map((bot, index) => [bot?.id, index]));
   var PHRASE = 16;
   var RECOVERED_MS = 60 * 1e3;
   function questionOf(bot, questions) {
@@ -542,6 +605,7 @@ var __bbEntry = (() => {
     nameOf,
     now = Date.now()
   }) {
+    const order = orderOf(bots);
     const approvalsList = Array.isArray(approvals) ? approvals : [];
     const errorList = Array.isArray(errors) ? errors : [];
     const failureOf = (bot) => errorList.filter((item) => item.botId === bot.id).sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0];
@@ -603,7 +667,7 @@ var __bbEntry = (() => {
         lastResult: own?.text ?? handed?.last ?? null,
         note: Boolean(noteMap[bot.id])
       };
-    }).sort((a, b) => seatOrder(a.bot) - seatOrder(b.bot) || String(a.bot.id).localeCompare(String(b.bot.id)));
+    }).sort((a, b) => (order.get(a.bot.id) ?? 1e9) - (order.get(b.bot.id) ?? 1e9) || String(a.bot.id).localeCompare(String(b.bot.id)));
   }
 
   // src/client/station.js
@@ -652,75 +716,6 @@ var __bbEntry = (() => {
   var DARK = "#2C2C2A";
   var FACE_X = 86;
   var FACE_Y = 62;
-  var BODY_R = 26;
-  function headGear(kind) {
-    const cx = FACE_X;
-    const top = FACE_Y - BODY_R;
-    if (kind === "crown") {
-      return (0, import_react3.createElement)("path", {
-        d: `M ${cx - 13} ${top + 2} L ${cx - 9} ${top - 8} L ${cx - 4} ${top - 1} L ${cx} ${top - 10} L ${cx + 4} ${top - 1} L ${cx + 9} ${top - 8} L ${cx + 13} ${top + 2} Z`,
-        fill: "#FBBF24",
-        stroke: "#D97706",
-        strokeWidth: 1.5,
-        strokeLinejoin: "round"
-      });
-    }
-    if (kind === "bowRed" || kind === "bowCream") {
-      const fill = kind === "bowRed" ? "#DC2626" : "#FDE68A";
-      return (0, import_react3.createElement)(
-        "g",
-        null,
-        (0, import_react3.createElement)("path", { d: `M ${cx + 14} ${top + 4} l -9 -6 v 12 z`, fill }),
-        (0, import_react3.createElement)("path", { d: `M ${cx + 14} ${top + 4} l 9 -6 v 12 z`, fill }),
-        (0, import_react3.createElement)("circle", { cx: cx + 14, cy: top + 4, r: 3, fill })
-      );
-    }
-    if (kind === "hat") {
-      return (0, import_react3.createElement)(
-        "g",
-        null,
-        (0, import_react3.createElement)("path", { d: `M ${cx - 15} ${top + 1} a 15 13 0 0 1 30 0 z`, fill: "#15803D" }),
-        (0, import_react3.createElement)("rect", { x: cx - 19, y: top, width: 38, height: 5, rx: 2.5, fill: "#166534" })
-      );
-    }
-    if (kind === "sprout") {
-      return (0, import_react3.createElement)(
-        "g",
-        null,
-        (0, import_react3.createElement)("line", { x1: cx, y1: top + 2, x2: cx, y2: top - 8, stroke: "#15803D", strokeWidth: 2, strokeLinecap: "round" }),
-        (0, import_react3.createElement)("ellipse", { cx: cx - 6, cy: top - 10, rx: 6, ry: 3.5, fill: "#16A34A", transform: `rotate(-24 ${cx - 6} ${top - 10})` }),
-        (0, import_react3.createElement)("ellipse", { cx: cx + 6, cy: top - 10, rx: 6, ry: 3.5, fill: "#22C55E", transform: `rotate(24 ${cx + 6} ${top - 10})` })
-      );
-    }
-    return null;
-  }
-  function faceGear(kind) {
-    if (kind === "glasses") {
-      return (0, import_react3.createElement)(
-        "g",
-        { fill: "none", stroke: DARK, strokeWidth: 2 },
-        (0, import_react3.createElement)("circle", { cx: FACE_X - 9, cy: FACE_Y - 4, r: 6.5 }),
-        (0, import_react3.createElement)("circle", { cx: FACE_X + 9, cy: FACE_Y - 4, r: 6.5 }),
-        (0, import_react3.createElement)("line", { x1: FACE_X - 2.5, y1: FACE_Y - 4, x2: FACE_X + 2.5, y2: FACE_Y - 4 })
-      );
-    }
-    if (kind === "headphones") {
-      return (0, import_react3.createElement)(
-        "g",
-        null,
-        (0, import_react3.createElement)("path", {
-          d: `M ${FACE_X - 20} ${FACE_Y - 2} a 20 20 0 0 1 40 0`,
-          fill: "none",
-          stroke: DARK,
-          strokeWidth: 4,
-          strokeLinecap: "round"
-        }),
-        (0, import_react3.createElement)("rect", { x: FACE_X - 23, y: FACE_Y - 5, width: 8, height: 13, rx: 4, fill: DARK }),
-        (0, import_react3.createElement)("rect", { x: FACE_X + 15, y: FACE_Y - 5, width: 8, height: 13, rx: 4, fill: DARK })
-      );
-    }
-    return null;
-  }
   function deskProp(kind) {
     if (kind === "flag") {
       return (0, import_react3.createElement)(
@@ -898,71 +893,82 @@ var __bbEntry = (() => {
     );
   }
   function blobSeat(scene, seat) {
+    const ch = CHARACTERS[seat.shape] ?? CHARACTERS.squircle;
     const cx = FACE_X;
     const cy = FACE_Y + 2;
+    const s = ch.fit / 100;
+    const fx = FACE_X + ch.dx;
+    const fy = FACE_Y + ch.dy;
+    const r = ch.faceR;
+    const k = r / 18;
     const moon = scene === "done";
     const squint = scene === "error";
     const oMouth = scene === "alert" || scene === "waiting";
     const eyes = squint ? (0, import_react3.createElement)(
       "g",
       null,
-      (0, import_react3.createElement)("rect", { x: FACE_X - 12, y: FACE_Y - 5.5, width: 6, height: 2.5, rx: 1.25, fill: DARK }),
-      (0, import_react3.createElement)("rect", { x: FACE_X + 6, y: FACE_Y - 5.5, width: 6, height: 2.5, rx: 1.25, fill: DARK })
+      (0, import_react3.createElement)("rect", { x: fx - 12 * k, y: fy - 5.5 * k, width: 6 * k, height: 2.5 * k, rx: 1.25 * k, fill: DARK }),
+      (0, import_react3.createElement)("rect", { x: fx + 6 * k, y: fy - 5.5 * k, width: 6 * k, height: 2.5 * k, rx: 1.25 * k, fill: DARK })
     ) : moon ? (0, import_react3.createElement)(
       "g",
-      { fill: "none", stroke: DARK, strokeWidth: 2.5, strokeLinecap: "round" },
-      (0, import_react3.createElement)("path", { d: `M ${FACE_X - 13} ${FACE_Y - 1} q 4 -6 8 0` }),
-      (0, import_react3.createElement)("path", { d: `M ${FACE_X + 5} ${FACE_Y - 1} q 4 -6 8 0` })
+      { fill: "none", stroke: DARK, strokeWidth: 2.5 * k, strokeLinecap: "round" },
+      (0, import_react3.createElement)("path", { d: `M ${fx - 13 * k} ${fy - k} q ${4 * k} ${-6 * k} ${8 * k} 0` }),
+      (0, import_react3.createElement)("path", { d: `M ${fx + 5 * k} ${fy - k} q ${4 * k} ${-6 * k} ${8 * k} 0` })
     ) : (0, import_react3.createElement)(
       "g",
       {
         className: scene === "busy" ? "bb-eyes" : scene === "idle" ? "bb-eyes bb-eyes-slow" : void 0,
         fill: DARK
       },
-      (0, import_react3.createElement)("rect", { x: FACE_X - 11.5, y: FACE_Y - 8.5, width: 5, height: 9, rx: 2.5 }),
-      (0, import_react3.createElement)("rect", { x: FACE_X + 6.5, y: FACE_Y - 8.5, width: 5, height: 9, rx: 2.5 })
+      (0, import_react3.createElement)("rect", { x: fx - 11.5 * k, y: fy - 8.5 * k, width: 5 * k, height: 9 * k, rx: 2.5 * k }),
+      (0, import_react3.createElement)("rect", { x: fx + 6.5 * k, y: fy - 8.5 * k, width: 5 * k, height: 9 * k, rx: 2.5 * k })
     );
-    const mouth = oMouth ? (0, import_react3.createElement)("circle", { cx: FACE_X, cy: FACE_Y + 9, r: 3, fill: DARK }) : squint ? (0, import_react3.createElement)("path", {
-      d: `M ${FACE_X - 4} ${FACE_Y + 10} q 4 -3 8 0`,
+    const mouth = oMouth ? (0, import_react3.createElement)("circle", { cx: fx, cy: fy + 9 * k, r: 3 * k, fill: DARK }) : squint ? (0, import_react3.createElement)("path", {
+      d: `M ${fx - 4 * k} ${fy + 10 * k} q ${4 * k} ${-3 * k} ${8 * k} 0`,
       fill: "none",
       stroke: DARK,
-      strokeWidth: 2,
+      strokeWidth: 2 * k,
       strokeLinecap: "round"
     }) : (0, import_react3.createElement)("path", {
-      d: `M ${FACE_X - 4} ${FACE_Y + 6} q 4 5 8 0`,
+      d: `M ${fx - 4 * k} ${fy + 6 * k} q ${4 * k} ${5 * k} ${8 * k} 0`,
       fill: "none",
       stroke: DARK,
-      strokeWidth: 2,
+      strokeWidth: 2 * k,
       strokeLinecap: "round"
     });
     const wavingNow = scene === "done" || scene === "alert";
-    const handL = (0, import_react3.createElement)("circle", {
-      cx: cx - 23,
-      cy: cy + 16,
-      r: 4,
-      fill: seat.color,
-      className: scene === "busy" ? "bb-hand bb-tap" : "bb-hand"
-    });
-    const handR = (0, import_react3.createElement)("circle", {
-      cx: cx + 23,
-      cy: cy + 16,
-      r: 4,
-      fill: seat.color,
-      className: wavingNow ? "bb-hand bb-wave" : scene === "busy" ? "bb-hand bb-tap" : "bb-hand"
-    });
+    const hands = ch.hands ? [
+      (0, import_react3.createElement)("circle", {
+        key: "l",
+        cx: cx - ch.handDX,
+        cy: cy + ch.handDY,
+        r: 4,
+        fill: seat.color,
+        className: scene === "busy" ? "bb-hand bb-tap" : "bb-hand"
+      }),
+      (0, import_react3.createElement)("circle", {
+        key: "r",
+        cx: cx + ch.handDX,
+        cy: cy + ch.handDY,
+        r: 4,
+        fill: seat.color,
+        className: wavingNow ? "bb-hand bb-wave" : scene === "busy" ? "bb-hand bb-tap" : "bb-hand"
+      })
+    ] : null;
     return (0, import_react3.createElement)(
       "g",
       { className: "bb-blob" },
-      (0, import_react3.createElement)("circle", { cx, cy, r: BODY_R, fill: seat.color }),
-      (0, import_react3.createElement)("circle", { cx: FACE_X, cy: FACE_Y, r: 18, fill: seat.face }),
-      (0, import_react3.createElement)("ellipse", { cx: FACE_X - 14, cy: FACE_Y + 7, rx: 4.5, ry: 2.8, fill: seat.color, opacity: 0.3 }),
-      (0, import_react3.createElement)("ellipse", { cx: FACE_X + 14, cy: FACE_Y + 7, rx: 4.5, ry: 2.8, fill: seat.color, opacity: 0.3 }),
+      (0, import_react3.createElement)("path", {
+        d: ch.d,
+        fill: seat.color,
+        transform: `translate(${cx - s * 50} ${cy - s * 50}) scale(${s})`
+      }),
+      (0, import_react3.createElement)("circle", { cx: fx, cy: fy, r, fill: seat.face }),
+      (0, import_react3.createElement)("ellipse", { cx: fx - 14 * k, cy: fy + 7 * k, rx: 4.5 * k, ry: 2.8 * k, fill: seat.color, opacity: 0.3 }),
+      (0, import_react3.createElement)("ellipse", { cx: fx + 14 * k, cy: fy + 7 * k, rx: 4.5 * k, ry: 2.8 * k, fill: seat.color, opacity: 0.3 }),
       eyes,
       mouth,
-      handL,
-      handR,
-      faceGear(seat.head),
-      headGear(seat.head)
+      hands
     );
   }
   function StationView({ row, onOpen, note, t, compact = false }) {
@@ -1013,7 +1019,7 @@ var __bbEntry = (() => {
           screenContent(scene)
         ),
         lampShape(scene),
-        deskProp(seat.prop)
+        (0, import_react3.createElement)("g", { transform: "translate(-4 0)" }, deskProp(seat.prop))
       ),
       badge ? (0, import_react3.createElement)("span", { className: "bb-badge", title: row.failure ?? "" }, "!") : null,
       (0, import_react3.createElement)(
@@ -1317,7 +1323,7 @@ var __bbEntry = (() => {
       { className: "bb-att-avatar" },
       (0, import_react6.createElement)(
         "svg",
-        { width: 30, height: 30, viewBox: "56 24 60 60", "aria-hidden": "true", focusable: "false" },
+        { width: 30, height: 30, viewBox: "54 32 64 64", "aria-hidden": "true", focusable: "false" },
         blobSeat(scene, seat ?? seatOf(bot))
       )
     );
@@ -2329,7 +2335,8 @@ var __bbEntry = (() => {
       setCollapsed(value);
       writeRaw(COLLAPSE_KEY, value ? "1" : "0");
     }, []);
-    const bots = view?.bots ?? board?.bots ?? [];
+    const botSource = view?.bots ?? board?.bots;
+    const bots = (0, import_react9.useMemo)(() => Array.isArray(botSource) ? botSource.map((bot) => bot && bot.shape === void 0 ? { ...bot, shape: bot.avatar?.shape ?? null } : bot) : [], [botSource]);
     const activity = view?.activity ?? {};
     const workBots = view?.work?.bots ?? {};
     const waiting = view?.work?.waiting ?? {};
@@ -2480,6 +2487,9 @@ var __bbEntry = (() => {
         writeRaw(POS_KEY, JSON.stringify(next));
       }
     };
+    const seenOk = (0, import_react9.useRef)(false);
+    if (board?.ok === true) seenOk.current = true;
+    if (!seenOk.current && board?.ok === false && board.reason === "no-state") return null;
     const wrapStyle = pos ? { left: pos.left, top: pos.top, right: "auto", bottom: "auto" } : void 0;
     const drawerRow = sheet?.kind === "bot" ? rows.find((row) => row.bot.id === sheet.id) ?? null : null;
     const loading = !view && !board && !error;
@@ -2490,6 +2500,13 @@ var __bbEntry = (() => {
     if (board?.boardError) notices.push((0, import_react9.createElement)("div", { className: "bb-notice", key: "board" }, `${t("panel.boardError")}\uFF1A${board.boardError}`));
     if (reason) notices.push((0, import_react9.createElement)("div", { className: "bb-notice bb-notice-warn", key: "reason" }, reason));
     if (board?.stale) notices.push((0, import_react9.createElement)("div", { className: "bb-notice bb-notice-warn", key: "stale" }, t("panel.stale")));
+    if (Number.isFinite(board?.dataVersion) && board.dataVersion !== 1) {
+      notices.push((0, import_react9.createElement)(
+        "div",
+        { className: "bb-notice bb-notice-warn", key: "dataVersion" },
+        `${t("panel.dataVersion")} (v${board.dataVersion})`
+      ));
+    }
     if (collapsed) {
       return (0, import_react9.createElement)(
         "div",

@@ -126,21 +126,64 @@ export const STATUS_KEY = {
 // token onto the workstation is not.
 export const statusLabel = (status, t) => t(STATUS_KEY[status] ?? 'status.working')
 
-// Nine Bots = nine flat body colours + lighter face disc + one head accessory +
-// one desk prop. This is a *default skin* for known names, not an identity
-// system: a Bot nobody named after one of these falls through to the hash
-// below, and an upstream ink (see INKS) outranks all of it.
-export const ROSTER = [
-  { name: 'Chief', color: '#378ADD', face: '#7FB4E8', head: 'crown', prop: 'flag' },
-  { name: 'Researcher', color: '#EC4899', face: '#F5A3CD', head: 'glasses', prop: 'magnifier' },
-  { name: '班主任', color: '#F59E0B', face: '#FBCB74', head: 'bowRed', prop: 'pointer' },
-  { name: '数学', color: '#8B5CF6', face: '#BCA5F8', head: 'glasses', prop: 'abacus' },
-  { name: '物理', color: '#14B8A6', face: '#7FD8CE', head: 'headphones', prop: 'bolt' },
-  { name: '化学', color: '#22C55E', face: '#86E5A3', head: 'hat', prop: 'flask' },
-  { name: '生物', color: '#84CC16', face: '#BDE873', head: 'sprout', prop: 'leaf' },
-  { name: '语文', color: '#EF4444', face: '#F59C9C', head: 'bowCream', prop: 'books' },
-  { name: '英语', color: '#F97316', face: '#FBB277', head: 'headphones', prop: 'mic' },
-]
+// DS Bot's seven characters (`CHARACTERS` in its client bundle, Apache-2.0), redrawn here as
+// dumplings: the body outline is the character, the face disc and features shrink
+// to fit inside it, and the desk prop stays the board's own language. This is the
+// whole identity vocabulary — a Bot's look upstream is `avatar.shape` x `color`,
+// 7 x 19, and the board renders the same seven shapes rather than inventing its
+// own heads and props per name. `fit` is the character's larger side in board
+// units (the old round body was 52), `faceR` the face disc that fits inside the
+// silhouette, and `hands` is off where a silhouette has no round edge to put a
+// hand on (a star's lower points would leave the hand floating).
+export const CHARACTERS = {
+  whale: {
+    label: 'Whale',
+    fit: 58, faceR: 12, dx: 4, dy: 0,
+    hands: true, handDX: 17, handDY: 12,
+    d: 'M65.3 20.9l5.1 .1 4.8 .9 4.8 1.7 4.3 2.3 3.8 3.1 3 3.4 2.3 3.8 1.6 4.3 .9 4.3 0 4.8-.8 4.8-1.4 4.3-2.3 4.3-3.2 4.3-3.4 3.3-4.3 3.1-7.2 3.5-7.6 1.7-7.2 .1-9.6-1.6-3.3-1-2.9-1.7-8.8-8.9-6-4.7-3.3-.5-7.7 1.1-4.8-.1-4.7-1.2-1.9-1.2-1-1-.5-1.5 .4-1.4 1.1-1.3 1.9-1.3 4.7-1.5 7.7-.6 1.1-.5 .7-1 0-1.4-2.8-7.2-1.2-5.3-.1-4.3 .4-1.4 .9-1.2 1.9-.2 2 1 2.2 2.3 2.2 3.4 3.2 7.6 1.9 9.7 .5-.1 1.1-7.2 1.8-4.8 3.2-5.2 3.9-4.3 4.9-3.9 5.6-2.9 5.8-1.9z',
+  },
+  star: {
+    label: 'Star',
+    fit: 56, faceR: 10, dx: 0, dy: 0,
+    hands: false,
+    d: 'M40.1 4.4l1.5-.4 1.9 .1 5.2 1.1 1.9 .9 13.2 14.9 17.1-.8 5.2 1.1 1.8 .9 1.7 1.6 .7 2.4-.4 1.9-9.7 23.6 5.6 23.7 .1 1.9-.6 1.4-2.1 1.8-2.3 .5-19.9-1.8-16.6 15.5-1.9 1-1.9 .3-7-1.5-2.6-2.1-.9-2.4-2.8-24.1-16-13.6-1.1-1.5-.5-1.9 .4-1.9 1.2-1.5 18.9-13.6 7.1-24.6 1-1.7z',
+  },
+  moon: {
+    label: 'Moon',
+    fit: 54, faceR: 15, dx: -2, dy: 2,
+    hands: true, handDX: 17, handDY: 14,
+    d: 'M45.8 4.2l4.7-.2 4.2 .4 10.2 2.4 3.7 1.6 3.6 2.1 3.3 2.5 3 3.1 4.6 6.7 3.4 8.3 1.5 8.8 .1 4.6-.8 7.8-2.6 8.8-3.9 7.7-5.1 6.7-6.1 5.3-4.1 2.6-3.6 1.6-27.2 10.2-2.8 .7-2.6 0-5.7-1.3-2-.8-1.9-1.7-1.1-2.6-6.5-37.7-.2-5.2 .8-7.7 1.3-5.2 3.1-7.8 4.2-6.7 3-3.6 3.9-3.6 6.3-4.2 4.1-1.8z',
+  },
+  wave: {
+    label: 'Wave',
+    fit: 54, faceR: 15, dx: 0, dy: -1,
+    hands: true, handDX: 18, handDY: 14,
+    d: 'M46.1 4l6.1 .3 9.6 2.1 4.5 1.8 4.1 2.4 3.5 2.8 4.4 4.8 2.6 4 2.1 4.1 2.2 6 4.8 26 .5 5.3-.3 4.1-1.2 3.8-1.5 2.8-2.4 2.5-2.1 1.4-3.1 1-3 .3-8.1-1.5-3.2 5.3-2.1 2.1-2.5 1.5-2.8 1-3 .4-9.1-1.6-2.7 4.2-3.4 3.1-4 1.7-4.6 .1-7-1.5-3.5-1.9-3.4-3.5-2.1-4-1.5-5.6-3.7-20.7-.6-5.6-.1-5 .5-6.1 2.3-9.6 2.3-5.5 2.7-4.9 2.7-3.7 3.2-3.6 4.2-3.6 4.7-2.9 4.4-2 4-1.2z',
+  },
+  squircle: {
+    label: 'Squircle',
+    fit: 52, faceR: 16, dx: 0, dy: 0,
+    hands: true, handDX: 21, handDY: 15,
+    d: 'M54.5 4.2l3.9-.2 3.7 .3 11.6 2.7 3.1 1.6 2.8 1.9 2.6 2.7 2.2 3.1 2.4 4.8 1.9 5.8 3.7 19.4 .8 11.1-.4 4.7-1 4.7-1.3 3.5-1.8 3.4-4.8 5.8-6.4 4.7-8 4-14.2 5.3-9.5 2.2-7.4 .1-10.5-2.2-5.3-2.5-4.3-3.7-3.3-4.8-2.7-6.3-2.4-9.5-2.8-17.9-.2-7.8 1.3-7.9 2.2-5.3 2.8-4.2 4.1-4.2 4.3-3.1 6.3-3.4 11.6-4.6 7.9-2.7z',
+  },
+  zed: {
+    label: 'Bull',
+    fit: 54, faceR: 13, dx: 0, dy: 2,
+    hands: true, handDX: 15, handDY: 14,
+    d: 'M77 4.4l1.1-.4 1.1 .2 1.2 1.3 2 9.8 2.2 5.9 .4 2.8-.3 2.1-.8 1.7-4.7 5.1-1.3 1.9-.4 1.7 .1 1.6 1 1.7 4.4 .2 3.8 1.3 2 1.7 .6 1.6-.3 1.7-.7 1.1-3.5 2.7 1.7 6 .4 5.9-.8 6.6-1.9 6-3.4 5.9-4.4 5.3-5.5 4.4-6 3.1-6.5 2-7.1 .7-6.5-.7-6.5-2.1-6-3.4-4.8-4.4-3.5-4.9-3.1-6.7-3.3 1.1-2.7 .3-2-.6-1.1-1.1-.3-2.2 .9-2.7 2.9-3.8 4.6-3.8 1.8-7.1-6.3-1.8-1.6-1.3-1.3-1.8-.6-2.7 0-6.6-1.4-8.7 .2-1.1 1.5-1.4 1.1-.1 1 .5 5.5 7.9 2.2 2.2 2.7 1.4 4.9 .4 .5-.1 6.5-5.1 6.6-3.2 6-1.6 8.7-.7 3.8-.9 2.7-1.5 3.9-3.2 3-3.8 2.4-4.9 2.1-10z',
+  },
+  hex: {
+    label: 'Blossom',
+    fit: 54, faceR: 12, dx: 0, dy: 0,
+    hands: false,
+    d: 'M38.8 4.2l2.6-.1 6 1.3 2 1.3 3 3.3 12-4.5 2-.5 6.5 1.1 2.9 1.6 4.9 6 .8 2 .3 2-.2 2.5-1.9 7-1.3 2.2-1.9 1.8 2.9 1.3 1.8 1.7 10.1 12.5 1.5 3 .1 4-1.8 7-.9 2-2.8 2.7-7.1 2.7-5.2 20-.8 2-1.4 1.9-1.5 1.1-6.5 2.6-3 .2-6.5-1.6-2-1.4-4-4.9-16 5.7-2 .1-4.5-1-3-1.2-5.2-6-1.3-3 0-3.5 2-8.5-10.8-13.4-1.4-3-.3-2 .3-2.5 1.7-6.5 1.8-3 2.2-1.8 5.9-2.2 2.1-.4 2.5 .3 .4-.4-.7-2.5 .1-2.5 4.8-18.5 1-2.5 2.9-2.9z',
+  },
+}
+
+// Upstream shape ids are a closed set; anything else (an older ds-bot, a typo, a
+// hand-edited file) is treated as "no character given" and hashed instead.
+export const SHAPES = Object.keys(CHARACTERS)
+export const shapeOf = value => (typeof value === 'string' && Object.hasOwn(CHARACTERS, value) ? value : null)
 
 // DS Bot's own ink vocabulary (`ds-bot/src/client/inks.js` in the bundle's
 // client half): 13 named colours plus 6 deeper inks, and `bot.color` in
@@ -172,7 +215,6 @@ const PALETTE = [
   '#378ADD', '#EC4899', '#F59E0B', '#8B5CF6', '#14B8A6', '#22C55E',
   '#84CC16', '#EF4444', '#F97316', '#0EA5E9', '#A855F7', '#D97706',
 ]
-const HEADS = ['crown', 'glasses', 'bowRed', 'bowCream', 'hat', 'sprout', 'headphones', null]
 const PROPS = ['flag', 'magnifier', 'pointer', 'abacus', 'bolt', 'flask', 'leaf', 'books', 'mic', null]
 
 // A face disc is the body colour washed toward white, so a stranger's palette
@@ -197,56 +239,49 @@ function hashSeat(id, attempt) {
   for (let i = 0; i < salted.length; i += 1) hash = (hash * 31 + salted.charCodeAt(i)) >>> 0
   const color = PALETTE[hash % PALETTE.length]
   return {
+    shape: SHAPES[Math.floor(hash / PALETTE.length) % SHAPES.length],
     color,
-    face: faceOf(color),
-    head: HEADS[Math.floor(hash / PALETTE.length) % HEADS.length],
-    prop: PROPS[Math.floor(hash / (PALETTE.length * HEADS.length)) % PROPS.length],
+    prop: PROPS[Math.floor(hash / (PALETTE.length * SHAPES.length)) % PROPS.length],
   }
 }
 
-// Three tiers, in order:
+// Two axes come from DS Bot and one from the board:
 //
-//   1. the ink the user picked in DS Bot's own UI — the Bot's real identity,
-//      which a local default skin has no business overriding;
-//   2. the roster, when the Bot's name is one of the nine and nobody claimed
-//      that seat yet this render;
-//   3. the id hash, for everybody else.
+//   shape  the character the user picked in DS Bot's UI (`avatar.shape`)
+//   color  the ink the user picked in DS Bot's UI (`bot.color`)
+//   prop   the board's own desk prop — nothing upstream describes it
 //
-// Tier 1 keeps the roster's decorations when the name is known (a Chief stays a
-// crowned Chief, in the colour its user chose) and takes them from the hash when
-// it is not. Two Bots that picked the same ink are *meant* to look alike — that
-// is the user's choice — so only tier 3 dedupes.
+// Each upstream axis overrides the hash independently, so a Bot that picked a
+// character but no colour keeps its character and takes a stable colour from its
+// id. Only the hash-derived parts are de-duplicated: two Bots that picked the
+// same character and colour are *meant* to look alike, while two strangers
+// landing on one triple by chance is the v0.4.2 finding #12 shape (two identical
+// dumplings, one working and one failing).
 //
-// `taken` holds claimed roster names and claimed hash triples. A Bot's name is
-// upstream-controlled free text, so a second Bot that renames itself to 'Chief'
-// used to draw a byte-identical Chief: two look-alikes, one working and one
-// failing, with no way to tell them apart (v0.4.2 audit, finding #12). A
-// duplicate now falls through instead of impersonating. The same argument
-// applies to the hash: two strangers can land on one triple by chance (12 x 8 x
-// 10 = 960 combinations) and an identical pair is indistinguishable from that
-// impersonation, so a claimed triple is re-hashed rather than reused.
+// `taken` holds claimed triples for the whole render. A Bot's name is free text
+// and is not used for identity at all any more — the name-based roster made every
+// stranger a second-class citizen and put one person's team on everyone's board.
 export function seatOf(bot, taken) {
   const name = typeof bot?.name === 'string' ? bot.name : ''
   const id = String(bot?.id ?? name)
   const ink = inkOf(bot?.color)
-  let fixed = ROSTER.find(item => item.name === name)
-  // Claim the name for this render even when the ink overrides the body colour,
-  // or a same-named stranger would walk into the designed seat behind it.
-  if (fixed && !taken?.has(fixed.name)) taken?.add(fixed.name)
-  else if (fixed) fixed = null
-  if (ink) {
-    const gear = fixed ?? hashSeat(id, 0)
-    return { name, color: ink, face: faceOf(ink), head: gear.head, prop: gear.prop }
-  }
-  if (fixed) return fixed
-  for (let attempt = 0; attempt < PALETTE.length * HEADS.length * PROPS.length; attempt += 1) {
-    const seat = hashSeat(id, attempt)
-    const key = `${seat.color}|${seat.head}|${seat.prop}`
-    if (!taken?.has(key)) {
+  const shape = shapeOf(bot?.shape)
+  const free = !ink || !shape
+  for (let attempt = 0; attempt < (free ? SHAPES.length * PALETTE.length * PROPS.length : 1); attempt += 1) {
+    const base = hashSeat(id, attempt)
+    const seat = {
+      name,
+      shape: shape ?? base.shape,
+      color: ink ?? base.color,
+      face: faceOf(ink ?? base.color),
+      prop: base.prop,
+    }
+    const key = `${seat.shape}|${seat.color}|${seat.prop}`
+    if (!free || !taken?.has(key)) {
       taken?.add(key)
-      return { name, ...seat }
+      return seat
     }
   }
-  // Every triple is taken (960 Bots on one board). Identical twins beat no face.
-  return { name, ...hashSeat(id, 0) }
+  const base = hashSeat(id, 0)
+  return { name, shape: shape ?? base.shape, color: ink ?? base.color, face: faceOf(ink ?? base.color), prop: base.prop }
 }

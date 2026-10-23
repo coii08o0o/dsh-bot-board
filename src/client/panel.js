@@ -413,7 +413,13 @@ function Board(props) {
     writeRaw(COLLAPSE_KEY, value ? '1' : '0')
   }, [])
 
-  const bots = view?.bots ?? board?.bots ?? []
+  // The live `api/bot` feed carries DS Bot's own `avatar` object, while the host
+  // snapshot carries the flattened `shape`. Normalise here so `seatOf` sees one
+  // field whichever source answered first.
+  const botSource = view?.bots ?? board?.bots
+  const bots = useMemo(() => (Array.isArray(botSource) ? botSource.map(bot => (
+    bot && bot.shape === undefined ? { ...bot, shape: bot.avatar?.shape ?? null } : bot
+  )) : []), [botSource])
   const activity = view?.activity ?? {}
   const workBots = view?.work?.bots ?? {}
   const waiting = view?.work?.waiting ?? {}
@@ -424,7 +430,6 @@ function Board(props) {
   const rooms = board?.rooms ?? {}
 
   const nameOf = useCallback(id => bots.find(bot => bot.id === id)?.name ?? id, [bots])
-
   const rows = useMemo(() => buildRows({
     bots, activity, workBots, waiting, approvals, questions, errors, works, rooms,
     waveMap, noteMap, t, nameOf,
@@ -571,6 +576,16 @@ function Board(props) {
     }
   }
 
+  // A board with no DS Bot behind it is not a board. Showing "no state file" in
+  // every chat of a DSH install that never had DS Bot is noise, so the panel stays
+  // invisible while that is the answer — and becomes visible for good as soon as
+  // one snapshot succeeds, because a panel that blinks out on a single bad read is
+  // worse than one that says so. The first frame (no answer yet) still renders the
+  // loading state: an empty panel is not the same thing as "not asked yet".
+  const seenOk = useRef(false)
+  if (board?.ok === true) seenOk.current = true
+  if (!seenOk.current && board?.ok === false && board.reason === 'no-state') return null
+
   const wrapStyle = pos ? { left: pos.left, top: pos.top, right: 'auto', bottom: 'auto' } : undefined
   const drawerRow = sheet?.kind === 'bot' ? rows.find(row => row.bot.id === sheet.id) ?? null : null
   const loading = !view && !board && !error
@@ -590,6 +605,12 @@ function Board(props) {
   if (board?.boardError) notices.push(h('div', { className: 'bb-notice', key: 'board' }, `${t('panel.boardError')}：${board.boardError}`))
   if (reason) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'reason' }, reason))
   if (board?.stale) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'stale' }, t('panel.stale')))
+  // state.json carries DS Bot's data format version. A mismatch is not a crash —
+  // it is a board that looks right and reads the wrong field, so it has to say so.
+  if (Number.isFinite(board?.dataVersion) && board.dataVersion !== 1) {
+    notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'dataVersion' },
+      `${t('panel.dataVersion')} (v${board.dataVersion})`))
+  }
 
   if (collapsed) {
     return h('div', { className: 'bb-wrap', style: wrapStyle },

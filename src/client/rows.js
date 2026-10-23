@@ -3,14 +3,13 @@
 // `now` is a parameter so the stall check is deterministic under test.
 import { clip } from './format.js'
 import { badgeOf, isLive, sceneOf, stalledOf, statusOf } from './scene.js'
-import { ERROR_LAMP_MS, ROSTER, seatOf } from './const.js'
+import { ERROR_LAMP_MS, seatOf } from './const.js'
 
-// Roster order first so a workstation never moves when a status changes; unknown
-// Bots trail in a stable order instead of hashing into somebody else's seat.
-export const seatOrder = bot => {
-  const index = ROSTER.findIndex(item => item.name === bot?.name)
-  return index < 0 ? 100 : index
-}
+// Workstations keep the order DS Bot lists the Bots in (creation order), so a
+// desk never moves because a status changed. This used to be "roster order", a
+// table keyed by name; with identity coming from `avatar.shape` there is no name
+// table left, and the upstream order is both stable and meaningful.
+const orderOf = bots => new Map(bots.map((bot, index) => [bot?.id, index]))
 
 // `work.bots[botId].said/note/target` is free prose; the card only has room for a
 // phrase, so it gets clipped and the drawer shows the whole thing.
@@ -94,8 +93,10 @@ function describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms
 
 export function buildRows({
   bots = [], activity = {}, workBots = {}, waiting = {}, approvals = [], questions = {},
-  errors = [], works = [], rooms = {}, waveMap = {}, noteMap = {}, t, nameOf, now = Date.now(),
+  errors = [], works = [], rooms = {}, waveMap = {}, noteMap = {},
+  t, nameOf, now = Date.now(),
 }) {
+  const order = orderOf(bots)
   const approvalsList = Array.isArray(approvals) ? approvals : []
   const errorList = Array.isArray(errors) ? errors : []
   const failureOf = bot => errorList
@@ -183,5 +184,5 @@ export function buildRows({
         note: Boolean(noteMap[bot.id]),
       }
     })
-    .sort((a, b) => seatOrder(a.bot) - seatOrder(b.bot) || String(a.bot.id).localeCompare(String(b.bot.id)))
+    .sort((a, b) => (order.get(a.bot.id) ?? 1e9) - (order.get(b.bot.id) ?? 1e9) || String(a.bot.id).localeCompare(String(b.bot.id)))
 }

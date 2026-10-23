@@ -131,7 +131,12 @@ export function toHtml(node) {
 
 // ── fixtures ────────────────────────────────────────────────────────────────
 const ROSTER = ['Chief', 'Researcher', '班主任', '数学', '物理', '化学', '生物', '语文', '英语']
-const bots = ROSTER.map((name, index) => ({ id: `b${index}`, name, sessionId: `b${index}` }))
+// Identity comes from DS Bot now: `avatar.shape` (one of seven characters) plus
+// `color` (an ink id). The fixtures carry the same two fields a real roster does,
+// spread so every silhouette appears at least once. Chief is the upstream default
+// (whale + deepseek) because that is what DS Bot creates for a new team.
+const LOOKS = ['whale', 'star', 'moon', 'wave', 'squircle', 'zed', 'hex', 'moon', 'star']
+const bots = ROSTER.map((name, index) => ({ id: `b${index}`, name, sessionId: `b${index}`, shape: LOOKS[index] }))
 const nameOf = id => bots.find(bot => bot.id === id)?.name ?? id
 
 function snapshot({
@@ -347,10 +352,9 @@ cases.push({
     w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 身份',
     snap: snapshot({
       bots: [
-        { id: 's0', name: 'Chief', sessionId: 's0', color: 'deepseek' },
-        { id: 's1', name: '数学', sessionId: 's1' },
-        // An arbitrary id: its hash lands on a teal that is visibly neither the
-        // ink above nor the roster purple below, so the three tiers read apart.
+        { id: 's0', name: 'Chief', sessionId: 's0', color: 'deepseek', shape: 'whale' },
+        { id: 's1', name: '数学', sessionId: 's1', shape: 'star' },
+        // No upstream look at all: the board hashes both axes for this one.
         { id: 's3', name: '第十个', sessionId: 's3' },
       ],
       ...merge(working('s0', 4.2, 'Bash'), working('s1', 2, 'Bash'), working('s3', 0.2, 'Write')),

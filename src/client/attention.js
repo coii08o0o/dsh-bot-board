@@ -10,14 +10,15 @@ import { Elapsed } from './elapsed.js'
 import { ATTENTION_MAX } from './layers.js'
 import { Lamp, blobSeat } from './station.js'
 
-// A crop of the same dumpling the classroom draws, not a second avatar style:
-// `viewBox="56 24 60 60"` covers the body (60–112) plus both hands (59–113), and
-// 24–84 covers the head accessory's top (26) down to just under the body. The
-// desk, chair and monitor are siblings of `blobSeat` in Station, so cropping it
-// excludes them for free. 30/60 = 0.5, which keeps the eyes at 2.5×4.5px.
+// A crop of the same dumpling the classroom draws, not a second avatar style.
+// `viewBox="54 32 64 64"` covers the widest character (58 units) plus both hands,
+// and the tallest (56 units) top to bottom — the silhouettes are not all the same
+// size any more, so the crop is sized for the largest one. The desk, chair and
+// monitor are siblings of `blobSeat` in Station, so cropping it excludes them for
+// free. 30/64 ≈ 0.47, which keeps the eyes at ~2.3×4.2px.
 function Avatar({ scene, bot, seat }) {
   return h('span', { className: 'bb-att-avatar' },
-    h('svg', { width: 30, height: 30, viewBox: '56 24 60 60', 'aria-hidden': 'true', focusable: 'false' },
+    h('svg', { width: 30, height: 30, viewBox: '54 32 64 64', 'aria-hidden': 'true', focusable: 'false' },
       blobSeat(scene, seat ?? seatOf(bot))))
 }
 
