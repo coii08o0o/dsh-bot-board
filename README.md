@@ -38,7 +38,7 @@ killall -9 "DeepSeek Harness"    # osascript quit pops an automation prompt
 To change the code instead of just using it, clone and link:
 
 ```sh
-git clone https://github.com/jiahaosen07/dsh-bot-board.git
+git clone https://github.com/coii08o0o/dsh-bot-board.git
 cd dsh-bot-board
 npm install
 npm run build        # only needed after you edit src/

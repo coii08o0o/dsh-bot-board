@@ -1,5 +1,5 @@
 // GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
-// version: 0.7.1
+// version: 0.7.2
 // src: b83d7e49fe81a546
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',

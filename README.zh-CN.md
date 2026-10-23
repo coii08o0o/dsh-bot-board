@@ -166,7 +166,7 @@ npm install dsh-bot-board      # profile 里有 pnpm-lock.yaml 就用 pnpm add d
 1. 拿代码并构建浏览器侧产物（源码在 `src/`，`client.js` 是生成的；仓库里已带一份与源码同步的产物，改了 `src/` 才需要重新构建）：
 
 ```sh
-git clone https://github.com/jiahaosen07/dsh-bot-board.git
+git clone https://github.com/coii08o0o/dsh-bot-board.git
 cd dsh-bot-board
 npm install     # 只装一个开发依赖 esbuild
 npm run build
