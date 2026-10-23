@@ -43,13 +43,13 @@ section('host: snapshot')
           color: 'deepseek',
         },
         // A Bot created without a model holds its setup greeting in `kickoff`.
-        'session-ddd': { id: 'session-ddd', name: '数学', role: '', model: null, segments: [], kickoff: { text: 'hi' } },
+        'session-ddd': { id: 'session-ddd', name: 'Bot4', role: '', model: null, segments: [], kickoff: { text: 'hi' } },
         // Nobody picked a colour for this one — which is what upstream stores
         // for most Bots — and its zero-width space must not survive the trip.
-        'session-eee': { id: 'session-eee', name: '物理', role: '', color: 'bl\u200Bue' },
+        'session-eee': { id: 'session-eee', name: 'Bot5', role: '', color: 'bl\u200Bue' },
       },
       works: {
-        w1: { from: 'session-aaa', to: 'session-ddd', at: 1792490000000, open: ['x', 'y'], results: [{ name: '数学', text: 'done one' }] },
+        w1: { from: 'session-aaa', to: 'session-ddd', at: 1792490000000, open: ['x', 'y'], results: [{ name: 'Bot4', text: 'done one' }] },
         w2: { from: 'session-ddd', to: 'session-aaa', at: 1792480000000, open: [], results: [] },
         // A Bot that rolled over a part hands work over as its CURRENT part id.
         w3: { from: 'session-bbb', to: 'session-ddd', at: 1792470000000, open: ['z'], results: [] },
@@ -93,7 +93,7 @@ section('host: snapshot')
     check(body.works.every(work => !('room' in work)), 'works carry no room field (the wrong-table lookup is gone)')
     check(body.works[0].id === 'w1' && body.works[0].open === 2, 'works are sorted by recency with open counts')
     check(body.works[0].last === 'done one', 'work carries its last result text')
-    check(body.works[0].results?.[0]?.name === '数学', 'work results carry the name of the Bot that handed back')
+    check(body.works[0].results?.[0]?.name === 'Bot4', 'work results carry the name of the Bot that handed back')
     const rolled = body.works.find(work => work.id === 'w3')
     check(rolled?.from === 'Chief' && rolled?.fromId === 'session-aaa',
       'a hand-off sent from the current part resolves to its Bot')
@@ -300,10 +300,10 @@ section('format + roster')
   const inked = seatOf({ name: 'Chief', id: 'x', color: 'deepseek', shape: 'whale' })
   check(inked.color === INKS.deepseek && inked.shape === 'whale',
     'the picked ink and the picked character both win over the hash')
-  const shapeOnly = seatOf({ name: '数学', id: 'x', shape: 'star' })
+  const shapeOnly = seatOf({ name: 'Bot4', id: 'x', shape: 'star' })
   check(shapeOnly.shape === 'star' && /^#[0-9a-f]{6}$/i.test(shapeOnly.color),
     'a picked character survives when no colour was picked, and the colour is hashed')
-  const inkOnly = seatOf({ name: '数学', id: 'x', color: 'blue' })
+  const inkOnly = seatOf({ name: 'Bot4', id: 'x', color: 'blue' })
   check(inkOnly.color === INKS.blue && SHAPES.includes(inkOnly.shape),
     'a picked colour survives when no character was picked')
   check(seatOf({ name: '甲', id: 'x', color: 'chartreuse', shape: 'unicorn' }).color !== 'chartreuse',
@@ -471,8 +471,8 @@ section('layers: 需要你 / 在动 / 闲着')
   // A has the newer turn but the older request, so A must come first.
   {
     const twinBots = [
-      { id: 'b-a', name: '物理', sessionId: 'b-a' },
-      { id: 'b-b', name: '化学', sessionId: 'b-b' },
+      { id: 'b-a', name: 'Bot5', sessionId: 'b-a' },
+      { id: 'b-b', name: 'Bot6', sessionId: 'b-b' },
     ]
     const clock = 1_700_000_000_000
     const built = buildRows({
@@ -507,7 +507,7 @@ section('layers: 需要你 / 在动 / 闲着')
   // ── A2 · layering is a view; the rows never reorder ──────────────────────
   // Names are only labels now: identity is `avatar.shape` + `color`, so a fixture
   // of nine arbitrary names is as good as any other.
-  const NAMES = ['Chief', 'Researcher', '班主任', '数学', '物理', '化学', '生物', '语文', '英语']
+  const NAMES = ['Chief', 'Bob', 'Bot3', 'Bot4', 'Bot5', 'Bot6', 'Bot7', 'Bot8', 'Bot9']
   const bots = NAMES.map((name, index) => ({ id: `session-${index}`, name, sessionId: `session-${index}` }))
   const nameOf = id => bots.find(bot => bot.id === id)?.name ?? id
   const base = { bots, works: [], rooms: {}, waveMap: {}, noteMap: {}, t, nameOf }
@@ -560,10 +560,10 @@ section('layers: 需要你 / 在动 / 闲着')
 
   // ── B1/B2/B3 · the hand-off edge table ───────────────────────────────────
   const works = [
-    { id: 'w1', fromId: 'chief', from: '班主任', toId: 'math', to: '数学', open: 4, at: 1000 },
-    { id: 'w2', fromId: 'chief', from: '班主任', toId: 'phy', to: '物理', open: 3, at: 2000 },
-    { id: 'w3', fromId: 'math', from: '数学', toId: 'chief', to: '班主任', open: 3, at: 3000 },
-    { id: 'w4', fromId: 'bio', from: '生物', toId: 'cn', to: '语文', open: 0, at: 4000 },
+    { id: 'w1', fromId: 'chief', from: 'Bot3', toId: 'math', to: 'Bot4', open: 4, at: 1000 },
+    { id: 'w2', fromId: 'chief', from: 'Bot3', toId: 'phy', to: 'Bot5', open: 3, at: 2000 },
+    { id: 'w3', fromId: 'math', from: 'Bot4', toId: 'chief', to: 'Bot3', open: 3, at: 3000 },
+    { id: 'w4', fromId: 'bio', from: 'Bot7', toId: 'cn', to: 'Bot8', open: 0, at: 4000 },
   ]
   const groups = topologyOf(works)
   check(groups.reduce((sum, group) => sum + group.edges.length, 0) === works.filter(work => work.open > 0).length,
@@ -697,7 +697,7 @@ section('layers: 需要你 / 在动 / 闲着')
 
   check(LAYER_STABLE_MS < POLL_MS,
     `C4 the layer window (${LAYER_STABLE_MS}ms) is shorter than a poll (${POLL_MS}ms), so a real transition still lands`)
-  // The overflow chip lives inside the last row, so revealing Bot 4..N costs no
+  // The overflow chip lives inside the last row, so revealing Bot4..N costs no
   // height. That is what makes C4a survive a 4th (or 9th) item needing you.
   check(18 < ATTENTION_ROW_H,
     'C4d the overflow chip fits inside a 44px row, so overflow costs zero height')

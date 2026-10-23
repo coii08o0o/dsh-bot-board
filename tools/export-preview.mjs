@@ -130,7 +130,11 @@ export function toHtml(node) {
 }
 
 // ── fixtures ────────────────────────────────────────────────────────────────
-const ROSTER = ['Chief', 'Researcher', '班主任', '数学', '物理', '化学', '生物', '语文', '英语']
+// Demo names follow DS Bot's own vocabulary: `Chief` is the main Bot it creates
+// (config.mainName), `Bob` is the placeholder its "name this Bot" input shows, and
+// the rest are numbered placeholders. There is no roster upstream — names are free
+// text — so the demo must not look like somebody's real team.
+const ROSTER = ['Chief', 'Bob', 'Bot3', 'Bot4', 'Bot5', 'Bot6', 'Bot7', 'Bot8', 'Bot9']
 // Identity comes from DS Bot now: `avatar.shape` (one of seven characters) plus
 // `color` (an ink id). The fixtures carry the same two fields a real roster does,
 // spread so every silhouette appears at least once. Chief is the upstream default
@@ -249,8 +253,8 @@ cases.push({
       { questions: { b7: { id: 'q1', question: '这段用哪个语气？', options: [{ label: '正式' }, { label: '轻松' }] } } },
       { errors: [{ botId: 'b8', at: NOW - 40 * 1000, message: '模型超时' }] },
       { works: [
-        { id: 'w1', fromId: 'b6', from: '语文', toId: 'b0', to: 'Chief', open: 4, at: NOW - 12 * MIN, last: '第 3 题没算完' },
-        { id: 'w2', fromId: 'b6', from: '语文', toId: 'b3', to: '数学', open: 3, at: NOW - 8 * MIN },
+        { id: 'w1', fromId: 'b6', from: 'Bot7', toId: 'b0', to: 'Chief', open: 4, at: NOW - 12 * MIN, last: '草稿还没改完' },
+        { id: 'w2', fromId: 'b6', from: 'Bot7', toId: 'b3', to: 'Bot4', open: 3, at: NOW - 8 * MIN },
       ] },
     )),
   })],
@@ -267,7 +271,7 @@ cases.push({
       working('b0', 4.2, 'Bash'), working('b3', 1, 'Read'),
       { approvals: [{ id: 'a1', botId: 'b1', tool: 'Bash' }] },
       { errors: [{ botId: 'b7', at: NOW - 40 * 1000, message: '模型超时' }] },
-      { works: [{ id: 'w1', fromId: 'b1', from: 'Researcher', toId: 'b3', to: '数学', open: 4, at: NOW - 12 * MIN }] },
+      { works: [{ id: 'w1', fromId: 'b1', from: 'Bob', toId: 'b3', to: 'Bot4', open: 4, at: NOW - 12 * MIN }] },
     )),
   })],
 })
@@ -314,13 +318,13 @@ const mutual = snapshot(merge(
   working('b2', 5, 'Bash'), working('b3', 3, 'Read'),
   { waiting: { b5: { bots: ['b2'], rooms: [], for: [] } } },
   { works: [
-    { id: 'w1', fromId: 'b2', from: '班主任', toId: 'b3', to: '数学', open: 4, at: NOW - 12 * MIN },
-    { id: 'w2', fromId: 'b3', from: '数学', toId: 'b2', to: '班主任', open: 3, at: NOW - 5 * MIN },
+    { id: 'w1', fromId: 'b2', from: 'Bot3', toId: 'b3', to: 'Bot4', open: 4, at: NOW - 12 * MIN },
+    { id: 'w2', fromId: 'b3', from: 'Bot4', toId: 'b2', to: 'Bot3', open: 3, at: NOW - 5 * MIN },
   ] },
 ))
 cases.push({
   title: '语义红线 · 接收方 busy 的边 + A↔B 互相等',
-  note: '班主任→数学 的接收方在干活 → 不带「被堵」（去催一个正在还账的人是错的）。两条边都标 `⇄ 互相等`，两侧各保留自己的计数。',
+  note: 'Bot3→Bot4 的接收方在干活 → 不带「被堵」（去催一个正在还账的人是错的）。两条边都标 `⇄ 互相等`，两侧各保留自己的计数。',
   panels: [panel({ w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 互相等', snap: mutual })],
 })
 
@@ -346,16 +350,16 @@ cases.push({
 //    (`roster.js`: "A color is only stored when the user picks one"), so a real
 //    roster is mostly tiers 2 and 3, and this panel is deliberately not one.
 cases.push({
-  title: '身份来源 · 上游 ink > 名册 > 哈希',
-  note: '三个 Bot，三种来源。Chief 带了上游 color（tier 1）：身体色用它，装饰仍取名册的冠和旗——用户在 DS Bot 里选的颜色是本来的身份，本地默认皮肤不该覆盖它。数学没有 color（tier 2）：整身取名册皮肤。第十个名字不在名册里（tier 3）：按 id 哈希出稳定的脸。注意两个选了同一个 ink 的 Bot 本该同色，那是用户的选择，所以只有哈希层去重。',
+  title: '身份来源 · 上游 shape/color > 哈希',
+  note: '三个 Bot，三种来源。Chief 带了上游两轴（`avatar.shape: whale` + `color: deepseek`）：轮廓和身体色都来自 DS Bot。Bob 只带了 shape（star）：轮廓听上游，颜色按 id 哈希补。第三个什么都没带：两轴都哈希，得到一张稳定的脸。桌面道具一直是哈希的——上游没有描述它的字段。名字不参与任何一级。',
   panels: [panel({
     w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 身份',
     snap: snapshot({
       bots: [
         { id: 's0', name: 'Chief', sessionId: 's0', color: 'deepseek', shape: 'whale' },
-        { id: 's1', name: '数学', sessionId: 's1', shape: 'star' },
+        { id: 's1', name: 'Bob', sessionId: 's1', shape: 'star' },
         // No upstream look at all: the board hashes both axes for this one.
-        { id: 's3', name: '第十个', sessionId: 's3' },
+        { id: 's3', name: 'Bot3', sessionId: 's3' },
       ],
       ...merge(working('s0', 4.2, 'Bash'), working('s1', 2, 'Bash'), working('s3', 0.2, 'Write')),
     }),

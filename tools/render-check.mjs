@@ -41,15 +41,15 @@ const now = Date.now()
 
 // Each Bot carries the look DS Bot would give it (`avatar.shape`), because the
 // drawing now depends on it: the wave and the tap animations only exist for the
-// silhouettes that have a hand. 数学 is a whale so the approval test has one.
+// silhouettes that have a hand. Bob is a whale so the approval test has one.
 const bots = [
-  { id: 'session-chief', name: 'Chief', role: '主理人', model: 'deepseek-v4', sessionId: 'session-chief', shape: 'whale' },
-  { id: 'session-math', name: '数学', role: '算题', model: 'deepseek-v4', sessionId: 'session-math', shape: 'whale' },
-  { id: 'session-phy', name: '物理', role: '', model: null, sessionId: 'session-phy', shape: 'moon' },
-  { id: 'session-chem', name: '化学', role: '', model: null, sessionId: 'session-chem', shape: 'squircle' },
-  { id: 'session-bio', name: '生物', role: '', model: null, sessionId: 'session-bio', shape: 'star' },
-  { id: 'session-cn', name: '语文', role: '', model: null, sessionId: 'session-cn', shape: 'wave' },
-  { id: 'session-en', name: '英语', role: '', model: null, sessionId: 'session-en', shape: 'zed' },
+  { id: 'session-chief', name: 'Chief', role: 'Chief of Staff', model: 'deepseek-v4', sessionId: 'session-chief', shape: 'whale' },
+  { id: 'session-math', name: 'Bob', role: 'Researcher', model: 'deepseek-v4', sessionId: 'session-math', shape: 'whale' },
+  { id: 'session-phy', name: 'Bot3', role: '', model: null, sessionId: 'session-phy', shape: 'moon' },
+  { id: 'session-chem', name: 'Bot4', role: '', model: null, sessionId: 'session-chem', shape: 'squircle' },
+  { id: 'session-bio', name: 'Bot5', role: '', model: null, sessionId: 'session-bio', shape: 'star' },
+  { id: 'session-cn', name: 'Bot6', role: '', model: null, sessionId: 'session-cn', shape: 'wave' },
+  { id: 'session-en', name: 'Bot7', role: '', model: null, sessionId: 'session-en', shape: 'zed' },
 ]
 const nameOf = id => bots.find(bot => bot.id === id)?.name ?? id
 
@@ -73,7 +73,7 @@ const rows = buildRows({
     // Older than Chief's current turn: it belongs to a turn already left behind.
     { botId: 'session-chief', at: now - 900_000, message: '上一轮的失败' },
   ],
-  works: [{ id: 'w1', toId: 'session-bio', open: 0, at: now - 5000, last: '生物交回：三种叶型' }],
+  works: [{ id: 'w1', toId: 'session-bio', open: 0, at: now - 5000, last: 'Bot5 交回：一份草稿' }],
   rooms: { r1: '群聊' },
   waveMap: { 'session-bio': true },
   noteMap: { 'session-bio': true },
@@ -83,7 +83,7 @@ const rows = buildRows({
 
 console.log('-- rows --')
 check(rows.length === 7, `one row per Bot (${rows.length})`)
-check(rows.map(row => row.bot.name).join(',') === 'Chief,数学,物理,化学,生物,语文,英语',
+check(rows.map(row => row.bot.name).join(',') === 'Chief,Bob,Bot3,Bot4,Bot5,Bot6,Bot7',
   'rows follow roster order, not status order (workstations never move)')
 const byName = Object.fromEntries(rows.map(row => [row.bot.name, row]))
 
@@ -94,24 +94,24 @@ check(byName['Chief'].action === '调用 Bash', 'a busy Bot shows its current to
 check(byName['Chief'].since === now - 252_000, 'a busy Bot carries its turn start')
 check(byName['Chief'].stalled === false, 'four minutes is not stalled yet')
 
-check(byName['数学'].scene === 'alert' && byName['数学'].detail.kind === 'approval', 'an approval is alert')
-check(byName['数学'].action === '等你批 Bash', 'the approval line names the tool')
-check(byName['数学'].detail.code.includes('rm -rf dist'), 'the approval carries the full command')
+check(byName['Bob'].scene === 'alert' && byName['Bob'].detail.kind === 'approval', 'an approval is alert')
+check(byName['Bob'].action === '等你批 Bash', 'the approval line names the tool')
+check(byName['Bob'].detail.code.includes('rm -rf dist'), 'the approval carries the full command')
 
-check(byName['物理'].scene === 'waiting', 'waiting for another Bot is its own scene')
-check(byName['物理'].action.includes('等 Chief'), 'the waiting line names who it waits for')
-check(!byName['物理'].action.includes('替 Chief'), 'the waiting line does not repeat the same name')
-check(byName['英语'].action.includes('替 Chief'), 'the waiting line names who it is working for')
-check(byName['英语'].action.includes('群 群聊'), 'a room it waits on is shown by name, not by id')
+check(byName['Bot3'].scene === 'waiting', 'waiting for another Bot is its own scene')
+check(byName['Bot3'].action.includes('等 Chief'), 'the waiting line names who it waits for')
+check(!byName['Bot3'].action.includes('替 Chief'), 'the waiting line does not repeat the same name')
+check(byName['Bot7'].action.includes('替 Chief'), 'the waiting line names who it is working for')
+check(byName['Bot7'].action.includes('群 群聊'), 'a room it waits on is shown by name, not by id')
 
-check(byName['化学'].scene === 'error' && byName['化学'].badge === false, 'an idle failure is the status, not a badge')
-check(byName['化学'].action.startsWith('报错'), 'the error line carries the message')
+check(byName['Bot4'].scene === 'error' && byName['Bot4'].badge === false, 'an idle failure is the status, not a badge')
+check(byName['Bot4'].action.startsWith('报错'), 'the error line carries the message')
 
-check(byName['生物'].scene === 'done', 'a clean hand-off shows done')
-check(byName['生物'].lastResult === '生物交回：三种叶型', 'the drawer has the hand-off result')
+check(byName['Bot5'].scene === 'done', 'a clean hand-off shows done')
+check(byName['Bot5'].lastResult === 'Bot5 交回：一份草稿', 'the drawer has the hand-off result')
 
-check(byName['语文'].scene === 'alert' && byName['语文'].detail.kind === 'question', 'a question is alert')
-check(byName['语文'].detail.options.length === 2, 'the question keeps its options')
+check(byName['Bot6'].scene === 'alert' && byName['Bot6'].detail.kind === 'question', 'a question is alert')
+check(byName['Bot6'].detail.options.length === 2, 'the question keeps its options')
 
 console.log('\n-- rows: recovered failures and stale question keys --')
 {
@@ -155,7 +155,7 @@ console.log('\n-- upstream fields --')
 
   // A Bot created without a model holds its setup greeting and never speaks. Every
   // other signal says "idle", so this has to be read from bot.waiting explicitly.
-  const held = buildRows({ ...base, bots: [{ id: 'b1', name: '化学', waiting: true }], errors: [] })
+  const held = buildRows({ ...base, bots: [{ id: 'b1', name: 'Bot4', waiting: true }], errors: [] })
   check(held[0].scene === 'alert', 'a Bot holding its setup greeting asks for you')
   check(held[0].action === '等你选模型', 'and says what it is waiting for')
 
@@ -163,7 +163,7 @@ console.log('\n-- upstream fields --')
   // board used to keep only the question text and a numbered option list.
   const asked = buildRows({
     ...base,
-    bots: [{ id: 'b2', name: '语文' }],
+    bots: [{ id: 'b2', name: 'Bot6' }],
     errors: [],
     questions: {
       b2: {
@@ -183,20 +183,20 @@ console.log('\n-- upstream fields --')
   // may belong to somebody else entirely.
   const handed = buildRows({
     ...base,
-    bots: [{ id: 'b3', name: '数学' }],
+    bots: [{ id: 'b3', name: 'Bob' }],
     errors: [],
     works: [{
-      id: 'w1', toId: 'b3', open: 0, at: now, last: '物理交回：三种叶型',
-      results: [{ name: '数学', text: '数学交回：四则运算' }, { name: '物理', text: '物理交回：三种叶型' }],
+      id: 'w1', toId: 'b3', open: 0, at: now, last: 'Bot3交回：三种叶型',
+      results: [{ name: 'Bob', text: 'Bob交回：四则运算' }, { name: 'Bot3', text: 'Bot3交回：三种叶型' }],
     }],
   })
-  check(handed[0].lastResult === '数学交回：四则运算',
+  check(handed[0].lastResult === 'Bob交回：四则运算',
     'the hand-off result is the one this Bot handed back, not the last in the list')
 
   // A turn running in a group, not in the Bot's own chat.
   const placed = buildRows({
     ...base,
-    bots: [{ id: 'b4', name: '英语' }],
+    bots: [{ id: 'b4', name: 'Bot7' }],
     activity: { b4: 'working' },
     workBots: { b4: { since: now - 1000, tool: 'Bash', roomId: 'r1' } },
     rooms: { r1: '群聊' },
@@ -215,7 +215,7 @@ console.log('\n-- upstream fields --')
 console.log('\n-- failure decay --')
 {
   const base = {
-    bots: [{ id: 'b1', name: '化学' }],
+    bots: [{ id: 'b1', name: 'Bot4' }],
     activity: {}, workBots: {}, waiting: {}, approvals: [], works: [], questions: {},
     t, nameOf, now,
   }
@@ -265,17 +265,17 @@ check(findAll(chief, node => String(node.props?.className ?? '').includes('bb-wa
   'a busy station does not wave')
 check(findAll(chief, node => node.props?.className === 'bb-badge').length === 0, 'a healthy station has no badge')
 
-const math = stations['数学']
+const math = stations['Bob']
 check(textOf(math).includes('等你批 Bash'), 'an approval station says what it wants')
 check(findAll(math, node => String(node.props?.className ?? '').includes('bb-wave')).length === 1,
   'an approval station waves')
 
-const phy = stations['物理']
+const phy = stations['Bot3']
 check(phy?.props?.['data-scene'] === 'waiting', 'the waiting station uses the waiting scene')
 check(findAll(phy, node => String(node.props?.className ?? '').includes('bb-wave')).length === 0,
   'the waiting station does not wave (it is not asking you for anything)')
 
-const bio = stations['生物']
+const bio = stations['Bot5']
 check(String(bio?.props?.title ?? '').includes('干完'), 'a handed-off station titles itself 干完')
 check(findAll(bio, node => node.props?.className === 'bb-note').length === 1, 'a handed-off station flies a note')
 
@@ -283,7 +283,7 @@ console.log('\n-- Drawer --')
 let drawerThrew = null
 let approvalDrawer = null
 try {
-  approvalDrawer = render(Drawer({ row: byName['数学'], t, onClose: () => {}, onOpenChat: () => {} }))
+  approvalDrawer = render(Drawer({ row: byName['Bob'], t, onClose: () => {}, onOpenChat: () => {} }))
 } catch (error) {
   drawerThrew = error
 }
@@ -296,11 +296,11 @@ check(textOf(codeBlocks[0]).includes('rm -rf dist'), 'the drawer shows the exact
 check(textOf(approvalDrawer).includes('需要清理构建产物'), 'the drawer shows the approval reason')
 check(textOf(approvalDrawer).includes('打开聊天'), 'the drawer offers the jump to chat')
 
-const questionDrawer = render(Drawer({ row: byName['语文'], t, onClose: () => {}, onOpenChat: () => {} }))
+const questionDrawer = render(Drawer({ row: byName['Bot6'], t, onClose: () => {}, onOpenChat: () => {} }))
 check(findAll(questionDrawer, node => node.props?.className === 'bb-opt').length === 2, 'the drawer lists the question options')
 check(textOf(questionDrawer).includes('更像口语'), 'the drawer keeps option descriptions')
 
-const errorDrawer = render(Drawer({ row: byName['化学'], t, onClose: () => {}, onOpenChat: () => {} }))
+const errorDrawer = render(Drawer({ row: byName['Bot4'], t, onClose: () => {}, onOpenChat: () => {} }))
 check(textOf(errorDrawer).includes('模型超时'), 'the drawer shows the failure message')
 
 // The drawer's elapsed value must come from the ticking node, not a value read
@@ -329,8 +329,8 @@ console.log('\n-- Handoffs --')
 const handoffs = render(Handoffs({
   t,
   works: [
-    { id: 'w-open', from: '班主任', to: '数学', open: 4, at: now - 720_000, last: '第 3 题没算完' },
-    { id: 'w-zombie', from: '班主任', to: '生物', open: 0, at: now - 59_000_000, last: null },
+    { id: 'w-open', from: 'Bot8', to: 'Bob', open: 4, at: now - 720_000, last: '第 3 题没算完' },
+    { id: 'w-zombie', from: 'Bot8', to: 'Bot5', open: 0, at: now - 59_000_000, last: null },
   ],
   onPick: () => {},
 }))
@@ -342,7 +342,7 @@ check(findAll(handoffs, node => node.props?.className === 'bb-handoff').length =
     'a hand-off row is reachable by keyboard, like a workstation is')
   check(typeof row?.props?.onKeyDown === 'function', 'and answers Enter/Space')
 }
-check(textOf(handoffs).includes('班主任') && textOf(handoffs).includes('数学'), 'the strip names both ends')
+check(textOf(handoffs).includes('Bot8') && textOf(handoffs).includes('Bob'), 'the strip names both ends')
 check(textOf(handoffs).includes('4 项待交'), 'the strip counts the open items')
 check(textOf(handoffs).includes('12 分钟前'), 'the strip says how long ago it started')
 check(render(Handoffs({ t, works: [] })) === null, 'a quiet board renders no strip at all')
@@ -354,7 +354,7 @@ check(render(Handoffs({ t, works: [] })) === null, 'a quiet board renders no str
 // height; being unreachable is what it may not do.
 {
   const eight = Array.from({ length: 8 }, (_, index) => ({
-    id: `e${index}`, fromId: 'layer-2', from: '班主任',
+    id: `e${index}`, fromId: 'layer-2', from: 'Bot8',
     toId: `layer-${index}`, to: `同学${index}`, open: 1, at: now - index * 60_000,
   }))
   const tree = render(Handoffs({ t, works: eight, onPick: () => {} }))
@@ -372,7 +372,7 @@ console.log('\n-- three layers --')
 // The harness runs no effects, so Board can never finish a poll here. The body is
 // rendered directly with a snapshot instead: that is the whole reason it is its
 // own exported component.
-const ROSTER_NAMES = ['Chief', 'Researcher', '班主任', '数学', '物理', '化学', '生物', '语文', '英语']
+const ROSTER_NAMES = ['Chief', 'Researcher', 'Bot8', 'Bob', 'Bot3', 'Bot4', 'Bot5', 'Bot6', 'Bot7']
 const layerBots = ROSTER_NAMES.map((name, index) => ({ id: `layer-${index}`, name, sessionId: `layer-${index}` }))
 const layerName = id => layerBots.find(bot => bot.id === id)?.name ?? id
 const layerRows = signals => buildRows({
@@ -436,7 +436,7 @@ console.log('\n-- the hand-off table reads before the cells --')
     workBots: Object.fromEntries(layerBots.slice(0, 6).map(bot => [bot.id, { since: now - 60_000, tool: 'Bash' }])),
   })
   const body = renderBody(sixRunning, [
-    { id: 'w-order', from: '班主任', to: '数学', open: 4, at: now - 720_000, last: null },
+    { id: 'w-order', from: 'Bot8', to: 'Bob', open: 4, at: now - 720_000, last: null },
   ])
   const run = hasClass(body, 'bb-run')[0]
   const kids = (run?.children ?? []).flat().filter(Boolean)
@@ -604,7 +604,7 @@ console.log('\n-- P1-1: overflow in 需要你 is reachable --')
   check(revealed.length === 5, `P1-1 expanded: all five rows (${revealed.length})`)
   check(revealed.every(row => row.props?.role === 'button' && row.props?.tabIndex === 0
     && typeof row.props?.onKeyDown === 'function'), 'P1-1 every revealed row is operable')
-  check(['物理', '化学'].every(name => textOf(opened).includes(name)),
+  check(['Bot3', 'Bot4'].every(name => textOf(opened).includes(name)),
     'P1-1 the names that used to exist nowhere on the panel are now on it')
   check(textOf(hasClass(opened, 'bb-att-more')[0]) === '−',
     'P1-1 and the chip flips into a collapse control (unbounded expansion needs an undo)')
@@ -765,7 +765,7 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
   const names = hasClass(staleBody, 'bb-idle-name')
   const badged = names.filter(name => findAll(name, node => String(node.props?.className ?? '').split(' ').includes('bb-badge')).length === 1)
   check(badged.length === 1, `D1 exactly one compressed name carries the badge (${badged.length})`)
-  check(textOf(badged[0]).includes('物理'), 'D1 and it is the Bot that failed, not somebody else')
+  check(textOf(badged[0]).includes('Bot3'), 'D1 and it is the Bot that failed, not somebody else')
   check(textOf(badged[0]).includes('!'), 'D1 the badge is a glyph, so it survives without colour')
 
   // The +N escape hatch: one click must actually reveal the names it hid, and it
@@ -787,7 +787,7 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
 // B4: an edge must never call a working Bot "blocked".
 {
   const edgeWorks = [{
-    id: 'w1', fromId: 'layer-2', from: '班主任', toId: 'layer-3', to: '数学', open: 4, at: now - 60_000,
+    id: 'w1', fromId: 'layer-2', from: 'Bot8', toId: 'layer-3', to: 'Bob', open: 4, at: now - 60_000,
   }]
   const rowsFor = scene => layerRows({
     activity: scene === 'busy' ? { 'layer-3': 'working' } : {},
@@ -813,9 +813,9 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
 // B5: the grouped edge table.
 {
   const groupedWorks = [
-    { id: 'g1', fromId: 'layer-2', from: '班主任', toId: 'layer-3', to: '数学', open: 4, at: now - 720_000 },
-    { id: 'g2', fromId: 'layer-2', from: '班主任', toId: 'layer-4', to: '物理', open: 3, at: now - 480_000 },
-    { id: 'g3', fromId: 'layer-3', from: '数学', toId: 'layer-2', to: '班主任', open: 2, at: now - 300_000 },
+    { id: 'g1', fromId: 'layer-2', from: 'Bot8', toId: 'layer-3', to: 'Bob', open: 4, at: now - 720_000 },
+    { id: 'g2', fromId: 'layer-2', from: 'Bot8', toId: 'layer-4', to: 'Bot3', open: 3, at: now - 480_000 },
+    { id: 'g3', fromId: 'layer-3', from: 'Bob', toId: 'layer-2', to: 'Bot8', open: 2, at: now - 300_000 },
   ]
   const groupedBody = renderBody(layerRows({}), groupedWorks, {})
   const groups = hasClass(groupedBody, 'bb-ho-group')
