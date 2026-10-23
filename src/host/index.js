@@ -132,7 +132,11 @@ export function apply(ctx, config = {}) {
       }
       const botId = owners.get(sessionId)
       if (botId === undefined) continue
-      list.push({ botId, sessionId, at: failure.at, message: failure.message })
+      // Bounded like the message above it: this string is copied into every
+      // snapshot the browser polls for, and an id is only ever compared against
+      // itself on the client (the notification dedupe key), so a prefix is
+      // enough to identify it.
+      list.push({ botId, sessionId: sessionId.slice(0, 80), at: failure.at, message: failure.message })
     }
     return list
   }
@@ -256,7 +260,10 @@ export function apply(ctx, config = {}) {
       .map(([workId, work]) => {
         const results = Array.isArray(work.results) ? work.results : []
         return {
-          id: workId,
+          // Bounded like every other string that leaves here: a 100KB work id
+          // was a 100KB response on every poll. The panel only ever compares
+          // the id against itself (its dedupe map), so a prefix identifies it.
+          id: text(workId).slice(0, 80),
           fromId: work.from ? botOf(work.from) : null,
           toId: work.to ? botOf(work.to) : null,
           // The fallback is `text()`, not the raw value: `work.from` can be any
@@ -334,9 +341,16 @@ export function apply(ctx, config = {}) {
       rooms: Object.fromEntries(cappedRooms
         // A room id is used as an object key and compared against `work.roomId`.
         // Only a non-empty string is a legal key; anything else is dropped rather
-        // than stringified into "[object Object]".
+        // than stringified into "[object Object]". The key is bounded for the
+        // same reason every other string here is — it is copied into the
+        // snapshot the browser polls for — and a key that sanitises away to
+        // nothing is dropped rather than shipped as "".
         .filter(room => typeof room.id === 'string' && room.id)
-        .map(room => [room.id, text(room.name).slice(0, 60) || room.id])),
+        .map(room => {
+          const key = text(room.id).slice(0, 60)
+          return [key, text(room.name).slice(0, 60) || key]
+        })
+        .filter(([key]) => key)),
     }
     cache = { key, data, owners, readAt }
     // `data` already carries readAt; the fresh read is by definition not stale.

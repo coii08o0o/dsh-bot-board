@@ -1,6 +1,6 @@
 // GENERATED FILE — do not edit. Source lives in src/client/**, rebuild with: npm run build
 // version: 0.7.0
-// src: d1a5b97c76c15b69
+// src: b64732521d847595
 window.__ModuleLoader__.load({
   id: 'dsh-bot-board',
   factory: (require) => {
@@ -572,10 +572,12 @@ var __bbEntry = (() => {
   var orderOf = (bots) => new Map(bots.map((bot, index) => [bot?.id, index]));
   var PHRASE = 16;
   var RECOVERED_MS = 60 * 1e3;
+  var own = (map, key) => map && Object.hasOwn(map, key) ? map[key] : void 0;
   function questionOf(bot, questions) {
     const keys = [bot.sessionId, bot.id, ...Array.isArray(bot.parts) ? bot.parts : []];
     for (const key of keys) {
-      if (key && questions[key]) return questions[key];
+      const question = own(questions, key);
+      if (key && question) return question;
     }
     return void 0;
   }
@@ -583,24 +585,36 @@ var __bbEntry = (() => {
     if (approval) {
       return {
         kind: "approval",
-        action: `${t("meta.approval")} ${approval.tool || ""}`.trim(),
-        tool: approval.tool,
-        reason: approval.reason,
+        // Every field below arrives from `api/bot` — the live feed — which the
+        // host's sanitiser never sees (it only reads state.json). `clip()` is the
+        // client twin of `text()`: invisible/bidi marks stripped, code-point
+        // truncation, non-strings collapsed to ''. Without it an object value
+        // rode into a React child (the boundary catches it, but the board is
+        // gone until it retries), and a bidi override rewrote the approval
+        // reason on screen — the one card where the user decides what may run.
+        action: `${t("meta.approval")} ${clip(approval.tool, 60)}`.trim(),
+        tool: clip(approval.tool, 60),
+        reason: clip(approval.reason, 300),
         // ds-bot fills `detail.code` from command|cmd|file_path|path|url|query, so
         // it is "what this call acts on", not necessarily a shell command.
-        code: approval.detail?.code ?? "",
-        text: approval.detail?.text ?? ""
+        code: clip(approval.detail?.code, 300),
+        text: clip(approval.detail?.text, 300)
       };
     }
     if (question) {
       return {
         kind: "question",
         action: `${t("meta.question")} ${clip(question.question, 20)}`.trim(),
-        text: question.question,
+        text: clip(question.question, 200),
         // The one-line context ds-bot shows under the question. Without it a
         // question like "这段用哪个语气？" has no way to be answered confidently.
-        hint: question.detail ?? "",
-        options: Array.isArray(question.options) ? question.options : [],
+        hint: clip(question.detail, 200),
+        // Normalised to two string fields: the drawer is the only consumer, and
+        // an option that is not an object used to reach it as `undefined` labels.
+        options: (Array.isArray(question.options) ? question.options : []).map((option) => ({
+          label: clip(option?.label, 80),
+          description: clip(option?.description, 200)
+        })),
         // Both change what the numbered list means: several picks are allowed, and
         // there is a free-text field the card cannot show.
         multiSelect: question.multiSelect === true,
@@ -617,7 +631,10 @@ var __bbEntry = (() => {
     if (wait) {
       const names = [
         ...(Array.isArray(wait.bots) ? wait.bots : []).map(nameOf),
-        ...(Array.isArray(wait.rooms) ? wait.rooms : []).map((id) => rooms[id] ? `${t("meta.room")} ${rooms[id]}` : id)
+        ...(Array.isArray(wait.rooms) ? wait.rooms : []).map((id) => {
+          const room = own(rooms, id);
+          return room ? `${t("meta.room")} ${room}` : id;
+        })
       ];
       const patrons = (Array.isArray(wait.for) ? wait.for : []).map(nameOf).filter((name) => name && !names.includes(name));
       const parts = [];
@@ -662,8 +679,8 @@ var __bbEntry = (() => {
       const approvalAt = Number(approval?.at) || 0;
       const seat = seatOf(bot, takenSeats);
       const question = questionOf(bot, questions);
-      const wait = waiting[bot.id];
-      const work = workBots[bot.id];
+      const wait = own(waiting, bot.id);
+      const work = own(workBots, bot.id);
       const since = Number(work?.since) || 0;
       const kickoff = bot.waiting === true;
       const recorded = failureOf(bot);
@@ -679,11 +696,12 @@ var __bbEntry = (() => {
       });
       const scene = sceneOf(status, Boolean(waveMap[bot.id]));
       const detail = describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms });
-      const live = work?.tool ? `${t("meta.tool")} ${work.tool}` : clip(work?.said || work?.note || work?.target || "", PHRASE);
+      const live = work?.tool ? `${t("meta.tool")} ${clip(work.tool, 80)}` : clip(work?.said || work?.note || work?.target || "", PHRASE);
       const action = detail.kind === "approval" || detail.kind === "question" ? detail.action : scene === "error" || scene === "waiting" ? detail.action : live || detail.action;
       const handed = works.find((item) => item.toId === bot.id);
-      const own = (Array.isArray(handed?.results) ? handed.results : []).filter((item) => item?.name && item.name === bot.name).at(-1);
+      const ownLast = (Array.isArray(handed?.results) ? handed.results : []).filter((item) => item?.name && item.name === bot.name).at(-1);
       const roomId = work?.roomId;
+      const roomName = roomId ? own(rooms, roomId) : void 0;
       return {
         bot,
         status,
@@ -714,8 +732,8 @@ var __bbEntry = (() => {
         work: work ?? null,
         // A turn running in a group, not in the Bot's own chat. Worth saying: the
         // Bot appears to be talking to nobody in particular otherwise.
-        place: roomId ? rooms[roomId] ? `${t("meta.room")} ${rooms[roomId]}` : t("meta.room") : "",
-        lastResult: own?.text ?? handed?.last ?? null,
+        place: roomId ? roomName ? `${t("meta.room")} ${roomName}` : t("meta.room") : "",
+        lastResult: ownLast?.text ?? handed?.last ?? null,
         note: Boolean(noteMap[bot.id])
       };
     }).sort((a, b) => (order.get(a.bot.id) ?? 1e9) - (order.get(b.bot.id) ?? 1e9) || String(a.bot.id).localeCompare(String(b.bot.id)));
@@ -1798,12 +1816,12 @@ var __bbEntry = (() => {
     }
   }
   async function callBot(endpoint, payload) {
-    const result = await postJson("api/bot", { endpoint, payload: payload ?? null });
-    if (!result.ok) throw new Error(result.error?.message ?? "DS Bot \u8FD4\u56DE\u9519\u8BEF");
+    const result = await postJson("/api/bot", { endpoint, payload: payload ?? null });
+    if (!result.ok) throw new Error(sanitize(result.error?.message) || "DS Bot \u8FD4\u56DE\u9519\u8BEF");
     return result.value;
   }
   async function callBoard() {
-    return postJson("api/bot-board", {});
+    return postJson("/api/bot-board", {});
   }
   function usePoll({ base, run, onValue, onError, activeRef, wakeRef }) {
     (0, import_react8.useEffect)(() => {
@@ -1867,7 +1885,7 @@ var __bbEntry = (() => {
       // one that says so) but mark it: the workstations must stop claiming to be
       // live, and their clocks must stop at the last answer.
       onError: (err) => {
-        setError(err?.message ?? "offline");
+        setError(sanitize(err?.message) || "offline");
         setView((previous) => previous ? { ...previous, stale: true } : previous);
       }
     });
@@ -1885,7 +1903,7 @@ var __bbEntry = (() => {
         ...previous ?? { works: [], bots: [], errors: [] },
         ok: false,
         reason: "unreadable",
-        boardError: err?.message ?? "local read failed"
+        boardError: sanitize(err?.message) || "local read failed"
       }))
     });
     return { view, board, error };
@@ -2429,7 +2447,7 @@ var __bbEntry = (() => {
     }, []);
     (0, import_react9.useEffect)(() => {
       measureRun();
-    }, [measureRun, moving.length, works.length, rows.length, attOpen, expanded]);
+    }, [measureRun, moving.length, works.length, rows.length, attOpen, expanded, panelW, panelH]);
     const idleVisible = idle.items.length > 0 || idle.overflow > 0;
     return (0, import_react9.createElement)(
       "div",
@@ -2648,7 +2666,10 @@ var __bbEntry = (() => {
     const errors = Array.isArray(board?.errors) ? board.errors : [];
     const works = Array.isArray(board?.works) ? board.works : [];
     const rooms = board?.rooms ?? {};
-    const nameOf = (0, import_react9.useCallback)((id) => bots.find((bot) => bot.id === id)?.name ?? id, [bots]);
+    const nameOf = (0, import_react9.useCallback)((id) => {
+      const name = bots.find((bot) => bot.id === id)?.name;
+      return name ?? sanitize(typeof id === "string" ? id : String(id ?? ""));
+    }, [bots]);
     const viewStale = view?.stale === true;
     const freezeAt = viewStale ? Number(view?.fetchedAt) || 0 : 0;
     const rows = (0, import_react9.useMemo)(() => buildRows({
@@ -2704,7 +2725,7 @@ var __bbEntry = (() => {
         seenRef.current.add(key);
         notify(
           `${t("notice.approval")} \xB7 ${nameOf(item?.botId)}`,
-          item?.tool ? `${t("notice.approvalBody")} ${item.tool}${item.reason ? `\uFF1A${clip(item.reason, 40)}` : ""}` : t("notice.approvalFallback")
+          item?.tool ? `${t("notice.approvalBody")} ${clip(item.tool, 40)}${item.reason ? `\uFF1A${clip(item.reason, 40)}` : ""}` : t("notice.approvalFallback")
         );
       }
       for (const item of errors) {
@@ -2803,7 +2824,11 @@ var __bbEntry = (() => {
         Math.max(SIZE_MIN.w, start2.w + event.clientX - start2.x),
         Math.max(SIZE_MIN.w, (window.innerWidth || 0) - 12)
       );
-      const hh = Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, start2.h + event.clientY - start2.y));
+      const hh = Math.min(
+        SIZE_MAX.h,
+        Math.max(SIZE_MIN.h, start2.h + event.clientY - start2.y),
+        Math.max(SIZE_MIN.h, (window.innerHeight || 0) - 60)
+      );
       setSize({ w, h: hh });
     };
     const onResizeUp = () => {
@@ -2826,9 +2851,9 @@ var __bbEntry = (() => {
     const reason = board && board.ok === false ? board.reason === "no-state" ? t("panel.noState") : board.reason === "unreadable" ? t("panel.unreadable") : board.reason ?? "" : "";
     const sceneOf2 = (id) => rows.find((row) => row.bot.id === id)?.scene;
     const notices = [];
-    const errorText = error === "timeout" ? t("panel.timeout") : error;
+    const errorText = error === "timeout" ? t("panel.timeout") : sanitize(error);
     if (error) notices.push((0, import_react9.createElement)("div", { className: "bb-notice", key: "offline" }, `${t("panel.offline")}\uFF1A${errorText}`));
-    if (board?.boardError) notices.push((0, import_react9.createElement)("div", { className: "bb-notice", key: "board" }, `${t("panel.boardError")}\uFF1A${board.boardError}`));
+    if (board?.boardError) notices.push((0, import_react9.createElement)("div", { className: "bb-notice", key: "board" }, `${t("panel.boardError")}\uFF1A${sanitize(board.boardError)}`));
     if (reason) notices.push((0, import_react9.createElement)("div", { className: "bb-notice bb-notice-warn", key: "reason" }, reason));
     if (board?.stale) notices.push((0, import_react9.createElement)("div", { className: "bb-notice bb-notice-warn", key: "stale" }, t("panel.stale")));
     if (viewStale) notices.push((0, import_react9.createElement)("div", { className: "bb-notice bb-notice-warn", key: "viewStale" }, t("panel.viewStale")));
@@ -2919,6 +2944,7 @@ var __bbEntry = (() => {
       )
     );
   }
+  var BOUNDARY_RETRY_MS = 15e3;
   var Boundary = class extends import_react9.Component {
     constructor(props) {
       super(props);
@@ -2932,6 +2958,11 @@ var __bbEntry = (() => {
         console.error("[bot-board] render failed:", error);
       } catch {
       }
+      clearTimeout(this.retry);
+      this.retry = setTimeout(() => this.setState({ failed: false }), BOUNDARY_RETRY_MS);
+    }
+    componentWillUnmount() {
+      clearTimeout(this.retry);
     }
     render() {
       if (!this.state.failed) return this.props.children;

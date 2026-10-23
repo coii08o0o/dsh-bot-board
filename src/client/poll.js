@@ -3,6 +3,7 @@
 // runs refresh + bootstrap + catalog + loadSecrets before answering. The live feed
 // additionally slows down when the whole team is idle — see cadence.js.
 import { useEffect, useRef, useState } from 'react'
+import { sanitize } from './format.js'
 import { BOARD_MS } from './const.js'
 import { liveCadence, teamActive } from './cadence.js'
 import { createPollLoop, pollDelay } from './pollLoop.js'
@@ -41,13 +42,20 @@ async function postJson(url, body) {
 }
 
 async function callBot(endpoint, payload) {
-  const result = await postJson('api/bot', { endpoint, payload: payload ?? null })
-  if (!result.ok) throw new Error(result.error?.message ?? 'DS Bot 返回错误')
+  // Both routes are registered with a leading slash and matched exactly, so the
+  // absolute form is the one that cannot break: a relative 'api/bot' resolves
+  // against the current path and 404s silently the day the panel is mounted
+  // anywhere but the root.
+  const result = await postJson('/api/bot', { endpoint, payload: payload ?? null })
+  // The message is prose a model or a tool wrote; it reaches the offline notice
+  // and the system notification verbatim, so it goes through the sanitiser
+  // here, at the door, like every other string that leaves another process.
+  if (!result.ok) throw new Error(sanitize(result.error?.message) || 'DS Bot 返回错误')
   return result.value
 }
 
 async function callBoard() {
-  return postJson('api/bot-board', {})
+  return postJson('/api/bot-board', {})
 }
 
 function usePoll({ base, run, onValue, onError, activeRef, wakeRef }) {
@@ -123,7 +131,7 @@ export function useTeam({ active }) {
     // one that says so) but mark it: the workstations must stop claiming to be
     // live, and their clocks must stop at the last answer.
     onError: err => {
-      setError(err?.message ?? 'offline')
+      setError(sanitize(err?.message) || 'offline')
       setView(previous => (previous ? { ...previous, stale: true } : previous))
     },
   })
@@ -143,7 +151,7 @@ export function useTeam({ active }) {
       ...(previous ?? { works: [], bots: [], errors: [] }),
       ok: false,
       reason: 'unreadable',
-      boardError: err?.message ?? 'local read failed',
+      boardError: sanitize(err?.message) || 'local read failed',
     })),
   })
 

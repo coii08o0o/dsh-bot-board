@@ -311,6 +311,24 @@ const chiefDrawer = render(Drawer({ row: byName['Chief'], t, onClose: () => {}, 
 check(effects.length > effectsBefore, 'the drawer subscribes to the clock (its elapsed time keeps counting)')
 check(/4m1\ds/.test(textOf(chiefDrawer).replace(/\s+/g, '')), 'the drawer shows the running duration, not 未知')
 
+// The stale-feed half of the same node: `until` pins the value to the last
+// successful answer, so a clock moved ten minutes on must not move it. Mutation
+// F2 (`elapsed(since, Date.now())`) kept ci green — a frozen clock under a
+// shifted `now` is the only way to see the difference.
+{
+  const withClock = (offset, fn) => {
+    const real = Date.now
+    Date.now = () => real() + offset
+    try { return fn() } finally { Date.now = real }
+  }
+  const stale = { ...byName['Chief'], since: now - 300_000, freezeAt: now - 60_000 }
+  const drawerText = row => textOf(render(Drawer({ row, t, onClose: () => {}, onOpenChat: () => {} }))).replace(/\s+/g, '')
+  const frozen = drawerText(stale)
+  check(/4m00s/.test(frozen), `R4 the drawer pins the elapsed time to the last good answer (${frozen})`)
+  check(drawerText(stale) === withClock(600_000, () => drawerText(stale)),
+    'R4 and a clock moved ten minutes on does not move it (the feed is stale, not slow)')
+}
+
 console.log('\n-- Board shell --')
 let boardThrew = null
 let board = null

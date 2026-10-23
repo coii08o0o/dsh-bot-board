@@ -284,7 +284,7 @@ section('scene: status priority')
 
 section('format + roster')
 {
-  const { elapsed, ago, clip } = await import(new URL('../src/client/format.js', import.meta.url).href)
+  const { elapsed, ago, clip, sanitize } = await import(new URL('../src/client/format.js', import.meta.url).href)
   const { seatOf, statusLabel } = await import(new URL('../src/client/const.js', import.meta.url).href)
   const { fallbackT } = await import(new URL('../src/client/locale.js', import.meta.url).href)
 
@@ -296,6 +296,14 @@ section('format + roster')
   check(ago(now - 900_000, now) === '15 分钟前', 'ago in minutes')
   check(clip('  a   b  ', 10) === 'a b', 'clip collapses whitespace')
   check(clip('abcdef', 3) === 'abc…', 'clip truncates with an ellipsis')
+  // ISS-002: the host twin of this regex has an assertion ("nothing from the
+  // invisible/bidi range survives into the snapshot"); the client copy had
+  // none, and deleting its ZWSP segment left ci green. The client copy is the
+  // one that matters on the main path — the panel renders api/bot's raw list.
+  check(sanitize('Chief\u200b') === 'Chief', 'the client sanitiser strips zero-width spaces')
+  check(sanitize('safe\u202EfeihT') === 'safefeihT', 'the client sanitiser strips bidi overrides')
+  check(sanitize({ nope: true }) === '' && sanitize(42) === '', 'the client sanitiser maps non-strings to empty')
+  check(clip('👀👀', 1) === '👀…', 'clip cuts by code point, so an emoji is never halved')
   check(elapsed('abc', now) === '' && ago('abc', now) === '', 'non-numeric timestamps print nothing, not NaN')
 
   const { INKS, inkOf, CHARACTERS, SHAPES, shapeOf } = await import(new URL('../src/client/const.js', import.meta.url).href)
@@ -549,6 +557,70 @@ section('layers: 需要你 / 在动 / 闲着')
       'D1 object/string-valued parts/wait/results do not throw')
     check(built?.[0]?.action === t('meta.waiting'),
       `D1 the wait sentence degrades to a bare "等" (${JSON.stringify(built?.[0]?.action)})`)
+  }
+
+  // ── D1b · the api/bot main path: object-valued approval/question fields ──
+  // The host's text() never sees these — the panel renders api/bot's raw list,
+  // and the approval/question cards are where an object value used to reach a
+  // React child. The error boundary contains it to a crashed pill now, but a
+  // card that renders is still better than one that does not. One Bot per
+  // branch: describe() prefers an approval, so a single row cannot exercise
+  // both.
+  {
+    const dirtyBots = [
+      { id: 'd2', name: 'Dirty2', sessionId: 'd2' },
+      { id: 'd4', name: 'Dirty4', sessionId: 'd4' },
+    ]
+    let threw = false
+    let built = null
+    try {
+      built = buildRows({
+        bots: dirtyBots,
+        activity: {}, workBots: { d2: { since: 1, tool: { nope: true } } }, questions: {},
+        waiting: {},
+        approvals: [{
+          id: 'ap', botId: 'd2', tool: { nope: true }, reason: { nope: true },
+          detail: { code: { x: 1 }, text: { y: 2 } },
+        }],
+        questions: {
+          d4: {
+            id: 'q', question: { q: 1 }, detail: { d: 1 },
+            options: [{ label: { l: 1 }, description: { d: 1 } }, 'not an object'],
+          },
+        },
+        errors: [], works: [], rooms: {}, t, nameOf: id => id, now: 1,
+      })
+    } catch { threw = true }
+    check(!threw && built?.length === 2,
+      'D1b object-valued approval/question/work fields do not throw')
+    const approval = built?.find(row => row.bot.id === 'd2')?.detail ?? {}
+    const question = built?.find(row => row.bot.id === 'd4')?.detail ?? {}
+    check([approval.tool, approval.reason, approval.code, approval.text]
+      .every(value => typeof value === 'string'),
+      'D1b and every approval field reaches the render tree as a string')
+    check(typeof question.text === 'string' && typeof question.hint === 'string'
+      && (question.options ?? []).every(option =>
+        typeof option.label === 'string' && typeof option.description === 'string'),
+      'D1b and so does every question field')
+  }
+
+  // ── F-01 · the approval card cannot be rewritten by invisible characters ──
+  // The one card where the user decides what may run must not be spoofable:
+  // a bidi override used to render the reason backwards on screen.
+  {
+    const spoofBots = [{ id: 'd3', name: 'D', sessionId: 'd3' }]
+    const built = buildRows({
+      bots: spoofBots,
+      activity: {}, workBots: { d3: { since: 1, tool: 'Ba\u200bsh' } }, questions: {},
+      waiting: {},
+      approvals: [{ id: 'ap', botId: 'd3', tool: 'Bash', reason: 'safe\u202EfeihT' }],
+      errors: [], works: [], rooms: {}, t, nameOf: id => id, now: 1,
+    })
+    const detail = built[0].detail
+    check(!/[\u200b-\u200f\u202a-\u202e]/.test(detail.reason) && !/[\u200b-\u200f\u202a-\u202e]/.test(detail.tool),
+      'F-01 an approval reason and tool cannot smuggle a bidi override onto the card')
+    check(!/\u200b/.test(built[0].action),
+      'F-01 and neither can the workstation meta line')
   }
 
   // ── A2 · layering is a view; the rows never reorder ──────────────────────
@@ -810,8 +882,37 @@ section('running band: the hint that says there is more below')
   check(countBelow([10, 50, 90], 100) === 0, 'cells inside the box are not counted')
   check(countBelow([10, 120, 140], 100) === 2, 'cells past the bottom edge are counted')
   check(countBelow([10, 100], 100) === 1, 'a cell exactly at the edge counts as hidden (it is not visible)')
+  // The slop edge, pinned: `>=` and `>` both pass every case above, and the
+  // mutation between them stayed green — so a case has to stand exactly on
+  // bottom − slop, where the two spellings disagree.
+  check(countBelow([10, 98], 100) === 1, 'a cell at the slop edge counts as hidden (98 = bottom − slop)')
   check(countBelow([NaN, undefined, 10], 100) === 0, 'junk measurements do not invent hidden cells')
   check(countBelow([10], NaN) === 0, 'an unmeasurable box reports nothing rather than everything')
+}
+
+// --------------------------------------- audit-fix regression guards --
+// The v0.7.0 pre-launch check found three fixes whose deletion left ci green:
+// the error boundary, the fetch timeout and the stale-clock freeze. Each is
+// asserted here so the next "simplification" cannot quietly remove them. The
+// boundary and the timeout are source-level assertions because the harness
+// cannot drive a React error boundary or a hung fetch — the limitation is
+// stated rather than papered over, and the alternative (no assertion) is
+// exactly what the audit found.
+section('audit fixes: the guards the pre-launch check asked for')
+{
+  const panelSrc = readFileSync(join(ROOT, 'src/client/panel.js'), 'utf8')
+  const pollSrc = readFileSync(join(ROOT, 'src/client/poll.js'), 'utf8')
+  check(/class Boundary extends Component/.test(panelSrc)
+    && /static getDerivedStateFromError/.test(panelSrc)
+    && /h\(Boundary/.test(panelSrc),
+    'R2 the panel is still wrapped in an error boundary (a bad value degrades one board, not the shell)')
+  check(/AbortController/.test(pollSrc) && /controller\?\.signal/.test(pollSrc) && /controller\.abort\(\)/.test(pollSrc),
+    'R3 the pollers still abort a request that never settles')
+  const timeout = Number(/TIMEOUT_MS\s*=\s*(\d+)/.exec(pollSrc)?.[1])
+  check(Number.isInteger(timeout) && timeout >= 3000 && timeout <= 15000,
+    `ISS-001 the fetch timeout is a real bound, not a knob someone can open to a minute (${timeout}ms)`)
+  check(pollSrc.includes("postJson('/api/bot'") && pollSrc.includes("postJson('/api/bot-board'"),
+    'F-07 both routes are called by their registered absolute path')
 }
 
 // ------------------------------------------------------------- poll loop --
@@ -1138,30 +1239,35 @@ section('css')
     'the box model the C4 budget assumes is declared (.bb-wrap *{box-sizing:border-box})')
 
   // ── the constants really are the CSS ─────────────────────────────────────
-  // Interpolation makes these tautological today; the point is to fail the day
-  // somebody replaces `${ATTENTION_ROW_H}px` with a literal.
-  check(new RegExp(`\\.bb-attention-row\\{[^}]*height:${ATTENTION_ROW_H}px`).test(CSS),
+  // These pass by construction today: the stylesheet is generated from these
+  // constants, so the regexes match their own interpolation. They exist to fail
+  // the day somebody replaces `${ATTENTION_ROW_H}px` with a hand-written
+  // literal — the failure mode where the budget stays green and the layout is
+  // already wrong. Labelled as invariants, not behaviour: counting them as
+  // coverage overstates the suite, and the README says how many there are.
+  const pin = (ok, label) => check(ok, `(invariant) ${label}`)
+  pin(new RegExp(`\\.bb-attention-row\\{[^}]*height:${ATTENTION_ROW_H}px`).test(CSS),
     `§11.4 .bb-attention-row height is ATTENTION_ROW_H (${ATTENTION_ROW_H}px), not a literal`)
-  check(new RegExp(`\\.bb-run-grid\\{[^}]*auto-fit,${RUNNING_CELL_W}px`).test(CSS),
+  pin(new RegExp(`\\.bb-run-grid\\{[^}]*auto-fit,${RUNNING_CELL_W}px`).test(CSS),
     `the grid track is RUNNING_CELL_W (${RUNNING_CELL_W}px)`)
-  check(new RegExp(`\\.bb-run-grid\\{[^}]*gap:${RUN_GRID_GAP}px`).test(CSS),
+  pin(new RegExp(`\\.bb-run-grid\\{[^}]*gap:${RUN_GRID_GAP}px`).test(CSS),
     `the grid gap is RUN_GRID_GAP (${RUN_GRID_GAP}px) — it was missing from C4c until v0.4.1`)
-  check(new RegExp(`\\.bb-run\\{[^}]*padding:0 10px ${RUN_PAD_B}px`).test(CSS),
+  pin(new RegExp(`\\.bb-run\\{[^}]*padding:0 10px ${RUN_PAD_B}px`).test(CSS),
     `the .bb-run bottom padding is RUN_PAD_B (${RUN_PAD_B}px) — also missing from C4c until v0.4.1`)
   const padMatch = /\.bb-attention\{[^}]*padding:(\d+)px 10px (\d+)px/.exec(CSS)
   const padV = Number(padMatch?.[1] ?? 0) + Number(padMatch?.[2] ?? 0)
-  check(padV === ATTENTION_PAD_V,
+  pin(padV === ATTENTION_PAD_V,
     `the .bb-attention vertical padding sums to ATTENTION_PAD_V (${padV} === ${ATTENTION_PAD_V})`)
 
   // The roster form's three numbers, for the same reason: C4d is arithmetic over
   // them, and a hand-edited literal would leave the budget green and lying.
-  check(new RegExp(`\\.bb-roster-row\\{[^}]*height:${ATTENTION_ROW_H}px`).test(CSS),
+  pin(new RegExp(`\\.bb-roster-row\\{[^}]*height:${ATTENTION_ROW_H}px`).test(CSS),
     `§11.19 the roster row is the layer-1 rhythm (${ATTENTION_ROW_H}px), not a second height`)
-  check(new RegExp(`\\.bb-roster\\{[^}]*padding:0 ${ROSTER_PAD_H / 2}px`).test(CSS),
+  pin(new RegExp(`\\.bb-roster\\{[^}]*padding:0 ${ROSTER_PAD_H / 2}px`).test(CSS),
     `§11.19 the roster padding is ROSTER_PAD_H (${ROSTER_PAD_H}px, 10 a side)`)
-  check(new RegExp(`\\.bb-att-empty\\{[^}]*height:${ATTENTION_EMPTY_ROW_H}px`).test(CSS),
+  pin(new RegExp(`\\.bb-att-empty\\{[^}]*height:${ATTENTION_EMPTY_ROW_H}px`).test(CSS),
     `§11.19 the 没有需要你的事 line is ATTENTION_EMPTY_ROW_H (${ATTENTION_EMPTY_ROW_H}px) — C4d subtracts it`)
-  check(new RegExp(`\\.bb-notices\\{[^}]*max-height:${NOTICES_SCROLL_H}px`).test(CSS),
+  pin(new RegExp(`\\.bb-notices\\{[^}]*max-height:${NOTICES_SCROLL_H}px`).test(CSS),
     `§11.19 the notices band is NOTICES_SCROLL_H (${NOTICES_SCROLL_H}px) — the roster reserves it whole`)
   // The roster may not reintroduce the white card or the lamp: both are layer 1's
   // alone, and a second copy is what would flatten the hierarchy.
@@ -1210,15 +1316,24 @@ section('locale')
   // for. `panel.dataVersion` existed in neither dictionary while panel.js called
   // it on every version mismatch, so 435 green assertions printed a raw key to
   // the user at the one moment README promises the board will speak plainly.
+  // Both quote styles: a double-quoted call site was invisible to the old scan.
   const clientDir = join(ROOT, 'src/client')
   const source = readdirSync(clientDir)
     .filter(name => name.endsWith('.js'))
     .map(name => readFileSync(join(clientDir, name), 'utf8'))
     .join('\n')
-  const used = new Set([...source.matchAll(/\bt\(\s*'([^']+)'/g)].map(match => match[1]))
+  const used = new Set([...source.matchAll(/\bt\(\s*['"]([^'"]+)['"]/g)].map(match => match[1]))
   const absent = [...used].filter(key => !(key in zh) || !(key in en))
   check(absent.length === 0,
     `D4 every t('...') literal exists in both dictionaries (${used.size} used)${absent.length ? ` (missing ${absent.join(',')})` : ''}`)
+
+  // D6: statusLabel() reaches t() through STATUS_KEY, so D4's literal scan
+  // cannot see these keys — a missing entry would print the raw token on the
+  // workstation, the same failure panel.dataVersion had.
+  const { STATUS_KEY } = await import(new URL('../src/client/const.js', import.meta.url).href)
+  const keyless = Object.values(STATUS_KEY).filter(key => !(key in zh) || !(key in en))
+  check(keyless.length === 0,
+    `D6 every statusLabel key exists in both dictionaries${keyless.length ? ` (missing ${keyless.join(',')})` : ''}`)
 
   // D5: `en = { ...zh }` keeps the key sets identical and would pass D3 while
   // every English user reads Chinese. No key is allowed to be a verbatim copy.

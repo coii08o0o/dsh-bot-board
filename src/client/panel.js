@@ -325,9 +325,12 @@ export function Body({
     const hidden = countBelow(cells.map(cell => cell.getBoundingClientRect().top), box.bottom)
     setRunOverflow(previous => (previous === hidden ? previous : hidden))
   }, [])
+  // The panel's own size is a dependency: a resize changes `.bb-run`'s visible
+  // height, which changes what is below the fold, and a hint that still reports
+  // the pre-resize count is the same lie as a clock that keeps ticking offline.
   useEffect(() => {
     measureRun()
-  }, [measureRun, moving.length, works.length, rows.length, attOpen, expanded])
+  }, [measureRun, moving.length, works.length, rows.length, attOpen, expanded, panelW, panelH])
   const idleVisible = idle.items.length > 0 || idle.overflow > 0
 
   return h('div', { className: 'bb-body' },
@@ -576,7 +579,12 @@ function BoardView(props) {
   const works = Array.isArray(board?.works) ? board.works : []
   const rooms = board?.rooms ?? {}
 
-  const nameOf = useCallback(id => bots.find(bot => bot.id === id)?.name ?? id, [bots])
+  const nameOf = useCallback(id => {
+    const name = bots.find(bot => bot.id === id)?.name
+    // The fallback is an id from another process's feed and it lands in a
+    // system notification title, so it goes through the sanitiser too.
+    return name ?? sanitize(typeof id === 'string' ? id : String(id ?? ''))
+  }, [bots])
   // When the live feed fails, the last good `view` stays on screen. Freezing the
   // clock is the honest half of that: "18m40s" was measured against a feed that
   // stopped answering 15 minutes ago, and a monitoring tool must not keep counting
@@ -639,7 +647,7 @@ function BoardView(props) {
       if (seenRef.current.has(key)) continue
       seenRef.current.add(key)
       notify(`${t('notice.approval')} · ${nameOf(item?.botId)}`,
-        item?.tool ? `${t('notice.approvalBody')} ${item.tool}${item.reason ? `：${clip(item.reason, 40)}` : ''}` : t('notice.approvalFallback'))
+        item?.tool ? `${t('notice.approvalBody')} ${clip(item.tool, 40)}${item.reason ? `：${clip(item.reason, 40)}` : ''}` : t('notice.approvalFallback'))
     }
     for (const item of errors) {
       const key = `e:${item.botId}:${item.at}`
@@ -743,7 +751,12 @@ function BoardView(props) {
     if (!start) return
     const w = Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, start.w + event.clientX - start.x),
       Math.max(SIZE_MIN.w, (window.innerWidth || 0) - 12))
-    const hh = Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, start.h + event.clientY - start.y))
+    // The height is clamped to the viewport on the same terms the window
+    // resize handler uses (`:488`) and the drag does for `top` (`:727`).
+    // Without it a short window lets the grip — and the panel's lower half —
+    // be dragged off-screen, and only a window resize brings them back.
+    const hh = Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, start.h + event.clientY - start.y),
+      Math.max(SIZE_MIN.h, (window.innerHeight || 0) - 60))
     setSize({ w, h: hh })
   }
   const onResizeUp = () => {
@@ -784,9 +797,12 @@ function BoardView(props) {
   const sceneOf = id => rows.find(row => row.bot.id === id)?.scene
 
   const notices = []
-  const errorText = error === 'timeout' ? t('panel.timeout') : error
+  // Both error channels carry text another process wrote. poll.js sanitises at
+  // the door; this is the same insurance at the render, the way the bot list
+  // normalises in two places on purpose.
+  const errorText = error === 'timeout' ? t('panel.timeout') : sanitize(error)
   if (error) notices.push(h('div', { className: 'bb-notice', key: 'offline' }, `${t('panel.offline')}：${errorText}`))
-  if (board?.boardError) notices.push(h('div', { className: 'bb-notice', key: 'board' }, `${t('panel.boardError')}：${board.boardError}`))
+  if (board?.boardError) notices.push(h('div', { className: 'bb-notice', key: 'board' }, `${t('panel.boardError')}：${sanitize(board.boardError)}`))
   if (reason) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'reason' }, reason))
   if (board?.stale) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'stale' }, t('panel.stale')))
   if (viewStale) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'viewStale' }, t('panel.viewStale')))
@@ -874,6 +890,12 @@ function BoardView(props) {
 // the only thing on screen that can be unmounted by a bad value. Without a
 // boundary, React unmounts the whole root — the classroom disappears and the
 // shell around it may go with it. With one, the worst case is a pill that says so.
+//
+// The pill used to be permanent: only a reload cleared it. But the value that
+// broke it is one poll old, and the next poll usually carries a healed one — so
+// the boundary retries on a timer instead of waiting for the user to notice.
+// If the bad value persists, it crashes again and logs again; that is honest.
+const BOUNDARY_RETRY_MS = 15000
 class Boundary extends Component {
   constructor(props) {
     super(props)
@@ -886,6 +908,12 @@ class Boundary extends Component {
 
   componentDidCatch(error) {
     try { console.error('[bot-board] render failed:', error) } catch {}
+    clearTimeout(this.retry)
+    this.retry = setTimeout(() => this.setState({ failed: false }), BOUNDARY_RETRY_MS)
+  }
+
+  componentWillUnmount() {
+    clearTimeout(this.retry)
   }
 
   render() {

@@ -20,14 +20,23 @@ const PHRASE = 16
 // not always present, so a minute of live activity is the fallback.
 const RECOVERED_MS = 60 * 1000
 
+// `questions`, `rooms`, `waiting` and `workBots` are keyed maps that arrive
+// from another process. A plain `map[key]` also reads the prototype chain, so
+// the key `__proto__` returned Object.prototype — truthy, and an object — and a
+// phantom question or a "[object Object]" room name rode all the way to the
+// card. An own-property check keeps a missing key missing.
+const own = (map, key) => (map && Object.hasOwn(map, key) ? map[key] : undefined)
+
 // questions is keyed by session id; a Bot that rolled over a part may still be
 // matched by its previous parts in a stale snapshot.
 function questionOf(bot, questions) {
   // `parts` comes from another process. Spreading a non-iterable object throws,
-  // and a throw here takes the whole panel down (there is no error boundary).
+  // and a throw here costs the whole board: the boundary degrades it to a
+  // crashed pill that only a retry or a reload clears.
   const keys = [bot.sessionId, bot.id, ...(Array.isArray(bot.parts) ? bot.parts : [])]
   for (const key of keys) {
-    if (key && questions[key]) return questions[key]
+    const question = own(questions, key)
+    if (key && question) return question
   }
   return undefined
 }
@@ -36,24 +45,37 @@ function describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms
   if (approval) {
     return {
       kind: 'approval',
-      action: `${t('meta.approval')} ${approval.tool || ''}`.trim(),
-      tool: approval.tool,
-      reason: approval.reason,
+      // Every field below arrives from `api/bot` — the live feed — which the
+      // host's sanitiser never sees (it only reads state.json). `clip()` is the
+      // client twin of `text()`: invisible/bidi marks stripped, code-point
+      // truncation, non-strings collapsed to ''. Without it an object value
+      // rode into a React child (the boundary catches it, but the board is
+      // gone until it retries), and a bidi override rewrote the approval
+      // reason on screen — the one card where the user decides what may run.
+      action: `${t('meta.approval')} ${clip(approval.tool, 60)}`.trim(),
+      tool: clip(approval.tool, 60),
+      reason: clip(approval.reason, 300),
       // ds-bot fills `detail.code` from command|cmd|file_path|path|url|query, so
       // it is "what this call acts on", not necessarily a shell command.
-      code: approval.detail?.code ?? '',
-      text: approval.detail?.text ?? '',
+      code: clip(approval.detail?.code, 300),
+      text: clip(approval.detail?.text, 300),
     }
   }
   if (question) {
     return {
       kind: 'question',
       action: `${t('meta.question')} ${clip(question.question, 20)}`.trim(),
-      text: question.question,
+      text: clip(question.question, 200),
       // The one-line context ds-bot shows under the question. Without it a
       // question like "这段用哪个语气？" has no way to be answered confidently.
-      hint: question.detail ?? '',
-      options: Array.isArray(question.options) ? question.options : [],
+      hint: clip(question.detail, 200),
+      // Normalised to two string fields: the drawer is the only consumer, and
+      // an option that is not an object used to reach it as `undefined` labels.
+      options: (Array.isArray(question.options) ? question.options : [])
+        .map(option => ({
+          label: clip(option?.label, 80),
+          description: clip(option?.description, 200),
+        })),
       // Both change what the numbered list means: several picks are allowed, and
       // there is a free-text field the card cannot show.
       multiSelect: question.multiSelect === true,
@@ -72,7 +94,10 @@ function describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms
     // string or an object in a drifted/partial file. `.map` on a non-array throws.
     const names = [
       ...(Array.isArray(wait.bots) ? wait.bots : []).map(nameOf),
-      ...(Array.isArray(wait.rooms) ? wait.rooms : []).map(id => (rooms[id] ? `${t('meta.room')} ${rooms[id]}` : id)),
+      ...(Array.isArray(wait.rooms) ? wait.rooms : []).map(id => {
+        const room = own(rooms, id)
+        return room ? `${t('meta.room')} ${room}` : id
+      }),
     ]
     // "等 Chief · 替 Chief" reads like a stutter; drop the repeat.
     const patrons = (Array.isArray(wait.for) ? wait.for : []).map(nameOf)
@@ -117,8 +142,8 @@ export function buildRows({
       const approvalAt = Number(approval?.at) || 0
       const seat = seatOf(bot, takenSeats)
       const question = questionOf(bot, questions)
-      const wait = waiting[bot.id]
-      const work = workBots[bot.id]
+      const wait = own(waiting, bot.id)
+      const work = own(workBots, bot.id)
       const since = Number(work?.since) || 0
       // A held setup greeting: the Bot exists but will not speak until the user
       // picks its model. It looks idle from every other angle, so it has to be
@@ -144,8 +169,11 @@ export function buildRows({
       })
       const scene = sceneOf(status, Boolean(waveMap[bot.id]))
       const detail = describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms })
+      // `work.tool` is the live feed's own field, so it gets the same clip()
+      // treatment as the approval/question text: the meta strip and the
+      // station title both print it verbatim.
       const live = work?.tool
-        ? `${t('meta.tool')} ${work.tool}`
+        ? `${t('meta.tool')} ${clip(work.tool, 80)}`
         : clip(work?.said || work?.note || work?.target || '', PHRASE)
       const action = detail.kind === 'approval' || detail.kind === 'question'
         ? detail.action
@@ -156,9 +184,10 @@ export function buildRows({
       // its last entry belongs to whoever finished last — not necessarily this Bot.
       // Prefer the entry that names it; fall back to the work's own last line.
       const handed = works.find(item => item.toId === bot.id)
-      const own = (Array.isArray(handed?.results) ? handed.results : [])
+      const ownLast = (Array.isArray(handed?.results) ? handed.results : [])
         .filter(item => item?.name && item.name === bot.name).at(-1)
       const roomId = work?.roomId
+      const roomName = roomId ? own(rooms, roomId) : undefined
       return {
         bot,
         status,
@@ -189,8 +218,8 @@ export function buildRows({
         work: work ?? null,
         // A turn running in a group, not in the Bot's own chat. Worth saying: the
         // Bot appears to be talking to nobody in particular otherwise.
-        place: roomId ? (rooms[roomId] ? `${t('meta.room')} ${rooms[roomId]}` : t('meta.room')) : '',
-        lastResult: own?.text ?? handed?.last ?? null,
+        place: roomId ? (roomName ? `${t('meta.room')} ${roomName}` : t('meta.room')) : '',
+        lastResult: ownLast?.text ?? handed?.last ?? null,
         note: Boolean(noteMap[bot.id]),
       }
     })

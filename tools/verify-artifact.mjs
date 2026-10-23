@@ -12,11 +12,12 @@
 // stamp in the banner against a freshly computed fingerprint.
 //
 // Deliberately NOT a byte-for-byte comparison against a fresh esbuild output:
-// esbuild is `^0.25.0` with no lockfile in the repo, so a patch release of the
-// bundler would turn this red for no reason. Someone would then "fix" it —
-// probably by overwriting client.js, which is exactly how a real staleness gets
-// laundered into a green run. Hashing the sources is stable across bundler
-// versions and only changes when the sources do.
+// esbuild is `^0.25.0`, and while package-lock.json does pin it today, a
+// deliberately-unlocked patch range would turn this red for no reason.
+// Someone would then "fix" it — probably by overwriting client.js, which is
+// exactly how a real staleness gets laundered into a green run. Hashing the
+// sources is stable across bundler versions and only changes when the sources
+// do.
 import { createHash } from 'node:crypto'
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'

@@ -149,7 +149,7 @@ npm run ci       # verify + smoke + render, no build
 npm run preview  # static HTML of nine scenarios, measured in a browser
 ```
 
-`verify` and `ci` exist because they do not build. `check` always builds first, so "the artifact is stale" cannot be expressed there — put an old `client.js` back and all 514 assertions still pass. `verify` compares the src fingerprint in the bundle banner against a fresh hash, and `ci` runs that plus both suites, so a forgotten build fails before release.
+`verify` and `ci` exist because they do not build. `check` always builds first, so "the artifact is stale" cannot be expressed there — put an old `client.js` back and all 531 assertions still pass. `verify` compares the src fingerprint in the bundle banner against a fresh hash, and `ci` runs that plus both suites, so a forgotten build fails before release.
 
 The `preview` export is not a mockup. It renders the real components with the real CSS and prints `clientHeight`/`scrollHeight` under each panel. That is how the 0.72px margin at 560×480 was measured.
 

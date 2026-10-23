@@ -40,7 +40,11 @@ const { LegendSheet } = await import('../src/client/legend.js')
 const { Drawer } = await import('../src/client/drawer.js')
 const { buildRows } = await import('../src/client/rows.js')
 const { fallbackT } = await import('../src/client/locale.js')
-const { RUNNING_CELL_W, RUNNING_CELL_H, SIZE_MIN, SIZE_DEFAULT } = await import('../src/client/const.js')
+const {
+  RUNNING_CELL_W, RUNNING_CELL_H, SIZE_MIN, SIZE_DEFAULT,
+  ATTENTION_GAP, ATTENTION_ROW_H, HEAD_H, PANEL_BORDER,
+} = await import('../src/client/const.js')
+const { ATTENTION_MAX } = await import('../src/client/layers.js')
 
 const t = fallbackT('zh')
 const NOW = Date.now()
@@ -190,6 +194,13 @@ function panel({ w, h: height, snap, sheet = null, initialAttExpanded = false, b
     // layout the product never produces at 420×320.
     panelW: w,
     panelH: height,
+    // The production panel derives layer-1 capacity from its own height
+    // (panel.js): when 需要你 is the only layer with content, the three-row cap
+    // has no reason to exist. A preview that did not pass the capacity it is
+    // drawing measured a layout the product never produces — the C6 fix was
+    // invisible here, which is how the next audit gets misled.
+    attentionCapacity: Math.max(ATTENTION_MAX, Math.floor(
+      (height - HEAD_H - PANEL_BORDER - 10) / (ATTENTION_ROW_H + ATTENTION_GAP))),
   })
   const overlay = sheet === 'legend'
     ? mount(LegendSheet, { t, onClose: () => {} })
@@ -281,10 +292,13 @@ cases.push({
   })],
 })
 
-// 3. Nine alerts: layer 1 is capped at 3 and the other six hide behind +6.
+// 3. Nine alerts with nothing else on screen: layer 1 is the only layer with
+//    content, so the three-row cap has no reason to exist and the panel's own
+//    height is the only limit (C6). At 560×480 that is nine rows, no chip; the
+//    chip side of the same rule lives in case 4, where other layers compete.
 cases.push({
-  title: '退化态 · 9 个全 alert（层 1 封顶 + 溢出 chip）',
-  note: '3 行 + `+6` chip。以前第 4 个人在整个面板里没有名字、点不开；现在 chip 是 role=button，点开就是全部 9 行。',
+  title: '退化态 · 9 个全 alert（层 1 独占，按面板高度放行）',
+  note: '没有人在跑、没有未结交接时，层 1 按面板高度算容量：560×480 放得下 9 行就显示 9 行，下面没有 294px 空白，也没有 `+6` chip。以前第 4 个人在整个面板里没有名字、点不开；混合态仍有 3 行封顶 + chip（见「溢出态」），chip 是 role=button，点开就是全部 9 行。',
   panels: [panel({
     w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 9 alert',
     snap: snapshot({
