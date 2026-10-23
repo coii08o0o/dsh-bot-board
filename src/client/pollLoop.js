@@ -5,11 +5,15 @@
 // then firing again starts a second chain. Every collapse/expand of the panel
 // woke the loop, so the board ended up with an extra poller each time — and the
 // extra pollers never went away.
-import { SLOW_POLL_MS } from './const.js'
+import { IDLE_POLL_MS, SLOW_POLL_MS } from './const.js'
 
 export function pollDelay(base, { active, hidden, misses }) {
-  const slow = hidden || !active
-  const target = slow ? SLOW_POLL_MS : base
+  // Collapsed and hidden are not the same thing. A hidden window is genuinely
+  // unwatched, so 30s is honest. A collapsed panel is the pill — the form you
+  // glance at, and the only channel that can raise a notification — so slowing it
+  // to 30s made the most important surface the slowest one. It gets the idle
+  // cadence instead (6s), which still cuts the idle cost by 4x.
+  const target = hidden ? SLOW_POLL_MS : (!active ? IDLE_POLL_MS : base)
   return misses > 0 ? Math.min(target * 2 ** Math.min(misses, 3), SLOW_POLL_MS) : target
 }
 

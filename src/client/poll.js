@@ -11,28 +11,43 @@ import { createPollLoop, pollDelay } from './pollLoop.js'
 // beat in lockstep. A little jitter spreads the peaks.
 const jitter = ms => Math.max(250, Math.round(ms * (0.9 + Math.random() * 0.2)))
 
+// A request that never settles is worse than one that fails: `pollLoop` keeps
+// `inflight` true until `run()` resolves or rejects, and every later `wake()` is
+// dropped while it waits. The panel then freezes *silently* — no error, no red
+// lamp, no notice — because `onError` never runs. Ten seconds is several times a
+// local round-trip and well under the 30s slow cadence.
+const TIMEOUT_MS = 10000
+
+async function postJson(url, body) {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null
+  const timer = controller ? setTimeout(() => controller.abort(), TIMEOUT_MS) : null
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller?.signal,
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return await response.json()
+  } catch (error) {
+    // `AbortError` is a sentence written for a developer, not for the panel.
+    if (error?.name === 'AbortError') throw new Error('timeout')
+    throw error
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 async function callBot(endpoint, payload) {
-  const response = await fetch('api/bot', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ endpoint, payload: payload ?? null }),
-  })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  const result = await response.json()
+  const result = await postJson('api/bot', { endpoint, payload: payload ?? null })
   if (!result.ok) throw new Error(result.error?.message ?? 'DS Bot 返回错误')
   return result.value
 }
 
 async function callBoard() {
-  const response = await fetch('api/bot-board', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({}),
-  })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  return response.json()
+  return postJson('api/bot-board', {})
 }
 
 function usePoll({ base, run, onValue, onError, activeRef, wakeRef }) {
@@ -95,10 +110,22 @@ export function useTeam({ active }) {
       modelsRef.current = value.modelsKey ?? modelsRef.current
       busyRef.current = teamActive(value)
       if (busyRef.current) lastActiveRef.current = Date.now()
-      setView(previous => (value.unchanged && previous ? { ...previous, ...value } : value))
+      // `fetchedAt` is what the elapsed columns freeze on when the next request
+      // fails. A successful `unchanged` answer is still a successful read, so it
+      // refreshes the stamp and clears a previous stale flag.
+      const fetchedAt = Date.now()
+      setView(previous => (value.unchanged && previous
+        ? { ...previous, ...value, stale: false, fetchedAt }
+        : { ...value, stale: false, fetchedAt }))
       setError(null)
     },
-    onError: err => setError(err?.message ?? 'offline'),
+    // Keep the last good view on screen (a panel that blinks out is worse than
+    // one that says so) but mark it: the workstations must stop claiming to be
+    // live, and their clocks must stop at the last answer.
+    onError: err => {
+      setError(err?.message ?? 'offline')
+      setView(previous => (previous ? { ...previous, stale: true } : previous))
+    },
   })
 
   // Hand-offs and failures come from the host snapshot, which reads state.json.

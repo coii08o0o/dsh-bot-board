@@ -482,13 +482,143 @@ const hotBody = renderBody(hotRows)
   check(hasClass(quietBody, 'bb-run').length === 0, 'C3 all idle draws no classroom at all')
   check(hasClass(quietBody, 'bb-att-empty').length === 1, 'C3 the empty list is one summary line, not nothing')
   check(textOf(quietBody).includes(t('attention.empty')), 'C3 and it says the board looked and found nothing')
-  check(hasClass(quietBody, 'bb-idle').length === 1, 'C3 闲着 is one line')
+  // 退化态: the one-line form is replaced by the roster. Both are layer 3, and
+  // exactly one of them is ever in the tree — a board that drew both would count
+  // every resting Bot twice.
+  check(hasClass(quietBody, 'bb-idle').length === 0, 'C3 退化态 does not draw the one-line 闲着 form')
+  check(hasClass(quietBody, 'bb-roster-row').length === 9,
+    `C3 it draws the roster instead, one row per resting Bot (${hasClass(quietBody, 'bb-roster-row').length})`)
+  check(hasClass(quietBody, 'bb-roster-more').length === 0,
+    'C3 nine rows fit 560×480, so nothing is hidden behind a hint')
 
   const allBusy = layerRows({ activity: Object.fromEntries(layerBots.map(bot => [bot.id, 'working'])) })
   const allBusyBody = renderBody(allBusy)
   check(hasClass(allBusyBody, 'bb-idle').length === 0, 'C3 all busy draws no 闲着 line')
   check(hasClass(allBusyBody, 'bb-station').length === 9, 'C3 all busy puts all nine in the classroom')
   check(hasClass(allBusyBody, 'bb-meta').length === 0, 'C3 the compact workstation drops the meta strip')
+}
+
+// P2-1: when the roster is drawn, and when the line keeps the job.
+{
+  // One Bot working, eight resting. Not the roster: the classroom is up, and
+  // 44px rows here would push it out of a 480px panel (C4c has 0.69px of slack).
+  const oneBusy = renderBody(layerRows({ activity: { 'layer-0': 'working' } }))
+  check(hasClass(oneBusy, 'bb-roster-row').length === 0, 'P2-1 one running Bot keeps layer 3 a line')
+  check(hasClass(oneBusy, 'bb-idle-name').length === 8, 'P2-1 and the other eight are still names in it')
+
+  // One approval, eight resting: the roster, with the card still on top. The
+  // cards carry a surface, a status bar and a lamp; the rows carry none of the
+  // three, so 需要你 is still the first thing the eye lands on.
+  const oneAlert = renderBody(layerRows({ approvals: [{ id: 'a', botId: 'layer-1', tool: 'Bash' }] }))
+  check(hasClass(oneAlert, 'bb-attention-row').length === 1, 'P2-1 one approval is still a card')
+  check(hasClass(oneAlert, 'bb-roster-row').length === 8, 'P2-1 and the other eight become roster rows')
+  check(hasClass(oneAlert, 'bb-roster')[0]?.props?.['data-align'] === 'top',
+    'P2-1 which sit flush under the cards instead of floating in the middle')
+
+  // Open debt with nobody running: the hand-off table is worth more than the
+  // roster, and it lives in the running band — so the band has to exist.
+  const owed = renderBody(layerRows({}), [{ id: 'w', fromId: 'layer-0', from: 'Chief', toId: 'layer-1', to: 'Bob', open: 2, at: now - 1000 }])
+  check(hasClass(owed, 'bb-roster-row').length === 0, 'P2-1 an open hand-off keeps the line too')
+
+  // Eight cards leave 56px. One row of roster is not worth the switch, so the
+  // line keeps the job — it always fits, and a single row would look like a
+  // stray table cell under a wall of cards.
+  resetRefs()
+  const eightHot = mount(Body, {
+    ...bodyProps(layerRows({
+      approvals: layerBots.slice(0, 8).map((bot, index) => ({ id: `h${index}`, botId: bot.id, tool: 'Bash' })),
+    })),
+    initialAttExpanded: true,
+  })
+  check(hasClass(eightHot, 'bb-attention-row').length === 8, 'P2-1 eight cards fit at 560×480')
+  check(hasClass(eightHot, 'bb-roster-row').length === 0, 'P2-1 and the ninth Bot stays a name — one row is not a roster')
+  check(hasClass(eightHot, 'bb-idle-name').length === 1, 'P2-1 so the line still has its one name')
+}
+
+// P2-2: what a roster row promises, and the three things it must not do.
+{
+  const body = renderBody(layerRows({}))
+  const rows = hasClass(body, 'bb-roster-row')
+  check(rows.length === 9, `P2-2 one row per resting Bot (${rows.length})`)
+  check(rows.every(row => row.props?.role === 'button' && row.props?.tabIndex === 0
+    && typeof row.props?.onKeyDown === 'function'),
+    'P2-2 every roster row is operable without a mouse')
+  check(rows.every(row => String(row.props?.title ?? '').includes('闲着')),
+    'P2-2 and the title says what the row is, not just the name')
+  check(hasClass(body, 'bb-roster-av').length === 9, 'P2-2 every row carries the layer-1 face crop')
+  check(findAll(body, node => node.type === 'svg' && node.props?.viewBox === '54 32 64 64').length === 9,
+    'P2-2 and it is the same drawing, not a second avatar style')
+  check(hasClass(body, 'bb-lamp').length === 0,
+    'P2-2 the roster carries no lamp: nine identical grey circles are wallpaper, not a channel')
+  check(hasClass(body, 'bb-attention-row').length === 0,
+    'P2-2 and it borrows no part of layer 1 (a second card wall would flatten the hierarchy)')
+
+  // role → model → 闲着. The fallback is a `data-kind`, so "no role" is a fact the
+  // markup states rather than something the reader has to infer from the words.
+  const mixed = buildRows({
+    bots: [
+      { id: 'r0', name: 'Chief', role: 'Chief of Staff', sessionId: 'r0' },
+      { id: 'r1', name: 'Bob', role: '', model: 'deepseek-v4', sessionId: 'r1' },
+      { id: 'r2', name: 'Bot1', role: '', model: null, sessionId: 'r2' },
+    ],
+    t, nameOf: id => id, now,
+  })
+  const mixedBody = renderBody(mixed)
+  const subs = hasClass(mixedBody, 'bb-roster-sub')
+  check(subs.length === 3, `P2-2 every roster row has exactly one second column (${subs.length})`)
+  check(textOf(subs[0]) === 'Chief of Staff' && subs[0].props?.['data-kind'] === 'role',
+    'P2-2 a Bot with a role shows the role')
+  check(textOf(subs[1]) === 'deepseek-v4' && subs[1].props?.['data-kind'] === 'role',
+    'P2-2 a Bot without a role falls back to its model')
+  check(textOf(subs[2]) === '' && subs[2].props?.['data-kind'] === 'none',
+    'P2-2 and a Bot with neither leaves the column empty instead of repeating the state word')
+  const states = hasClass(mixedBody, 'bb-roster-state')
+  check(states.length === 3 && states.every(node => textOf(node) === '闲着'),
+    'P2-2 while every row states its state in the right-hand column — the one column that is never empty')
+}
+
+// P2-3: the column count is derived from the room, so 420×320 does not hide Bots.
+{
+  const at = (w, h, extra = {}) => mount(Body, { ...bodyProps(layerRows({})), panelW: w, panelH: h, ...extra })
+  const grid = tree => String(hasClass(tree, 'bb-roster-grid')[0]?.props?.style?.gridTemplateColumns ?? '')
+
+  const wide = at(560, 480)
+  check(/repeat\(1,/.test(grid(wide)), `P2-3 560×480 fits nine rows in one column (${grid(wide)})`)
+  check(hasClass(wide, 'bb-roster-more').length === 0, 'P2-3 so nothing is hidden there')
+
+  const narrow = at(420, 320)
+  check(/repeat\(2,/.test(grid(narrow)), `P2-3 420×320 reflows to two columns (${grid(narrow)})`)
+  check(hasClass(narrow, 'bb-roster-row').length === 9, 'P2-3 and all nine rows are still in the tree')
+  check(hasClass(narrow, 'bb-roster-more').length === 0,
+    'P2-3 with nothing behind a hint — the whole point of the column count')
+
+  // The one case that can still overflow: a notice eats 70px, and a stale feed is
+  // exactly when every Bot looks idle. Three columns of 120px instead of two of
+  // 160 keeps the promise.
+  const noticed = at(420, 320, { notices: ['x'] })
+  check(/repeat\(3,/.test(grid(noticed)), `P2-3 a notice at 420×320 goes to three tighter columns (${grid(noticed)})`)
+  check(hasClass(noticed, 'bb-roster-more').length === 0, 'P2-3 so the notice still does not hide a Bot')
+  check(hasClass(noticed, 'bb-roster')[0]?.props?.['data-density'] === 'tight',
+    'P2-3 and the tight form drops the second column instead of the name')
+}
+
+// C6: when 需要你 is the only layer with content, the three-row cap buys nothing
+// — the space below it is empty, and the user reads "three things need me" while
+// six more wait behind a chip. The cap only exists so nine rows cannot push the
+// other two layers off a 320px panel.
+{
+  const allWaiting = layerRows({
+    approvals: layerBots.map((bot, index) => ({ id: `ap-${index}`, botId: bot.id, tool: 'Bash' })),
+  })
+  const capped = renderBody(allWaiting)
+  check(hasClass(capped, 'bb-attention-row').length === 3,
+    `C6 with the default capacity the list still caps at three (${hasClass(capped, 'bb-attention-row').length})`)
+  resetRefs()
+  const roomy = mount(Body, { ...bodyProps(allWaiting), attentionCapacity: 9 })
+  check(hasClass(roomy, 'bb-attention-row').length === 9,
+    `C6 a panel tall enough shows all nine instead of three plus 294px of nothing (${hasClass(roomy, 'bb-attention-row').length})`)
+  check(hasClass(roomy, 'bb-att-more').length === 0,
+    'C6 and draws no +N chip when nothing is hidden')
 }
 
 // The unreadable-snapshot path. `Board` owns the `board.ok === false` → reason
@@ -572,6 +702,7 @@ console.log('\n-- P0: the layer window must not fight the live filter --')
     const chip = hasClass(body, 'bb-att-more')[0]
     const hidden = chip ? Number(textOf(chip).replace('+', '')) || 0 : 0
     const shown = inBand + hasClass(body, 'bb-station').length + hasClass(body, 'bb-idle-name').length
+      + hasClass(body, 'bb-roster-row').length
     check(shown + hidden === snapshot.length,
       `P0 ③ ${label}: every Bot is in exactly one place (${shown} shown + ${hidden} behind the chip = ${snapshot.length})`)
   }
@@ -674,7 +805,7 @@ console.log('\n-- P0b: the 在动/闲着 window still absorbs a single tick --')
   const early = frame(allBusy, 0)
   check(hasClass(early, 'bb-station').length === 0,
     'G1 one poll of busy does not relocate anybody yet (the window is open)')
-  check(hasClass(early, 'bb-idle-name').length === 9, 'G1 and the nine names are still in 闲着')
+  check(hasClass(early, 'bb-roster-row').length === 9, 'G1 and the nine are still in 闲着 (as the roster, since nobody is running)')
   const landed = frame(allBusy, 1500)
   check(hasClass(landed, 'bb-station').length === 9, 'G1 once the window has held, the move lands')
 
@@ -683,7 +814,7 @@ console.log('\n-- P0b: the 在动/闲着 window still absorbs a single tick --')
   frame(allIdle, 0)
   frame(allBusy, 0)
   const back = frame(allIdle, 0)
-  check(hasClass(back, 'bb-station').length === 0 && hasClass(back, 'bb-idle-name').length === 9,
+  check(hasClass(back, 'bb-station').length === 0 && hasClass(back, 'bb-roster-row').length === 9,
     'G2 a one-tick flip never relocates the grid (that is what the window is for)')
 }
 
@@ -758,15 +889,65 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
   check(hasClass(regrown, 'bb-att-more').length === 1, 'P1b with its +2 chip back')
 }
 
-// D1: compressing a Bot into 闲着 must not drop its failure badge.
+// P2-4: the line's one-way reveal must not outlive the roster.
+// `expanded` lives in Body, and the roster draws no line at all — so if the flag
+// stayed armed, the next mixed snapshot would come back with the line already
+// opened to 44px, for a reason the user cannot see (the same class of bug as the
+// sticky attention flag P1b covers).
+{
+  resetRefs()
+  // Long names so the narrow panel really overflows: eight 3-character names fit
+  // the 380px budget at 420, and a test that depends on them not fitting would
+  // pass for the wrong reason the day a name gets shorter.
+  const longRows = buildRows({
+    bots: layerBots.map((bot, index) => ({ ...bot, name: `${bot.name}研究员${index}` })),
+    activity: { 'layer-0': 'working' },
+    t, nameOf: id => id, now,
+  })
+  const props = rows => ({ ...bodyProps(rows), panelW: 420, panelH: 320 })
+  // The layer window is real state too: switching frames has to move the clock,
+  // or the Bot that was running is still "running" (pending, not committed) and
+  // the all-idle frame never reaches 退化态. Same trick as G1.
+  const at = (rows, offset) => {
+    const real = Date.now
+    Date.now = () => real() + offset
+    try { return mount(Body, props(rows)) } finally { Date.now = real }
+  }
+
+  const before = at(longRows, 0)
+  const chip = hasClass(before, 'bb-idle-more')[0]
+  check(Boolean(chip), 'P2-4 a narrow mixed panel still shows the +N chip')
+  chip?.props.onClick()
+  check(hasClass(at(longRows, 0), 'bb-idle')[0]?.props?.['data-expanded'] === 'true',
+    'P2-4 the click opens the line')
+
+  // Two frames per layer change: the first opens the window, the second commits
+  // it (that delay is the design, not an artefact of the harness).
+  at(layerRows({}), 2000)
+  const restBody = at(layerRows({}), 4000)
+  check(hasClass(restBody, 'bb-roster-row').length === 9, 'P2-4 退化态 draws the roster')
+  check(hasClass(restBody, 'bb-idle').length === 0, 'P2-4 and draws no line at all')
+
+  at(longRows, 6000)
+  const back = at(longRows, 8000)
+  check(hasClass(back, 'bb-idle')[0]?.props?.['data-expanded'] === 'false',
+    'P2-4 the line comes back CLOSED — the reveal did not outlive the roster')
+}
+
+// D1: compressing a Bot into 闲着 must not drop its failure badge — in either
+// form. The roster is the one that matters now: it is what 退化态 actually draws,
+// and it has no lamp to fall back on.
 {
   const stale = layerRows({ errors: [{ botId: 'layer-4', at: now - ERROR_LAMP_MS - 1000, message: '模型超时' }] })
   const staleBody = renderBody(stale)
-  const names = hasClass(staleBody, 'bb-idle-name')
-  const badged = names.filter(name => findAll(name, node => String(node.props?.className ?? '').split(' ').includes('bb-badge')).length === 1)
-  check(badged.length === 1, `D1 exactly one compressed name carries the badge (${badged.length})`)
+  const rows = hasClass(staleBody, 'bb-roster-row')
+  const badged = rows.filter(row => findAll(row, node => String(node.props?.className ?? '').split(' ').includes('bb-badge')).length === 1)
+  check(rows.length === 9, `D1 a quiet failure leaves the Bot in the roster (${rows.length})`)
+  check(badged.length === 1, `D1 exactly one roster row carries the badge (${badged.length})`)
   check(textOf(badged[0]).includes('Bot1'), 'D1 and it is the Bot that failed, not somebody else')
   check(textOf(badged[0]).includes('!'), 'D1 the badge is a glyph, so it survives without colour')
+  check(hasClass(staleBody, 'bb-lamp').length === 0,
+    'D1 and the roster still draws no lamp — the badge is the only mark that carries news')
 
   // The +N escape hatch: one click must actually reveal the names it hid, and it
   // is the only path allowed to make layer 3 taller.
@@ -836,6 +1017,16 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
     'B5 an ordinary edge keeps the dispatch arrow')
   check(hasClass(renderBody(layerRows({}), [], {}), 'bb-handoffs').length === 0,
     'B5 no open work renders no table, not an empty shell')
+
+  // B5b: a cycle where both sides are working is not a deadlock. It used to
+  // print 互相等 anyway, which sends the user to chase two Bots already running.
+  const busyScenes = { 'layer-2': 'busy', 'layer-3': 'busy' }
+  const busyPair = renderBody(layerRows({}), groupedWorks, busyScenes)
+  const busyEdges = hasClass(busyPair, 'bb-handoff')
+  check(busyEdges.filter(edge => edge.props?.['data-mutual'] === 'true').length === 0,
+    'B5b a mutual pair with both sides working is not labelled 互相等')
+  check(!textOf(busyPair).includes('互相等'),
+    'B5b and the word is absent, not just the attribute')
 }
 
 // C2: the legend left the first screen but the six states are still named.
@@ -850,10 +1041,15 @@ console.log('\n-- P1b: the expanded flag must not outlive the overflow --')
     check(textOf(sheet).includes(t(`legend.hint.${key}`)), `C2 ${key} still explains itself in one sentence`)
   }
   const lamps = hasClass(sheet, 'bb-lg-lamp')
-  check(lamps.length === 6, `C2 six shape nodes in the legend (${lamps.length})`)
-  const circles = lamps.filter(lamp => findAll(lamp, node => node.type === 'circle').length === 1).length
-  const rects = lamps.filter(lamp => findAll(lamp, node => node.type === 'rect').length === 1).length
+  // Seven rows now: six states plus the `!` badge, which is a seventh mark but
+  // not a seventh state. Only the six state rows carry a lamp.
+  const shapeLamps = lamps.filter(lamp => hasClass(lamp, 'bb-lamp').length === 1)
+  check(shapeLamps.length === 6, `C2 six shape nodes in the legend (${shapeLamps.length})`)
+  const circles = shapeLamps.filter(lamp => findAll(lamp, node => node.type === 'circle').length === 1).length
+  const rects = shapeLamps.filter(lamp => findAll(lamp, node => node.type === 'rect').length === 1).length
   check(circles === 4 && rects === 2, `C2 four circles plus the square and the diamond (${circles}/${rects})`)
+  check(hasClass(sheet, 'bb-badge').length === 1 && textOf(sheet).includes(t('legend.badge')),
+    'C2 the legend also explains the ! badge — the one mark that had no key anywhere')
   check(sheet?.props?.className === 'bb-drawer' && sheet?.props?.['aria-modal'] === 'true',
     'C2 the legend reuses the drawer, so it inherits the focus trap instead of adding a second one')
 

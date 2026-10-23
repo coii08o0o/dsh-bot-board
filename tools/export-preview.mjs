@@ -185,6 +185,11 @@ function panel({ w, h: height, snap, sheet = null, initialAttExpanded = false, b
     onPick: () => {},
     sceneOf: id => snap.rows.find(row => row.bot.id === id)?.scene,
     initialAttExpanded,
+    // The roster form of layer 3 derives its column count from the panel's own
+    // size, so a preview that did not pass the size it is drawing would measure a
+    // layout the product never produces at 420×320.
+    panelW: w,
+    panelH: height,
   })
   const overlay = sheet === 'legend'
     ? mount(LegendSheet, { t, onClose: () => {} })
@@ -296,17 +301,18 @@ const fiveHot = snapshot({
 })
 cases.push({
   title: '溢出态 · 收起 / 展开（同一个快照）',
-  note: '左：3 行 + `+2`。右：点过 chip 之后，5 行全在，chip 变成 `−` 可以收回。高度代价在收起态是 0。',
+  note: '左：3 行 + `+2`。右：点过 chip 之后，5 行全在，chip 变成 `−` 可以收回。高度代价在收起态是 0。两张图下方都是名册——没人在跑、也没有未结交接，所以四个闲着的 Bot 各占一行；展开态 242 + 4×44 = 418 ≤ 478，仍然不滚。',
   panels: [
     panel({ w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 收起', snap: fiveHot }),
     panel({ w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 展开', snap: fiveHot, initialAttExpanded: true }),
   ],
 })
 
-// 5. All idle: the "敢不看" case. Body should be 52px of content and silence.
+// 5. All idle: the "敢不看" case. The roster is what 退化态 draws now — nine rows
+//    instead of one line of names at the bottom of 400px of cream.
 cases.push({
-  title: '退化态 · 全 idle（「没事」这个方向）',
-  note: '主体只剩一行摘要 + 一行名字，其余是房间的空白。静置 60 秒不应该有任何变化——这是盯盘工具的底线。',
+  title: '退化态 · 全 idle（名册形态）',
+  note: '一行摘要 + 九行名册。560×480 是单列（9×44 + 摘要 38 = 475 ≤ 480）；420×320 自动分两列，一行不藏在滚动里——列数由剩余高度算出，不是断点。名册不是层 1 的灰色版：没有白卡、没有灯、名字 500 字重，只有 `!` 徽章还是那个徽章。',
   panels: [
     panel({ w: SIZE_DEFAULT.w, h: SIZE_DEFAULT.h, badge: '560×480 · 全 idle', snap: snapshot() }),
     panel({ w: SIZE_MIN.w, h: SIZE_MIN.h, badge: '420×320 · 全 idle', snap: snapshot() }),
@@ -432,6 +438,17 @@ const MEASURE = `
       parts.push('在动 —')
     }
     if (idle) parts.push('闲着 ' + px(idle.getBoundingClientRect().height))
+    const roster = fig.querySelector('.bb-roster')
+    if (roster) {
+      const grid = roster.querySelector('.bb-roster-grid')
+      const scroll = roster.querySelector('.bb-roster-scroll')
+      const cols = getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length
+      const rowCount = roster.querySelectorAll('.bb-roster-row').length
+      const over = scroll.scrollHeight - scroll.clientHeight
+      parts.push('名册 ' + rowCount + '行 × ' + cols + '列')
+      if (over > 1) bad.push('名册溢出 ' + px(over) + 'px')
+      if (roster.querySelector('.bb-roster-more')) bad.push('名册有 ' + roster.querySelector('.bb-roster-more').textContent)
+    }
     if (sum) {
       const clip = sum.scrollWidth - sum.clientWidth
       parts.push('头部 ' + px(sum.scrollWidth) + '/' + px(sum.clientWidth))

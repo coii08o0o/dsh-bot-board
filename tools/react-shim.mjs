@@ -19,6 +19,17 @@ let currentType = null
 const stores = new Map()
 export const effects = []
 
+// The one class component in the bundle is the error boundary. The shim only
+// needs to construct it and call render(); it never exercises the error path
+// (a boundary that catches is by definition a failed render).
+export class Component {
+  constructor(props) {
+    this.props = props
+    this.state = {}
+  }
+}
+Component.prototype.isReactComponent = {}
+
 export function createElement(type, props, ...children) {
   const merged = { ...(props ?? {}) }
   if (children.length === 1) merged.children = children[0]
@@ -78,6 +89,10 @@ export function render(node) {
   if (Array.isArray(node)) return node.map(render).flat()
   if (typeof node === 'string' || typeof node === 'number') return String(node)
   if (typeof node.type === 'function') {
+    if (node.type.prototype?.isReactComponent) {
+      const instance = new node.type(node.props ?? {})
+      return render(instance.render())
+    }
     resetHooks(node.type)
     return render(node.type(node.props ?? {}))
   }

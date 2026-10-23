@@ -8,7 +8,7 @@
 // as plain functions, and the built bundle through the same loader contract DSH
 // uses. CSS is asserted on the generated string, since that is what ships.
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -178,6 +178,27 @@ section('host: snapshot')
     try { junk = await read() } catch { junk = null }
     check(junk?.ok === true && junk.bots.length === 1,
       `a null or a string among the Bots is dropped, not fatal (${junk ? `${junk.bots.length} bots, ok=${junk.ok}` : 'the route threw'})`)
+
+    // The four fields that used to bypass `text()`: work.from/to, model,
+    // sessionId, rooms[].id. An object in any of them reached React as a child
+    // ("Objects are not valid as a React child") and, with no error boundary,
+    // blanked the panel on every poll.
+    await writeFile(statePath, JSON.stringify({
+      bots: {
+        a: { id: 'session-aaa', name: 'Chief', model: { x: 1 }, sessionId: { y: 2 }, segments: [] },
+      },
+      works: { bad: { from: { z: 3 }, to: ['q'], at: 1, open: ['x'], results: [{ name: { n: 1 }, text: { t: 2 } }] } },
+      rooms: { r: { id: { bad: true }, name: { n: 1 } } },
+    }))
+    const dirty = await read()
+    check(dirty.ok === true, 'object-valued from/to/model/sessionId/rooms.id do not throw')
+    check(dirty.bots[0]?.model === null && dirty.bots[0]?.sessionId === null,
+      'object-valued model/sessionId are dropped to null')
+    check(dirty.works[0]?.from === '' && dirty.works[0]?.to === '',
+      `object-valued work.from/to become empty labels, not objects (${JSON.stringify(dirty.works[0]?.from)}/${JSON.stringify(dirty.works[0]?.to)})`)
+    check(JSON.stringify(dirty.rooms) === '{}', 'a room without a string id is dropped, not stringified')
+    check(dirty.works[0]?.results[0]?.name === '' && dirty.works[0]?.results[0]?.text === '',
+      'object-valued result fields become empty strings')
 
     // The name is the one field the user tells two Bots apart by. U+200B made
     // "Chief" and "Chief\u200B" look like two different Bots side by side, and
@@ -392,6 +413,8 @@ section('layers: 需要你 / 在动 / 闲着')
     HEAD_H, ATTENTION_ROW_H, ATTENTION_GAP, ATTENTION_PAD_V, IDLE_ROW_H, PANEL_BORDER,
     RUNNING_CELL_W, RUNNING_CELL_H, cellHeight, RUN_GRID_GAP, RUN_PAD_B, RUNNING_MIN_H,
     LAYER_STABLE_MS, POLL_MS, SCENE_VB,
+    ATTENTION_EMPTY_ROW_H, ROSTER_CELL_FULL, ROSTER_CELL_MIN, ROSTER_PAD_H, NOTICES_MAX_H,
+    SIZE_MIN,
   } = await import(new URL('../src/client/const.js', import.meta.url).href)
   const { buildRows } = await import(new URL('../src/client/rows.js', import.meta.url).href)
   const { fallbackT } = await import(new URL('../src/client/locale.js', import.meta.url).href)
@@ -503,6 +526,30 @@ section('layers: 需要你 / 在动 / 闲着')
   check(selfEdges.length === 2, `B6 both self-hand-offs are still edges (${selfEdges.length})`)
   check(selfEdges.every(edge => edge.mutual === false),
     'B6 and neither is mutual — one direction cannot be a cycle, and two a→a records paired with each other printed 互相等 for a Bot waiting on nobody')
+
+  // ── D1 · malformed nested fields do not throw ─────────────────────────────
+  // `bot.parts`, `wait.bots`, `wait.rooms`, `wait.for` and `work.results` all come
+  // from another process. `.map` on a non-array and spreading a non-iterable both
+  // throw, and a throw here takes the whole panel down.
+  {
+    const dirtyBots = [{ id: 'd1', name: 'Dirty', sessionId: 'd1', parts: { nope: true } }]
+    let threw = false
+    let built = null
+    try {
+      built = buildRows({
+        bots: dirtyBots,
+        activity: {}, workBots: {}, questions: {},
+        waiting: { d1: { bots: { nope: true }, rooms: 'nope', for: 42 } },
+        approvals: [], errors: [],
+        works: [{ toId: 'd1', results: { nope: true } }],
+        rooms: {}, t, nameOf: id => id, now: 1,
+      })
+    } catch { threw = true }
+    check(!threw && built?.length === 1,
+      'D1 object/string-valued parts/wait/results do not throw')
+    check(built?.[0]?.action === t('meta.waiting'),
+      `D1 the wait sentence degrades to a bare "等" (${JSON.stringify(built?.[0]?.action)})`)
+  }
 
   // ── A2 · layering is a view; the rows never reorder ──────────────────────
   // Names are only labels now: identity is `avatar.shape` + `color`, so a fixture
@@ -679,6 +726,22 @@ section('layers: 需要你 / 在动 / 闲着')
     + 2 * cell + RUN_GRID_GAP + RUN_PAD_B + IDLE_ROW_H
   check(c4c <= 480,
     `C4c default 560×480: 3 need-you + six running (2 rows + gap + padding) + 闲着 = ${c4c.toFixed(2)} ≤ 480 (预算，非实测)`)
+  // C4d: the roster form, drawn only in 退化态. Nine 44px rows plus the
+  // 没有需要你的事 line is the whole promise ("nobody is behind a scroll"), and it
+  // has 5px of slack — which is exactly why it is arithmetic and not a guess.
+  const c4d = PANEL_BORDER + HEAD_H + ATTENTION_EMPTY_ROW_H + ATTENTION_PAD_V + 9 * ATTENTION_ROW_H
+  check(c4d <= 480, `C4d 退化态: 9 roster rows + the empty 需要你 line = ${c4d} ≤ 480 (预算，非实测)`)
+  // The smallest panel has to keep the same promise with a notice on screen —
+  // and a stale snapshot, which is when notices appear, shows every Bot idle.
+  const rosterW = SIZE_MIN.w - PANEL_BORDER - ROSTER_PAD_H
+  const tightCols = Math.floor(rosterW / ROSTER_CELL_MIN)
+  const restRows = Math.floor((SIZE_MIN.h - HEAD_H - PANEL_BORDER - ATTENTION_EMPTY_ROW_H
+    - ATTENTION_PAD_V - NOTICES_MAX_H) / ATTENTION_ROW_H)
+  check(tightCols >= 3, `C4d 420 wide holds ${tightCols} tight columns (≥ 3)`)
+  check(ROSTER_CELL_FULL > ROSTER_CELL_MIN,
+    'C4d the full cell is wider than the tight one, or the second tier is dead code')
+  check(restRows * tightCols >= 9,
+    `C4d 420×320 with a notice still shows all nine (${restRows} rows × ${tightCols} columns ≥ 9)`)
   // The declared cell height has to cover the drawing. Without this, someone could
   // shrink RUNNING_CELL_H alone and leave C4c green while the name row got clipped.
   const sceneH = Math.ceil(RUNNING_CELL_W * SCENE_VB.h / SCENE_VB.w)
@@ -703,6 +766,54 @@ section('layers: 需要你 / 在动 / 闲着')
     'C4d the overflow chip fits inside a 44px row, so overflow costs zero height')
 }
 
+// ------------------------------------------------------- contract bounds --
+section('contract bounds: the knobs the old suite could not see')
+{
+  const {
+    LAMP_STROKE_W, LAMP_STROKE_W_SMALL, LAYER_STABLE_MS,
+  } = await import(new URL('../src/client/const.js', import.meta.url).href)
+
+  // Mutation m09: LAYER_STABLE_MS → 0 stayed green, because the only assertion
+  // was an upper bound. A zero window commits a one-tick flip on the next render
+  // — exactly the relocation the window exists to prevent.
+  check(LAYER_STABLE_MS >= 1000,
+    `the layer window has a floor (${LAYER_STABLE_MS}ms ≥ 1000ms)`)
+
+  // Mutations m15/m21/m23: the classroom stroke could be 0.1, the legend's 0.2,
+  // and the two lamps could use different inks, all while green.
+  check(LAMP_STROKE_W >= 1.0,
+    `the classroom lamp stroke stays visible (${LAMP_STROKE_W} ≥ 1.0)`)
+  check(LAMP_STROKE_W_SMALL >= 1.0,
+    `the legend lamp stroke stays visible (${LAMP_STROKE_W_SMALL} ≥ 1.0)`)
+  check(LAMP_STROKE_W_SMALL >= LAMP_STROKE_W,
+    'the 12-unit lamp is not thinner than the 170-unit one')
+
+  const host = await import(new URL('../src/host/index.js', import.meta.url).href)
+  // Mutation m17: READ_STALE_MS → 1500 stayed green. Too small turns every cache
+  // hit into a stale warning; too large hides a writer that went quiet.
+  check(host.READ_STALE_MS >= 3 * 5000 && host.READ_STALE_MS <= 60000,
+    `the stale threshold sits between three board polls and a minute (${host.READ_STALE_MS}ms)`)
+  // Mutation m12: FAILURE_TTL 15min → 1min stayed green.
+  check(host.FAILURE_TTL >= 5 * 60 * 1000,
+    `a failure is kept long enough to be read (${host.FAILURE_TTL}ms ≥ 5min)`)
+  check(host.BOTS_MAX >= 16 && host.BOTS_MAX <= 256,
+    `the Bot cap is a real bound, not a no-op (${host.BOTS_MAX})`)
+  check(host.ROOMS_MAX >= 16 && host.ROOMS_MAX <= 256,
+    `the room cap is a real bound (${host.ROOMS_MAX})`)
+}
+
+// ------------------------------------------------- running-band overflow --
+section('running band: the hint that says there is more below')
+{
+  const { countBelow } = await import(new URL('../src/client/overflow.js', import.meta.url).href)
+  check(countBelow([], 100) === 0, 'an empty band has nothing below')
+  check(countBelow([10, 50, 90], 100) === 0, 'cells inside the box are not counted')
+  check(countBelow([10, 120, 140], 100) === 2, 'cells past the bottom edge are counted')
+  check(countBelow([10, 100], 100) === 1, 'a cell exactly at the edge counts as hidden (it is not visible)')
+  check(countBelow([NaN, undefined, 10], 100) === 0, 'junk measurements do not invent hidden cells')
+  check(countBelow([10], NaN) === 0, 'an unmeasurable box reports nothing rather than everything')
+}
+
 // ------------------------------------------------------------- poll loop --
 section('poll loop: single flight')
 {
@@ -722,8 +833,15 @@ section('poll loop: single flight')
   }
 
   check(pollDelay(1500, { active: true, hidden: false, misses: 0 }) === 1500, 'delay is the base interval when active')
-  check(pollDelay(1500, { active: false, hidden: false, misses: 0 }) === 30000, 'a collapsed panel polls every 30s')
+  // Collapsed is the pill — the glanceable form and the only channel that can
+  // raise a notification. It used to share the hidden-window 30s, which made the
+  // most important surface the slowest one. It now shares the idle cadence.
+  check(pollDelay(1500, { active: false, hidden: false, misses: 0 }) === 6000,
+    'a collapsed panel keeps the idle cadence (6s), not the hidden cadence')
   check(pollDelay(1500, { active: true, hidden: true, misses: 0 }) === 30000, 'a hidden window polls every 30s')
+  check(pollDelay(1500, { active: false, hidden: false, misses: 0 })
+      < pollDelay(1500, { active: true, hidden: true, misses: 0 }),
+    'collapsed is faster than hidden: the pill is watched, a hidden window is not')
   check(pollDelay(1500, { active: true, hidden: false, misses: 1 }) === 3000, 'a failure doubles the delay')
   check(pollDelay(1500, { active: true, hidden: false, misses: 9 }) === 12000, 'backoff stops at 8x the base interval')
   check(pollDelay(5000, { active: true, hidden: false, misses: 9 }) === 30000, 'and never exceeds 30s')
@@ -834,6 +952,7 @@ section('bundle: loader contract')
   const injected = []
   const ReactStub = {
     createElement: (type, props, ...children) => ({ type, props, children }),
+    Component: class { constructor(props) { this.props = props } },
     memo: component => component,
     useState: value => [typeof value === 'function' ? value() : value, () => {}],
     useEffect: () => {},
@@ -915,6 +1034,7 @@ section('css')
   const { CSS } = await import(new URL('../src/client/style.js', import.meta.url).href)
   const {
     ATTENTION_ROW_H, ATTENTION_PAD_V, IDLE_ROW_H, RUNNING_CELL_W, RUN_GRID_GAP, RUN_PAD_B,
+    ATTENTION_EMPTY_ROW_H, ROSTER_PAD_H, NOTICES_SCROLL_H,
   } = await import(new URL('../src/client/const.js', import.meta.url).href)
 
   // P0-2: the room is a cream island; its ink must be explicit, not inherited.
@@ -989,7 +1109,7 @@ section('css')
   // E2: the two new clickable layers are in the focus-ring selector list, not
   // beside it. A keyboard user has to be able to see where they are.
   const ring = CSS.match(/[^{}]*:focus-visible[^{]*\{[^}]*outline:2px solid #378ADD[^}]*\}/)?.[0] ?? ''
-  for (const name of ['bb-pill', 'bb-icon', 'bb-btn', 'bb-handoff', 'bb-station', 'bb-attention-row', 'bb-idle-name', 'bb-idle-more', 'bb-att-more']) {
+  for (const name of ['bb-pill', 'bb-icon', 'bb-btn', 'bb-handoff', 'bb-station', 'bb-attention-row', 'bb-idle-name', 'bb-idle-more', 'bb-att-more', 'bb-roster-row']) {
     check(ring.includes(`.${name}:focus-visible`), `E2 ${name} is in the focus-ring selector list`)
   }
 
@@ -1032,6 +1152,29 @@ section('css')
   const padV = Number(padMatch?.[1] ?? 0) + Number(padMatch?.[2] ?? 0)
   check(padV === ATTENTION_PAD_V,
     `the .bb-attention vertical padding sums to ATTENTION_PAD_V (${padV} === ${ATTENTION_PAD_V})`)
+
+  // The roster form's three numbers, for the same reason: C4d is arithmetic over
+  // them, and a hand-edited literal would leave the budget green and lying.
+  check(new RegExp(`\\.bb-roster-row\\{[^}]*height:${ATTENTION_ROW_H}px`).test(CSS),
+    `§11.19 the roster row is the layer-1 rhythm (${ATTENTION_ROW_H}px), not a second height`)
+  check(new RegExp(`\\.bb-roster\\{[^}]*padding:0 ${ROSTER_PAD_H / 2}px`).test(CSS),
+    `§11.19 the roster padding is ROSTER_PAD_H (${ROSTER_PAD_H}px, 10 a side)`)
+  check(new RegExp(`\\.bb-att-empty\\{[^}]*height:${ATTENTION_EMPTY_ROW_H}px`).test(CSS),
+    `§11.19 the 没有需要你的事 line is ATTENTION_EMPTY_ROW_H (${ATTENTION_EMPTY_ROW_H}px) — C4d subtracts it`)
+  check(new RegExp(`\\.bb-notices\\{[^}]*max-height:${NOTICES_SCROLL_H}px`).test(CSS),
+    `§11.19 the notices band is NOTICES_SCROLL_H (${NOTICES_SCROLL_H}px) — the roster reserves it whole`)
+  // The roster may not reintroduce the white card or the lamp: both are layer 1's
+  // alone, and a second copy is what would flatten the hierarchy.
+  check(!/\.bb-roster-row\{[^}]*background:#FFFFFF/.test(CSS),
+    '§11.19 a roster row is not a white card')
+  // "No animation of its own" has to allow the one rule that *cancels* an
+  // animation: `.bb-roster-av .bb-eyes{animation:none}` is the point, not a
+  // violation.
+  const rosterAnim = [...CSS.matchAll(/\.bb-roster[^{]*\{([^}]*)\}/g)]
+    .map(match => match[1])
+    .filter(body => /animation:/.test(body) && !/animation:none/.test(body))
+  check(rosterAnim.length === 0,
+    `§11.19 the roster adds no animation of its own (${rosterAnim.length} rule(s) did)`)
 }
 
 // ---------------------------------------------------------------- locale --
@@ -1062,6 +1205,26 @@ section('locale')
   check(NEW_KEYS.filter(key => zh[key].includes('{n}')).length ===
       NEW_KEYS.filter(key => en[key].includes('{n}')).length,
     'D3 {n} placeholders appear on both sides of every key that has one')
+
+  // D4: parity between zh and en says nothing about the keys the *code* asks
+  // for. `panel.dataVersion` existed in neither dictionary while panel.js called
+  // it on every version mismatch, so 435 green assertions printed a raw key to
+  // the user at the one moment README promises the board will speak plainly.
+  const clientDir = join(ROOT, 'src/client')
+  const source = readdirSync(clientDir)
+    .filter(name => name.endsWith('.js'))
+    .map(name => readFileSync(join(clientDir, name), 'utf8'))
+    .join('\n')
+  const used = new Set([...source.matchAll(/\bt\(\s*'([^']+)'/g)].map(match => match[1]))
+  const absent = [...used].filter(key => !(key in zh) || !(key in en))
+  check(absent.length === 0,
+    `D4 every t('...') literal exists in both dictionaries (${used.size} used)${absent.length ? ` (missing ${absent.join(',')})` : ''}`)
+
+  // D5: `en = { ...zh }` keeps the key sets identical and would pass D3 while
+  // every English user reads Chinese. No key is allowed to be a verbatim copy.
+  const identical = Object.keys(zh).filter(key => zh[key] === en[key])
+  check(identical.length === 0,
+    `D5 no English value is a copy of the Chinese one${identical.length ? ` (${identical.join(',')})` : ''}`)
 }
 
 if (failed) {

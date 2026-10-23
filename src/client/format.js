@@ -23,7 +23,20 @@ export function elapsed(ms, now = Date.now()) {
   return `${Math.floor(m / 60)}h${pad(m % 60)}m`
 }
 
+// The client-side twin of the host's `text()`. It exists because the panel
+// normally renders `api/bot`'s raw Bot list (`view?.bots`), so the host's
+// sanitiser — the one with the nine-line comment about U+202E — never runs on
+// the main path. Duplicated on purpose: the host and the browser bundle share
+// no modules.
+const INVISIBLE = /[\u0000-\u0008\u000e-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g
+export const sanitize = value => (typeof value === 'string'
+  ? value.replace(INVISIBLE, '').replace(/\s+/g, ' ').trim()
+  : '')
+
 export function clip(value, max) {
-  const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
-  return text.length > max ? `${text.slice(0, max)}…` : text
+  const text = sanitize(value)
+  // Code points, not UTF-16 units: slicing an emoji in half produces a lone
+  // surrogate, which renders as a replacement glyph in the drawer and the title.
+  const chars = Array.from(text)
+  return chars.length > max ? `${chars.slice(0, max).join('')}…` : text
 }

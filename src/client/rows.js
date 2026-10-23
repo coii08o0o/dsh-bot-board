@@ -23,7 +23,9 @@ const RECOVERED_MS = 60 * 1000
 // questions is keyed by session id; a Bot that rolled over a part may still be
 // matched by its previous parts in a stale snapshot.
 function questionOf(bot, questions) {
-  const keys = [bot.sessionId, bot.id, ...(bot.parts ?? [])]
+  // `parts` comes from another process. Spreading a non-iterable object throws,
+  // and a throw here takes the whole panel down (there is no error boundary).
+  const keys = [bot.sessionId, bot.id, ...(Array.isArray(bot.parts) ? bot.parts : [])]
   for (const key of keys) {
     if (key && questions[key]) return questions[key]
   }
@@ -66,12 +68,15 @@ function describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms
     }
   }
   if (wait) {
+    // `wait` is DS Bot's object, not ours: any of these three arrays can be a
+    // string or an object in a drifted/partial file. `.map` on a non-array throws.
     const names = [
-      ...(wait.bots ?? []).map(nameOf),
-      ...(wait.rooms ?? []).map(id => (rooms[id] ? `${t('meta.room')} ${rooms[id]}` : id)),
+      ...(Array.isArray(wait.bots) ? wait.bots : []).map(nameOf),
+      ...(Array.isArray(wait.rooms) ? wait.rooms : []).map(id => (rooms[id] ? `${t('meta.room')} ${rooms[id]}` : id)),
     ]
     // "等 Chief · 替 Chief" reads like a stutter; drop the repeat.
-    const patrons = (wait.for ?? []).map(nameOf).filter(name => name && !names.includes(name))
+    const patrons = (Array.isArray(wait.for) ? wait.for : []).map(nameOf)
+      .filter(name => name && !names.includes(name))
     const parts = []
     if (names.length) parts.push(`${t('meta.waiting')} ${names.join('、')}`)
     if (patrons.length) parts.push(`${t('meta.for')} ${patrons.join('、')}`)
@@ -94,7 +99,7 @@ function describe({ approval, question, failure, wait, kickoff, t, nameOf, rooms
 export function buildRows({
   bots = [], activity = {}, workBots = {}, waiting = {}, approvals = [], questions = {},
   errors = [], works = [], rooms = {}, waveMap = {}, noteMap = {},
-  t, nameOf, now = Date.now(),
+  t, nameOf, now = Date.now(), freezeAt = 0,
 }) {
   const order = orderOf(bots)
   const approvalsList = Array.isArray(approvals) ? approvals : []
@@ -151,7 +156,8 @@ export function buildRows({
       // its last entry belongs to whoever finished last — not necessarily this Bot.
       // Prefer the entry that names it; fall back to the work's own last line.
       const handed = works.find(item => item.toId === bot.id)
-      const own = (handed?.results ?? []).filter(item => item?.name && item.name === bot.name).at(-1)
+      const own = (Array.isArray(handed?.results) ? handed.results : [])
+        .filter(item => item?.name && item.name === bot.name).at(-1)
       const roomId = work?.roomId
       return {
         bot,
@@ -174,6 +180,10 @@ export function buildRows({
         // wait first" rule into roster order (v0.4.2 audit, finding #3).
         approvalAt,
         waitSince: approvalAt || since || (failure?.at ?? 0),
+        // Non-zero only while the live feed is unreachable: the elapsed column
+        // must stop at the last successful answer instead of counting on behalf
+        // of a process the board can no longer hear.
+        freezeAt,
         seat,
         detail,
         work: work ?? null,

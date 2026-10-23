@@ -71,6 +71,12 @@ export function Handoffs({ works, t, onPick, sceneOf }) {
           h('span', { className: 'bb-ho-total' }, t('ho.groupTotal').replace('{n}', String(group.total)))),
         edges.map(edge => {
           const blocked = blockedOf(sceneOf?.(edge.toId))
+          // A cycle where both sides are visibly working is not a deadlock: each
+          // is paying the other's debt down. Printing 互相等 there sends the user
+          // to chase two Bots that are already running — the same "debt is not a
+          // stall" mistake `blockedOf` already avoids for single edges.
+          const bothBusy = sceneOf?.(edge.fromId) === 'busy' && sceneOf?.(edge.toId) === 'busy'
+          const mutual = edge.mutual && !bothBusy
           return h('div', {
             className: 'bb-handoff',
             key: edge.id,
@@ -79,7 +85,7 @@ export function Handoffs({ works, t, onPick, sceneOf }) {
             role: 'button',
             tabIndex: 0,
             'data-blocked': blocked,
-            'data-mutual': edge.mutual ? 'true' : undefined,
+            'data-mutual': mutual ? 'true' : undefined,
             onClick: () => onPick?.(edge),
             onKeyDown: event => {
               if (event.key === 'Enter' || event.key === ' ') {
@@ -91,12 +97,12 @@ export function Handoffs({ works, t, onPick, sceneOf }) {
           },
             // Shape change *and* a word: `⇄` alone is a riddle, so the mutual
             // case also prints 互相等.
-            h('span', { className: 'bb-ho-arrow' }, edge.mutual ? '⇄' : '→'),
+            h('span', { className: 'bb-ho-arrow' }, mutual ? '⇄' : '→'),
             h('span', { className: 'bb-ho-name' }, edge.to || '？'),
             h('span', { className: 'bb-ho-count' }, `${edge.open} ${t('handoff.open')}`),
             blocked === 'true' ? h('span', { className: 'bb-ho-flag' }, t('ho.blocked')) : null,
             blocked === 'idle' ? h('span', { className: 'bb-ho-flag' }, t('ho.notStarted')) : null,
-            edge.mutual ? h('span', { className: 'bb-ho-flag' }, t('ho.mutual')) : null,
+            mutual ? h('span', { className: 'bb-ho-flag' }, t('ho.mutual')) : null,
             h('span', { className: 'bb-ho-time' }, ago(edge.at, Date.now(), t)))
         }),
         hiddenItems > 0 ? more(t('ho.moreItems'), hiddenItems) : null)

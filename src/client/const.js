@@ -26,6 +26,28 @@ export const ATTENTION_ROW_H = 44     // also the WCAG 2.5.5 pointer target — 
 export const ATTENTION_GAP = 3        // bound
 export const ATTENTION_PAD_V = 10     // 6 top + 4 bottom, the `.bb-attention` padding
 export const IDLE_ROW_H = 24          // bound
+// The roster form of layer 3 (退化态 only — see Body). It reuses ATTENTION_ROW_H
+// on purpose: the two bands then read as one table, and 44 is the WCAG 2.5.5
+// pointer target the rows already have to meet.
+//
+// The column count is derived from the height, not from a breakpoint: at 560×480
+// nine Bots fit in one column, at 420×320 they need two. That is the whole reason
+// this form can promise "no Bot is ever behind a scroll" — the arithmetic below
+// is asserted in smoke.mjs (C4d).
+export const ATTENTION_EMPTY_ROW_H = 28  // `.bb-att-empty` — the 没有需要你的事 line
+// A roster cell is a face + a name + (optionally) one word. 160px shows all
+// three; below that the word goes before the name does (the same trade layer 1
+// makes with its action column), which is what lets 420px hold three columns
+// instead of two — the difference between nine Bots on screen and three hidden.
+export const ROSTER_CELL_FULL = 160
+export const ROSTER_CELL_MIN = 120
+export const ROSTER_PAD_H = 20           // `.bb-roster` padding, 10 on each side
+// `.bb-notices` can take this much before the roster starts: 64 of scroll area
+// plus its 6px top padding. Reserved as a whole rather than measured, because a
+// notice is the one thing above the roster that appears without a resize.
+export const NOTICES_SCROLL_H = 64
+export const NOTICES_MAX_H = NOTICES_SCROLL_H + 6
+
 // `.bb-panel` is 1px on each side and border-box, so the inside of a 480px panel
 // is 478px. v0.4.1's first pass forgot this and the static preview measured the
 // consequence: at the C4c worst case `.bb-run` had 267px, not the 269px the
@@ -95,6 +117,12 @@ export const LAMP = {
 // The radius only has to cover the lamp's outer radius, 2.9 + 1.2/2 = 3.5.
 export const LAMP_STROKE = '#5B5648'
 export const LAMP_STROKE_W = 1.2
+// The 12-unit Lamp component (layer 1, legend, drawer) used to hard-code 1.5 and
+// its own copy of the ink. Two lamps that tune independently are two lamps that
+// drift: changing the classroom stroke left the legend untouched, and the legend
+// is the only frame of reference the user has. The small lamp keeps its 1.5
+// because it is drawn in a 12-unit box, not the 170-unit scene.
+export const LAMP_STROKE_W_SMALL = 1.5
 export const LAMP_R = 2.9
 export const LAMP_BASE = '#FFFDF8'
 export const LAMP_BASE_R = 3.8
@@ -124,7 +152,13 @@ export const STATUS_KEY = {
 // card must still read as a sentence: falling back to "working" is honest (that
 // is what an unrecognised live activity means to sceneOf), while printing the raw
 // token onto the workstation is not.
-export const statusLabel = (status, t) => t(STATUS_KEY[status] ?? 'status.working')
+export const statusLabel = (status, t) => t(
+  // `STATUS_KEY[status]` walks the prototype chain: an activity of "constructor"
+  // returned a function, which then went to `t()` as a key. `hasOwn` keeps an
+  // unknown token on the "working" fallback, which is what the comment above
+  // promises.
+  Object.hasOwn(STATUS_KEY, status) ? STATUS_KEY[status] : 'status.working',
+)
 
 // DS Bot's seven characters (`CHARACTERS` in its client bundle, Apache-2.0), redrawn here as
 // dumplings: the body outline is the character, the face disc and features shrink

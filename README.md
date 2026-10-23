@@ -7,7 +7,7 @@ A floating board for [DS Bot](https://github.com/Fei2411/DeepSeek-Bot): one pane
 
 ![560×480, three Bots need you, five running, one idle](docs/screenshot.png)
 
-It is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin and needs DS Bot installed — without DS Bot there is nothing to show, and the panel stays hidden. It reads DS Bot's own data and writes nothing: no `state.json` edits, no `api/bot` calls that change state, not even a `locale` field that would flip your UI language.
+It is a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin and needs DS Bot installed — without DS Bot there is nothing to show, and the panel stays hidden. It reads DS Bot's own data and writes nothing of DS Bot's: no `state.json` edits, no `api/bot` calls that change state, not even a `locale` field that would flip your UI language. The panel's own position, size and collapsed state live in your browser's localStorage.
 
 Requirements: DSH (a Developer Preview build is fine), DS Bot `0.1.7` or `0.2.0` (the two this was built against), Node ≥ 20 to build from source.
 
@@ -54,7 +54,7 @@ Three bands, ordered by whether you have to do anything:
 
 1. Needs you — up to three rows of Bots waiting on an approval, a question, or a failed turn. Each row: the Bot's face, its name, the action in its own words, how long it has waited, and a lamp. When more than three are waiting the third row grows a `+N` chip that expands the list in place.
 2. Moving — the classroom floor: Bots that are running, waiting on another Bot, or just finished (7 seconds). Hand-off edges sit above the grid.
-3. Idle — one line of names. A `!` badge sits on a Bot that failed and has since gone quiet.
+3. Idle — one line of names. When nothing is running and nothing is owed, the line becomes a roster instead: one 44px row per resting Bot with its face, its name, its role (or model) and 闲着 on the right. The roster reflows to two or three columns on a smaller panel, so no Bot is ever behind a scroll. A `!` badge sits on a Bot that failed and has since gone quiet.
 
 The three bands differ by image, row height, weight and surface, not by background colour. Status colour appears only on the 3px bar and the lamps.
 
@@ -117,6 +117,9 @@ If you moved DS Bot's data folder (`bot.home` in its config), point this plugin 
 - The classroom is a light island by design. In a dark theme the room stays cream and the text stays dark.
 - DS Bot's `avatar.image` (an uploaded photo, up to 160KB as a data URL) is not drawn. Seven outlines is the whole vocabulary here; a photo inside a 138px workstation is a different problem.
 - DS Bot changing `api/bot` fields will need a matching change here. The ink values come from its `src/client/inks.js`.
+- The snapshot is visible to any authenticated DSH session. `/api` checks an HttpOnly cookie and an owner principal and binds to loopback by default, but same-origin plugin scripts, remote `trustedHosts` and API operator tokens can read it.
+- `state.json` is treated as semi-trusted input. A drifted or mistyped field degrades to an empty value instead of crashing the panel, which means a wrong value is possible; the panel says so when `dataVersion` does not match.
+- Error text is copied into system notifications, which can appear on a lock screen or a shared screen. Turn notifications off for this plugin in sensitive environments.
 
 ## Development
 
@@ -146,7 +149,7 @@ npm run ci       # verify + smoke + render, no build
 npm run preview  # static HTML of nine scenarios, measured in a browser
 ```
 
-`verify` and `ci` exist because they do not build. `check` always builds first, so "the artifact is stale" cannot be expressed there — put an old `client.js` back and all 435 assertions still pass. `verify` compares the src fingerprint in the bundle banner against a fresh hash, and `ci` runs that plus both suites, so a forgotten build fails before release.
+`verify` and `ci` exist because they do not build. `check` always builds first, so "the artifact is stale" cannot be expressed there — put an old `client.js` back and all 514 assertions still pass. `verify` compares the src fingerprint in the bundle banner against a fresh hash, and `ci` runs that plus both suites, so a forgotten build fails before release.
 
 The `preview` export is not a mockup. It renders the real components with the real CSS and prints `clientHeight`/`scrollHeight` under each panel. That is how the 0.72px margin at 560×480 was measured.
 

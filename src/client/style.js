@@ -12,7 +12,9 @@
 // const.js instead of typed twice. The budget used to be "constant against
 // constant" with the CSS joined to it by a comment, so `.bb-attention-row{40px}`
 // left C4a green and lying. Now the CSS *is* the constant.
-import { ATTENTION_GAP, ATTENTION_ROW_H, IDLE_ROW_H, RUN_GRID_GAP, RUN_PAD_B, RUNNING_CELL_W } from './const.js'
+import {
+  ATTENTION_GAP, ATTENTION_ROW_H, IDLE_ROW_H, NOTICES_SCROLL_H, ROSTER_PAD_H, RUN_GRID_GAP, RUN_PAD_B, RUNNING_CELL_W,
+} from './const.js'
 
 export const CSS = `
 .bb-wrap{position:fixed;right:16px;bottom:120px;z-index:80;font-size:12px;line-height:1.5;color:inherit;
@@ -25,6 +27,7 @@ export const CSS = `
 .bb-pill b{font-weight:600}
 .bb-dot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block;border:1px solid #5B5648}
 .bb-panel{display:flex;flex-direction:column;border-radius:14px;overflow:hidden;position:relative;
+  max-width:100%;
   background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l3,rgba(0,0,0,.12));
   box-shadow:0 14px 38px rgba(0,0,0,.18)}
 /* Head: 39px = 7 + 24 (icon) + 7 + 1 (border). Counts report 需要你 first. */
@@ -43,9 +46,9 @@ export const CSS = `
 .bb-icon:hover{opacity:1;background:rgba(0,0,0,.05)}
 
 /* Body: three bands, and only the middle one scrolls. */
-.bb-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;
+.bb-body{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;position:relative;
   padding:0;background:#FAF7F1;color:#2C2C2A}
-.bb-notices{flex:none;max-height:64px;overflow:auto;padding:6px 10px 0}
+.bb-notices{flex:none;max-height:${NOTICES_SCROLL_H}px;overflow:auto;padding:6px 10px 0}
 
 /* ── Layer 1 · 需要你 ──────────────────────────────────────────────────────── */
 /* #FFFFFF against #FAF7F1 is only 1.07:1, so the card's surface encodes nothing.
@@ -85,9 +88,13 @@ export const CSS = `
    a bare div: the names it stood for existed nowhere on the panel and could not
    be opened. Same overflow as layer 3's +N, worse treatment, on the more
    important layer. It is now a real control. */
-.bb-att-more{flex:none;display:inline-flex;align-items:center;height:18px;padding:0 6px;
-  border-radius:9px;background:#F3EDE2;color:#4A4438;font-size:10.5px;font-weight:600;
-  line-height:18px;cursor:pointer;outline:none;white-space:nowrap;
+/* The chip is the only path to the 4th Bot onwards, so it cannot read as part of
+   the sentence before it: #F3EDE2 on white is ~1.1:1. The deeper cream plus the
+   room's ink gives it an edge, and 20px keeps it a comfortable pointer target
+   inside the 44px row. */
+.bb-att-more{flex:none;display:inline-flex;align-items:center;height:20px;padding:0 7px;
+  border-radius:10px;background:#E7DCC4;color:#2C2C2A;font-size:10.5px;font-weight:600;
+  line-height:20px;cursor:pointer;outline:none;white-space:nowrap;
   font-variant-numeric:tabular-nums}
 /* Hover is a 1px inner ring plus a step in text colour, not a tint: a tint on
    this surface measures 1.105:1, i.e. no feedback — the same mistake the
@@ -96,6 +103,13 @@ export const CSS = `
 
 /* ── Layer 2 · 在动 (the only scroll area) ──────────────────────────────────── */
 .bb-run{flex:1;min-height:0;overflow:auto;padding:0 10px ${RUN_PAD_B}px}
+/* Overlay, not a row: a hint that consumed height would shrink the band and
+   change the count it reports. Sits above the idle line (the inline bottom is
+   set by Body, because the idle line may be absent). */
+.bb-run-more{position:absolute;right:16px;z-index:1;display:inline-flex;align-items:center;
+  height:19px;padding:0 8px;border-radius:10px;background:#2C2C2A;color:#FFFDF8;
+  font-size:10.5px;font-weight:600;pointer-events:none;white-space:nowrap;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);font-variant-numeric:tabular-nums}
 .bb-run-grid{display:grid;grid-template-columns:repeat(auto-fit,${RUNNING_CELL_W}px);
   gap:${RUN_GRID_GAP}px;justify-content:center}
 /* The classroom is not a card grid: no white fill, no drop shadow. A hover ring
@@ -170,6 +184,57 @@ export const CSS = `
 /* The one path that may grow layer 3 — and only because the user asked for it. */
 .bb-idle[data-expanded="true"]{height:auto;max-height:44px;flex-wrap:wrap;padding:4px 10px}
 
+/* ── Layer 3, roster form · 退化态 only ────────────────────────────────────── */
+/* Body decides when this is drawn (nothing needs you, nobody running, no open
+   hand-off). It is deliberately not layer 1 in grey:
+     - no white card: #FFFFFF on #FAF7F1 is 1.07:1, so the card encodes nothing,
+       and spending it twice blurs which rows want something from you;
+     - no lamp: nine identical grey circles are wallpaper, not a channel. A quiet
+       failure keeps its "!" instead — the one mark that carries news;
+     - name weight 500, one step under layer 1's 600.
+   It keeps the 44px rhythm, the 30px face crop and the column order, so the two
+   bands read as one table rather than two drawings. 44 is also the WCAG 2.5.5
+   pointer target every row here has to meet. */
+.bb-roster{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;padding:0 ${ROSTER_PAD_H / 2}px}
+.bb-roster-scroll{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+/* margin:auto 0 centres a short roster in 退化态, so the leftover space reads as
+   whitespace instead of a hole. It is deliberately NOT used under the cards: a
+   centred block leaves a gap between the two bands, and the rows are a
+   continuation of the table above, not a separate object.
+   Auto margins rather than justify-content:center — centring a flex child that
+   overflows clips its top edge, and no scroll can reach what was clipped. */
+.bb-roster-grid{margin:auto 0;display:grid;row-gap:0;column-gap:8px}
+.bb-roster[data-align="top"] .bb-roster-grid{margin:0}
+.bb-roster-row{display:flex;align-items:center;gap:8px;height:${ATTENTION_ROW_H}px;
+  padding:0 4px 0 7px;border-left:3px solid transparent;border-radius:9px;
+  cursor:pointer;outline:none;overflow:hidden}
+/* Same rule as .bb-attention-row:hover: a tint on cream is 1.06:1, i.e. no
+   feedback at all. The ring is 3.3:1. */
+.bb-roster-row:hover{box-shadow:inset 0 0 0 1px #8F8776}
+.bb-roster-av{flex:0 0 30px;width:30px;height:30px;border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;background:#FAF7F1}
+.bb-roster-av svg{display:block;width:30px;height:30px}
+.bb-roster-nm{flex:0 0 auto;max-width:68px;font-size:12.5px;font-weight:500;color:#2C2C2A;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bb-roster-sub{flex:1 1 auto;min-width:0;font-size:12px;color:#4A4438;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The state column sits exactly where layer 1's duration column does, so a row
+   reads across the panel instead of stopping after the name — and it is the one
+   column that can never be empty. 5.27:1 on cream. */
+.bb-roster-state{flex:none;min-width:24px;text-align:right;font-size:11px;color:#6B6558}
+/* Width crisis: the second column goes before the name does. Same rule layer 1
+   already applies to its action column — prose yields, structure does not. */
+.bb-roster[data-density="tight"] .bb-roster-sub{display:none}
+/* The badge is the shared .bb-badge.bb-badge-inline node — 12px, static, after
+   the flexible column. Deliberately not a second red dot with its own size:
+   two badges that tune independently are two badges that drift. */
+/* The roster is the only band in 退化态, so it is also the only scroll area —
+   and macOS hides a scrollbar until the mouse moves. Same pill as 在动's. */
+.bb-roster-more{position:absolute;right:16px;bottom:6px;display:inline-flex;align-items:center;
+  height:19px;padding:0 8px;border-radius:10px;background:#2C2C2A;color:#FFFDF8;
+  font-size:10.5px;font-weight:600;pointer-events:none;white-space:nowrap;
+  box-shadow:0 2px 8px rgba(0,0,0,.18);font-variant-numeric:tabular-nums}
+
 /* ── Lamps ────────────────────────────────────────────────────────────────── */
 .bb-lamp{display:block}
 .bb-drawer-lamp{flex:none;display:grid;place-items:center}
@@ -201,7 +266,8 @@ export const CSS = `
    are. This list is extended, never replaced. */
 .bb-pill:focus-visible,.bb-icon:focus-visible,.bb-btn:focus-visible,.bb-handoff:focus-visible,
 .bb-station:focus-visible,.bb-attention-row:focus-visible,.bb-idle-name:focus-visible,
-.bb-idle-more:focus-visible,.bb-att-more:focus-visible,.bb-ho-more:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
+.bb-idle-more:focus-visible,.bb-att-more:focus-visible,.bb-ho-more:focus-visible,
+.bb-roster-row:focus-visible{outline:2px solid #378ADD;outline-offset:1px}
 
 /* ── Motion: unchanged set, unchanged budgets ─────────────────────────────── */
 .bb-blob{transform-box:fill-box;transform-origin:center bottom;animation:bb-breathe 2.6s ease-in-out infinite}
@@ -218,6 +284,12 @@ export const CSS = `
    matter compete with the action text, and the lamp already encodes activity.
    These overrides sit after the base rules they cancel, on purpose. */
 .bb-att-avatar .bb-blob,.bb-att-avatar .bb-eyes{animation:none}
+/* Same rule for the roster: nine blinking faces would be nine small animations
+   in a state whose whole point is that nothing is happening. This selector must
+   stay *after* the .bb-eyes rule above it — a smoke check reads the first
+   .bb-eyes{ in the sheet to verify the blink is step-end, and a selector list
+   ending in .bb-eyes{ placed earlier would answer for the wrong rule. */
+.bb-roster-av .bb-blob,.bb-roster-av .bb-eyes{animation:none}
 .bb-notice{margin:0 0 8px;padding:5px 8px;border-radius:8px;font-size:11px;background:#FDF2F2;color:#9B1C1C;
   border:1px solid rgba(185,28,28,.18)}
 .bb-notice-warn{background:#FEF7E6;color:#8A5B00;border-color:rgba(138,91,0,.18)}

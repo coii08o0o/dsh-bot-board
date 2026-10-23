@@ -1,15 +1,18 @@
 // The floating panel: header + three-layer body (需要你 / 在动 / 闲着) + the
 // detail sheet, which doubles as the legend.
-import { createElement as h, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Component, createElement as h, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  COLLAPSE_KEY, LAMP, LAYER_STABLE_MS, POS_KEY, SIZE_DEFAULT, SIZE_KEY, SIZE_MAX, SIZE_MIN,
+  ATTENTION_EMPTY_ROW_H, ATTENTION_GAP, ATTENTION_PAD_V, ATTENTION_ROW_H, COLLAPSE_KEY, HEAD_H, IDLE_ROW_H,
+  LAMP, LAYER_STABLE_MS, NOTICES_MAX_H, PANEL_BORDER, POS_KEY, ROSTER_CELL_FULL, ROSTER_CELL_MIN, ROSTER_PAD_H,
+  SIZE_DEFAULT, SIZE_KEY, SIZE_MAX, SIZE_MIN,
 } from './const.js'
-import { clip } from './format.js'
+import { clip, sanitize } from './format.js'
+import { countBelow } from './overflow.js'
 import { buildRows } from './rows.js'
 import { Station } from './station.js'
 import { Drawer } from './drawer.js'
 import { LegendSheet } from './legend.js'
-import { Attention, IdleLine } from './attention.js'
+import { Attention, IdleLine, IdleRoster } from './attention.js'
 import { Handoffs } from './handoffs.js'
 import { ATTENTION_MAX, LAYER_ATTENTION, LAYER_IDLE, LAYER_RUNNING, attentionOf, idleLine, layerOf } from './layers.js'
 import { useTeam } from './poll.js'
@@ -49,13 +52,26 @@ function Dot({ tone, busy }) {
   })
 }
 
+// A saved size is only meaningful for the viewport that saved it. Without the
+// viewport term, a 560px panel restored on a 500px window puts its right edge —
+// and the resize handle — off-screen, and `clampPos` can only move it to left:6,
+// never make it narrower. `Math.max(SIZE_MIN.w, …)` keeps the floor even when the
+// viewport is smaller than the floor; `.bb-panel{max-width:100%}` then caps the
+// painted box.
+const fitWidth = value => {
+  const viewport = typeof window !== 'undefined' && window.innerWidth
+    ? window.innerWidth - 12
+    : SIZE_MAX.w
+  return Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, value), Math.max(SIZE_MIN.w, viewport))
+}
+
 const readSize = () => {
   try {
     const raw = readRaw(SIZE_KEY, '')
     const parsed = raw ? JSON.parse(raw) : null
     if (parsed && parsed.w && parsed.h) {
       return {
-        w: Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, parsed.w)),
+        w: fitWidth(parsed.w),
         h: Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, parsed.h)),
       }
     }
@@ -162,6 +178,15 @@ function useStableLayers(rows) {
 // only builds its body from a poll result would be untestable.
 export function Body({
   rows = [], works = [], notices = [], empty = null, t, onOpen, onPick, sceneOf,
+  // How many 需要你 rows the panel can actually hold at its current height. The
+  // panel passes it; the preview and the checks fall back to the design floor.
+  attentionCapacity = ATTENTION_MAX,
+  // The panel's own size. Only the roster form of layer 3 needs it: its column
+  // count is derived from the height that is actually left, not from a
+  // breakpoint, because the panel is resizable. Defaults to the design size so
+  // the preview and the checks can mount Body without inventing one.
+  panelW = SIZE_DEFAULT.w,
+  panelH = SIZE_DEFAULT.h,
   // The static preview renders the post-click state, which is otherwise only
   // reachable by clicking. The panel never passes it; production is unchanged.
   initialAttExpanded = false,
@@ -211,10 +236,60 @@ export function Body({
   // would be a different five, minutes later. Adjusted during render rather than
   // in an effect so the corrected value is what this very render paints (and so
   // the sequence is observable without a layout engine).
+  // When layer 1 is the ONLY layer with content, its three-row cap has no reason
+  // to exist: the 294px below it is empty, and the user reads "three things need
+  // me" while six more sit behind a chip. The cap exists so nine rows cannot push
+  // the other two layers off a 320px panel; with no other layers, the only limit
+  // is the panel's own height.
+  const showRun = moving.length > 0 || (works ?? []).some(work => Number(work?.open) > 0)
+  const onlyAttention = !showRun && resting.length === 0
   const hotOver = hot.length > ATTENTION_MAX
   if (attExpanded && !hotOver) setAttExpanded(false)
   const attOpen = attExpanded && hotOver
-  const attention = attentionOf(hot, attOpen ? Number.POSITIVE_INFINITY : undefined)
+  const attLimit = attOpen
+    ? Number.POSITIVE_INFINITY
+    : (onlyAttention ? Math.max(ATTENTION_MAX, attentionCapacity) : undefined)
+  const attention = attentionOf(hot, attLimit)
+  // ── 退化态 ────────────────────────────────────────────────────────────────
+  // Nobody is running and nothing is owed. Layer 3 may grow into a roster here,
+  // and only here: the classroom band is empty, so the 400px of cream under a
+  // 24px line of names is what read as a panel that never finished loading.
+  // "5 need you + 4 resting" gets the same treatment — those rows fill the space
+  // the cards leave, and they are quieter than the cards (no surface, no status
+  // bar, no lamp), so 需要你 stays the first thing the eye lands on.
+  //
+  // Membership comes from the *debounced* layers, never from the live scene. A
+  // scene-only test would repaint the roster as a 24px line for one tick whenever
+  // a status blipped — the exact relocation the stability window exists to
+  // prevent. The price is that a Bot which really did start a turn is drawn as
+  // resting for LAYER_STABLE_MS; that is the same 1.2s the name line has always
+  // had, and it ends in one transition (roster → classroom), not in a flicker.
+  //
+  // The room is whatever the band above leaves, which is why this sits after
+  // `attention`: eight cards leave 56px, and one row of roster is not worth the
+  // switch — below two rows the line wins, because the line always fits.
+  const hotBand = attention.items.length
+    ? attention.items.length * ATTENTION_ROW_H + (attention.items.length - 1) * ATTENTION_GAP + ATTENTION_PAD_V
+    : ATTENTION_EMPTY_ROW_H + ATTENTION_PAD_V
+  // The notice term is the CSS maximum rather than the measured height: a notice
+  // is the one thing above the roster that appears without a resize, and a stale
+  // snapshot — which shows every Bot idle — is exactly when one does.
+  // Over-reserving costs a column in a state that already says the feed is
+  // broken; under-reserving hides a Bot.
+  const rosterRoom = panelH - HEAD_H - PANEL_BORDER - hotBand - (notices.length ? NOTICES_MAX_H : 0)
+  const rosterRows = Math.max(1, Math.floor(rosterRoom / ATTENTION_ROW_H))
+  const rest = !showRun && resting.length > 0 && rosterRows >= 2
+  const rosterNeed = Math.max(1, Math.ceil(resting.length / rosterRows))
+  const rosterWidth = panelW - PANEL_BORDER - ROSTER_PAD_H
+  const rosterFit = Math.max(1, Math.floor(rosterWidth / ROSTER_CELL_FULL))
+  const rosterTight = rosterNeed > rosterFit
+  const rosterCols = Math.min(rosterNeed, rosterTight
+    ? Math.max(1, Math.floor(rosterWidth / ROSTER_CELL_MIN))
+    : rosterFit)
+  // `expanded` is the one-way reveal of the *line*. Entering the roster would
+  // otherwise leave it armed, so the next mixed snapshot would open the line at
+  // 44px for no reason the user can see.
+  if (rest && expanded) setExpanded(false)
   // The hand-off table lives inside the running band's scroll area, but *above*
   // the workstation grid. When six Bots are running the two rows of cells already
   // fill the band (268px of 269px), so the table cannot stay on screen with them —
@@ -227,7 +302,33 @@ export function Body({
   //
   // It is also the only reason the running band exists when nobody is running:
   // open debts with no owner at work are still worth showing.
-  const showRun = moving.length > 0 || (works ?? []).some(work => Number(work?.open) > 0)
+  // (`showRun` is computed above, next to the layer-1 capacity it feeds.)
+
+  // The running band is the only scroll area, and macOS hides its scrollbar when
+  // the mouse is still — so a second or third row of workstations can be entirely
+  // off-screen with no hint that it exists. Measured rather than computed: the
+  // number of rows depends on the panel width, the notices, the hand-off table
+  // and the two other layers, and a second arithmetic copy of that would drift
+  // exactly like the old height budget did.
+  const runRef = useRef(null)
+  const [runOverflow, setRunOverflow] = useState(0)
+  const measureRun = useCallback(() => {
+    const el = runRef.current
+    if (!el?.querySelector) return
+    const grid = el.querySelector('.bb-run-grid')
+    const cells = grid ? [...grid.children] : []
+    if (!cells.length) {
+      setRunOverflow(previous => (previous === 0 ? previous : 0))
+      return
+    }
+    const box = el.getBoundingClientRect()
+    const hidden = countBelow(cells.map(cell => cell.getBoundingClientRect().top), box.bottom)
+    setRunOverflow(previous => (previous === hidden ? previous : hidden))
+  }, [])
+  useEffect(() => {
+    measureRun()
+  }, [measureRun, moving.length, works.length, rows.length, attOpen, expanded])
+  const idleVisible = idle.items.length > 0 || idle.overflow > 0
 
   return h('div', { className: 'bb-body' },
     notices.length ? h('div', { className: 'bb-notices' }, notices) : null,
@@ -248,7 +349,7 @@ export function Body({
     // always inside the viewport, so "is anything waiting on me" and "who is
     // free" never need a scroll.
     showRun
-      ? h('div', { className: 'bb-run' },
+      ? h('div', { className: 'bb-run', ref: runRef, onScroll: measureRun },
           h(Handoffs, { works, t, onPick, sceneOf }),
           moving.length
             ? h('div', { className: 'bb-run-grid' },
@@ -258,15 +359,37 @@ export function Body({
             : null)
       : null,
 
-    // Layer 3 — 闲着. No image, no surface, no lamp: names only.
-    h(IdleLine, {
-      items: idle.items,
-      overflow: idle.overflow,
-      expanded,
-      t,
-      onOpen,
-      onExpand: () => setExpanded(true),
-    }))
+    // Overlay, not a line: a hint that consumes height would shrink the band and
+    // change the very count it is reporting. It sits above the idle row.
+    runOverflow > 0
+      ? h('div', {
+          className: 'bb-run-more',
+          style: { bottom: idleVisible ? IDLE_ROW_H + 2 : 6 },
+          role: 'status',
+        }, t('run.overflow').replace('{n}', String(runOverflow)))
+      : null,
+
+    // Layer 3 — 闲着. Two forms, one rule: the line is the default, the roster is
+    // what 退化态 gets (see `rest` above). Both are roster-ordered and both open
+    // the same drawer, so a Bot never moves because a status changed.
+    rest
+      ? h(IdleRoster, {
+          items: resting,
+          cols: rosterCols,
+          capacity: rosterCols * rosterRows,
+          tight: rosterTight,
+          align: attention.items.length ? 'top' : 'center',
+          t,
+          onOpen,
+        })
+      : h(IdleLine, {
+          items: idle.items,
+          overflow: idle.overflow,
+          expanded,
+          t,
+          onOpen,
+          onExpand: () => setExpanded(true),
+        }))
 }
 
 // Everything the header and the collapsed pill report, derived in one place so
@@ -280,7 +403,7 @@ export function Body({
 // changes a decision, and layer 2 prints every duration anyway. Removing it makes
 // the remaining five fit at 420 (226 ≤ 255).
 export function summarize(rows, works) {
-  const counts = { busy: 0, alert: 0, waiting: 0, error: 0, idle: 0, done: 0 }
+  const counts = { busy: 0, alert: 0, waiting: 0, error: 0, idle: 0, done: 0, total: rows.length }
   for (const row of rows) counts[row.scene] = (counts[row.scene] ?? 0) + 1
   const openHandoffs = (works ?? []).reduce((sum, work) => sum + (Number(work?.open) || 0), 0)
   const tone = counts.error ? LAMP.error
@@ -328,7 +451,7 @@ export function Head({ counts, openHandoffs = 0, tone, t, onHelp, onCollapse, dr
     h('button', { className: 'bb-icon', type: 'button', onClick: onCollapse, title: t('panel.collapse') }, '×'))
 }
 
-function Board(props) {
+function BoardView(props) {
   const t = (typeof props?.t === 'function' ? props.t : null) ?? defaultT
   const [collapsed, setCollapsed] = useState(() => readRaw(COLLAPSE_KEY, '0') === '1')
   const [size, setSize] = useState(readSize)
@@ -359,7 +482,14 @@ function Board(props) {
   // A window that shrinks must not strand the panel outside the viewport.
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return undefined
-    const onResize = () => setPos(previous => (previous ? clampPos(previous, sizeRef.current) : previous))
+    const onResize = () => {
+      setSize(previous => {
+        const w = fitWidth(previous.w)
+        const h = Math.min(previous.h, Math.max(SIZE_MIN.h, (window.innerHeight || 0) - 60))
+        return w === previous.w && h === previous.h ? previous : { w, h }
+      })
+      setPos(previous => (previous ? clampPos(previous, sizeRef.current) : previous))
+    }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
@@ -417,9 +547,26 @@ function Board(props) {
   // snapshot carries the flattened `shape`. Normalise here so `seatOf` sees one
   // field whichever source answered first.
   const botSource = view?.bots ?? board?.bots
-  const bots = useMemo(() => (Array.isArray(botSource) ? botSource.map(bot => (
-    bot && bot.shape === undefined ? { ...bot, shape: bot.avatar?.shape ?? null } : bot
-  )) : []), [botSource])
+  // This is the main path — `api/bot` answers first, so the host's `text()`
+  // sanitiser never sees these values. Normalise here, not only there: every
+  // field below is rendered as a child or a title, and a non-string crashes the
+  // tree (there is an error boundary now, but a blank pill is not a board).
+  const bots = useMemo(() => (Array.isArray(botSource) ? botSource.map(bot => {
+    if (!bot || typeof bot !== 'object') return null
+    const shape = bot.shape === undefined ? bot.avatar?.shape : bot.shape
+    const id = typeof bot.id === 'string' ? sanitize(bot.id) : (bot.id === undefined || bot.id === null ? '' : String(bot.id))
+    if (!id) return null
+    return {
+      ...bot,
+      id,
+      name: sanitize(bot.name).slice(0, 40) || id,
+      role: sanitize(bot.role).slice(0, 120),
+      model: sanitize(bot.model).slice(0, 60) || null,
+      sessionId: sanitize(bot.sessionId).slice(0, 80) || null,
+      shape: typeof shape === 'string' ? shape : null,
+      color: typeof bot.color === 'string' ? bot.color : null,
+    }
+  }).filter(Boolean) : []), [botSource])
   const activity = view?.activity ?? {}
   const workBots = view?.work?.bots ?? {}
   const waiting = view?.work?.waiting ?? {}
@@ -430,29 +577,57 @@ function Board(props) {
   const rooms = board?.rooms ?? {}
 
   const nameOf = useCallback(id => bots.find(bot => bot.id === id)?.name ?? id, [bots])
+  // When the live feed fails, the last good `view` stays on screen. Freezing the
+  // clock is the honest half of that: "18m40s" was measured against a feed that
+  // stopped answering 15 minutes ago, and a monitoring tool must not keep counting
+  // on behalf of a process it can no longer hear.
+  const viewStale = view?.stale === true
+  const freezeAt = viewStale ? Number(view?.fetchedAt) || 0 : 0
   const rows = useMemo(() => buildRows({
     bots, activity, workBots, waiting, approvals, questions, errors, works, rooms,
-    waveMap, noteMap, t, nameOf,
-  }), [bots, activity, workBots, waiting, approvals, questions, errors, works, rooms, waveMap, noteMap, nameOf, t])
+    waveMap, noteMap, t, nameOf, now: freezeAt || Date.now(), freezeAt,
+  }), [bots, activity, workBots, waiting, approvals, questions, errors, works, rooms, waveMap, noteMap, nameOf, t, freezeAt])
 
   const { counts, openHandoffs, tone } = summarize(rows, works)
+  // Body height minus the head and the 10px attention padding, divided by one
+  // row plus its gap. At 560×480 this is 9 — exactly the case that used to show
+  // three rows and 294px of nothing.
+  const attentionCapacity = Math.max(ATTENTION_MAX, Math.floor(
+    (size.h - HEAD_H - PANEL_BORDER - 10) / (ATTENTION_ROW_H + ATTENTION_GAP)))
 
   const openDrawer = useCallback(row => {
     const id = row?.bot?.id
     if (id) setSheet({ kind: 'bot', id })
   }, [])
   const openChat = useCallback(row => {
-    const id = row?.bot?.sessionId ?? row?.bot?.id
+    const raw = row?.bot?.sessionId ?? row?.bot?.id
+    // `sessionId` arrives from another process's file. `openSession` jumps the
+    // host's main view, so a malformed value must not be handed over at all.
+    const id = typeof raw === 'string' ? raw.slice(0, 128) : ''
     if (id) openSession(id)
   }, [])
+
+  // `questions` is keyed by session id, not Bot id, so a question needs its own
+  // name lookup. It also needs its own notification: the comment above this
+  // effect always said "approvals/questions", but the code only walked approvals,
+  // so the one kind of waiting that blocks a Bot silently never rang.
+  const questionList = useMemo(() => Object.entries(questions ?? {})
+    .filter(([, item]) => item && typeof item === 'object')
+    .map(([sessionId, item]) => ({ sessionId, question: item.question, botId: item.botId })), [questions])
+  const nameOfSession = useCallback(sessionId => {
+    const bot = bots.find(item => item.sessionId === sessionId || item.id === sessionId)
+    return bot?.name ?? sessionId
+  }, [bots])
 
   // System notifications: only approvals/questions and new failures, once each.
   const alertSig = JSON.stringify(approvals.map(item => item?.id))
     + '|' + JSON.stringify(errors.map(item => `${item.botId}:${item.at}`))
+    + '|' + JSON.stringify(questionList.map(item => item.sessionId))
   useEffect(() => {
     const keys = [
       ...approvals.map(item => `a:${item?.id}`),
       ...errors.map(item => `e:${item.botId}:${item.at}`),
+      ...questionList.map(item => `q:${item.sessionId}`),
     ]
     if (!primedRef.current) {
       keys.forEach(key => seenRef.current.add(key))
@@ -471,6 +646,13 @@ function Board(props) {
       if (seenRef.current.has(key)) continue
       seenRef.current.add(key)
       notify(`${t('notice.error')} · ${nameOf(item.botId)}`, clip(item.message, 80))
+    }
+    for (const item of questionList) {
+      const key = `q:${item.sessionId}`
+      if (seenRef.current.has(key)) continue
+      seenRef.current.add(key)
+      notify(`${t('notice.question')} · ${nameOfSession(item.sessionId)}`,
+        clip(item.question, 80) || t('notice.questionFallback'))
     }
     // Keep the dedupe set bounded on long sessions — but keep the OLD keys too:
     // rebuilding it from the current keys alone dropped every pending failure and
@@ -559,7 +741,8 @@ function Board(props) {
   const onResizeMove = event => {
     const start = rzRef.current
     if (!start) return
-    const w = Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, start.w + event.clientX - start.x))
+    const w = Math.min(SIZE_MAX.w, Math.max(SIZE_MIN.w, start.w + event.clientX - start.x),
+      Math.max(SIZE_MIN.w, (window.innerWidth || 0) - 12))
     const hh = Math.min(SIZE_MAX.h, Math.max(SIZE_MIN.h, start.h + event.clientY - start.y))
     setSize({ w, h: hh })
   }
@@ -601,10 +784,12 @@ function Board(props) {
   const sceneOf = id => rows.find(row => row.bot.id === id)?.scene
 
   const notices = []
-  if (error) notices.push(h('div', { className: 'bb-notice', key: 'offline' }, `${t('panel.offline')}：${error}`))
+  const errorText = error === 'timeout' ? t('panel.timeout') : error
+  if (error) notices.push(h('div', { className: 'bb-notice', key: 'offline' }, `${t('panel.offline')}：${errorText}`))
   if (board?.boardError) notices.push(h('div', { className: 'bb-notice', key: 'board' }, `${t('panel.boardError')}：${board.boardError}`))
   if (reason) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'reason' }, reason))
   if (board?.stale) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'stale' }, t('panel.stale')))
+  if (viewStale) notices.push(h('div', { className: 'bb-notice bb-notice-warn', key: 'viewStale' }, t('panel.viewStale')))
   // state.json carries DS Bot's data format version. A mismatch is not a crash —
   // it is a board that looks right and reads the wrong field, so it has to say so.
   if (Number.isFinite(board?.dataVersion) && board.dataVersion !== 1) {
@@ -622,7 +807,12 @@ function Board(props) {
         h('b', null, `${counts.busy} ${t('legend.busy')}`),
         counts.alert ? h('span', { style: { fontWeight: 600 } }, `${counts.alert} ${t('legend.alert')}`) : null,
         counts.waiting ? h('span', null, `${counts.waiting} ${t('legend.waiting')}`) : null,
-        counts.error ? h('span', { style: { fontWeight: 600 } }, `${counts.error} ${t('legend.error')}`) : null))
+        counts.error ? h('span', { style: { fontWeight: 600 } }, `${counts.error} ${t('legend.error')}`) : null,
+        // "0 干活" on its own reads as "no Bots". When nothing is moving, the
+        // total is the answer to the question the pill exists to answer.
+        counts.busy === 0 && counts.alert === 0 && counts.waiting === 0 && counts.error === 0
+          ? h('span', { style: { opacity: .6 } }, t('panel.total').replace('{n}', String(counts.total)))
+          : null))
   }
 
   return h('div', { className: 'bb-wrap', style: wrapStyle, ref: wrapRef },
@@ -641,6 +831,9 @@ function Board(props) {
         rows,
         works,
         notices,
+        attentionCapacity,
+        panelW: size.w,
+        panelH: size.h,
         empty: h('div', { className: 'bb-text', style: { color: '#6B6558' } },
           loading ? t('panel.loading') : t('panel.empty')),
         t,
@@ -676,4 +869,34 @@ function Board(props) {
       })))
 }
 
-export { Board }
+// A last line of defence, not the fix. Every known crash path is closed by type
+// coercion above, but `state.json` belongs to another process and this panel is
+// the only thing on screen that can be unmounted by a bad value. Without a
+// boundary, React unmounts the whole root — the classroom disappears and the
+// shell around it may go with it. With one, the worst case is a pill that says so.
+class Boundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { failed: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  componentDidCatch(error) {
+    try { console.error('[bot-board] render failed:', error) } catch {}
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children
+    const t = this.props.t ?? defaultT
+    return h('div', { className: 'bb-wrap' },
+      h('div', { className: 'bb-pill', role: 'alert' }, t('panel.crashed')))
+  }
+}
+
+export function Board(props) {
+  const t = (typeof props?.t === 'function' ? props.t : null) ?? defaultT
+  return h(Boundary, { t }, h(BoardView, props))
+}

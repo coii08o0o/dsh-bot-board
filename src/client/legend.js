@@ -38,5 +38,14 @@ export function LegendSheet({ t, onClose }) {
       LEGEND.map(([key, labelKey]) => h('div', { className: 'bb-lg-row', key },
         h('span', { className: 'bb-lg-lamp' }, h(Lamp, { scene: key, size: 16 })),
         h('span', { className: 'bb-lg-name' }, t(labelKey)),
-        h('span', { className: 'bb-lg-hint' }, t(`legend.hint.${key}`))))))
+        h('span', { className: 'bb-lg-hint' }, t(`legend.hint.${key}`)))),
+      // The `!` badge is a seventh mark that is not a seventh state, and it was
+      // the only symbol on the panel with no explanation anywhere. A Bot that
+      // failed and then went quiet drops out of the header count (the red lamp is
+      // about *now*), so the badge is the only trace left — it has to be named.
+      h('div', { className: 'bb-lg-row' },
+        h('span', { className: 'bb-lg-lamp' },
+          h('span', { className: 'bb-badge bb-badge-inline' }, '!')),
+        h('span', { className: 'bb-lg-name' }, t('legend.badge')),
+        h('span', { className: 'bb-lg-hint' }, t('legend.hint.badge')))))
 }

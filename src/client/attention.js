@@ -4,7 +4,7 @@
 // a 30px face, a 600-weight name and an action *sentence* — that is where the
 // attention budget goes. Layer 3 has no image, no surface and no lamp: an idle Bot
 // should be readable in one glance and cost nothing.
-import { createElement as h } from 'react'
+import { createElement as h, memo } from 'react'
 import { seatOf } from './const.js'
 import { Elapsed } from './elapsed.js'
 import { ATTENTION_MAX } from './layers.js'
@@ -16,8 +16,8 @@ import { Lamp, blobSeat } from './station.js'
 // size any more, so the crop is sized for the largest one. The desk, chair and
 // monitor are siblings of `blobSeat` in Station, so cropping it excludes them for
 // free. 30/64 ≈ 0.47, which keeps the eyes at ~2.3×4.2px.
-function Avatar({ scene, bot, seat }) {
-  return h('span', { className: 'bb-att-avatar' },
+function Avatar({ scene, bot, seat, className = 'bb-att-avatar' }) {
+  return h('span', { className },
     h('svg', { width: 30, height: 30, viewBox: '54 32 64 64', 'aria-hidden': 'true', focusable: 'false' },
       blobSeat(scene, seat ?? seatOf(bot))))
 }
@@ -106,7 +106,10 @@ export function Attention({ items, overflow = 0, expanded = false, t, onOpen, on
       // is one, else the turn start, else the failure. This column answers "how
       // long have I been ignoring this", and using the turn start made a
       // three-second-old approval read as 12m34s (v0.4.2 audit, finding #3).
-      h('span', { className: 'bb-att-time' }, h(Elapsed, { since: row.waitSince ?? (row.since || row.failureAt) })),
+      h('span', { className: 'bb-att-time' }, h(Elapsed, {
+        since: row.waitSince ?? (row.since || row.failureAt),
+        until: row.freezeAt,
+      })),
       h('span', { className: 'bb-att-lamp' }, h(Lamp, { scene: row.scene, size: 12 })))))
 }
 
@@ -151,5 +154,93 @@ export function IdleLine({ items, overflow = 0, expanded = false, t, onOpen, onE
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onExpand?.() }
           },
         }, `+${overflow}`)
+      : null)
+}
+
+// ── Layer 3, roster form (v0.7.0) ────────────────────────────────────────────
+// Drawn only in the degenerate state Body calls `rest`: nothing needs you,
+// nobody is running, no hand-off is open, and at least one Bot is resting. That
+// state used to be a 24px line of names at the bottom of 400px of cream, which
+// read as a panel that never finished loading.
+//
+// It is deliberately not layer 1 in grey:
+//   - no white card and no 3px status bar. The card measures 1.07:1 on cream, so
+//     it encodes nothing; spending it a second time only blurs which rows want
+//     something from you.
+//   - no lamp. Nine identical grey circles are wallpaper, not a channel — the
+//     shape vocabulary only means something next to a row that is *not* idle. A
+//     quiet failure keeps its `!`, which is the one mark that carries news.
+//   - the name is weight 500, one step under layer 1's 600.
+// What it keeps is the 44px rhythm, the 30px face crop and the column order, so
+// the two bands read as one table rather than two drawings.
+const IdleRowView = ({ row, t, onOpen }) => {
+  const { bot, seat, badge, failure } = row
+  // role → model → nothing. The second column answers "who could take this"; a
+  // Bot with neither leaves it empty rather than repeating the state word, which
+  // has a column of its own on the right.
+  const sub = bot.role || bot.model || ''
+  return h('div', {
+    className: 'bb-roster-row',
+    role: 'button',
+    tabIndex: 0,
+    title: `${bot.name}${sub ? ` · ${sub}` : ''} · ${t('status.idle')}`,
+    onClick: () => onOpen(row),
+    onKeyDown: event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(row) }
+    },
+  },
+    h(Avatar, { scene: row.scene, bot, seat, className: 'bb-roster-av' }),
+    h('span', { className: 'bb-roster-nm' }, bot.name),
+    h('span', { className: 'bb-roster-sub', 'data-kind': sub ? 'role' : 'none' }, sub),
+    // The state word sits where layer 1 puts the duration: flush right, one
+    // column, so a row reads across the whole panel instead of stopping after
+    // the name. It is also the only column that is never empty.
+    h('span', { className: 'bb-roster-state' }, t('status.idle')),
+    // `bb-badge bb-badge-inline` — the same node the compressed name line uses,
+    // not a second red dot: style.js promises that class name is the contract
+    // D1 asserts on, and two badges that tune independently are two badges that
+    // drift. The roster only adds a slot for it to sit in — layer 1's lamp slot.
+    badge ? h('span', { className: 'bb-badge bb-badge-inline', title: failure ?? '' }, '!') : null)
+}
+
+// The 1.5s poll rebuilds every row object, so identity cannot be compared. Same
+// field-by-field memo as Station, for the same reason: nine faces must not be
+// rebuilt on every tick.
+const IdleRow = memo(IdleRowView, (prev, next) => {
+  const a = prev.row
+  const b = next.row
+  return a.bot.id === b.bot.id
+    && a.bot.name === b.bot.name
+    && a.bot.role === b.bot.role
+    && a.bot.model === b.bot.model
+    && a.scene === b.scene
+    && a.badge === b.badge
+    && a.failure === b.failure
+    && a.seat?.color === b.seat?.color
+    && a.seat?.shape === b.seat?.shape
+    && a.seat?.prop === b.seat?.prop
+    && prev.t === next.t
+    && prev.onOpen === next.onOpen
+})
+
+// `cols` and `capacity` come from Body, which derives them from the panel's own
+// height and width: the column count is a function of how much room is left, not
+// a breakpoint, because the panel is resizable and the room is whatever the user
+// made. `capacity` is how many rows fit; anything past it is reported rather than
+// silently clipped. Both are integer arithmetic — no DOM measurement, so the
+// promise holds in the check harness too.
+export function IdleRoster({ items, cols = 1, capacity = Number.POSITIVE_INFINITY, tight = false, align = 'center', t, onOpen }) {
+  const rows = items ?? []
+  if (!rows.length) return null
+  const hidden = Number.isFinite(capacity) ? Math.max(0, rows.length - capacity) : 0
+  return h('div', { className: 'bb-roster', 'data-density': tight ? 'tight' : 'full', 'data-align': align },
+    h('div', { className: 'bb-roster-scroll' },
+      h('div', {
+        className: 'bb-roster-grid',
+        style: { gridTemplateColumns: `repeat(${Math.max(1, cols)}, minmax(0, 1fr))` },
+      }, rows.map(row => h(IdleRow, { key: row.bot.id, row, t, onOpen })))),
+    hidden > 0
+      ? h('div', { className: 'bb-roster-more', role: 'status' },
+          t('run.overflow').replace('{n}', String(hidden)))
       : null)
 }

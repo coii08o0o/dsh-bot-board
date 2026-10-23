@@ -10,8 +10,10 @@ import { createElement as h } from 'react'
 import { elapsed } from './format.js'
 import { useNow } from './clock.js'
 
-export function Elapsed({ since, className }) {
-  useNow(Boolean(since))
+export function Elapsed({ since, until, className }) {
+  // `until` freezes the clock at the last successful poll. Subscribing to the
+  // ticker while frozen would repaint the same number every second for nothing.
+  useNow(Boolean(since) && !until)
   if (!since) return null
-  return h('span', { className }, elapsed(since))
+  return h('span', { className }, elapsed(since, until || Date.now()))
 }

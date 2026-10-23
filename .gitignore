@@ -1,3 +1,5 @@
 node_modules/
 .DS_Store
 *.log
+# 审计/评审产出（不是插件的一部分）
+deliverables/

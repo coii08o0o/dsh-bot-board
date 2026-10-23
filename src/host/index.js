@@ -33,14 +33,20 @@ export const statePathOf = config => {
 }
 
 const ROUTE = '/api/bot-board'
-const FAILURE_TTL = 15 * 60 * 1000
+export const FAILURE_TTL = 15 * 60 * 1000
 const FAILURE_MAX = 256
-const WORKS_MAX = 24
+export const WORKS_MAX = 24
+// `works` and `failures` were bounded from the start; `bots` and `rooms` were not.
+// A single state.json is another process's file and may be arbitrarily large, and
+// every entry here is copied into the snapshot the browser polls for. 64 is well
+// past the nine-Bot roster this panel is designed for and still bounds the payload.
+export const BOTS_MAX = 64
+export const ROOMS_MAX = 64
 // The browser half polls every 5000 ms (BOARD_MS). Three missed reads in a row is
 // no longer a blip — it means state.json stopped being written — so anything older
 // than 3x that is reported as stale. Spelled out rather than imported: the host
 // bundle and the browser bundle share no modules.
-const READ_STALE_MS = 15000
+export const READ_STALE_MS = 15000
 
 // `\s` covers neither the C0/C1 control range nor the invisible/bidi marks, so
 // `replace(/\s+/g, ' ')` alone let ESC, NUL, U+202E and U+200B reach the board —
@@ -88,8 +94,13 @@ export function apply(ctx, config = {}) {
     const sessionId = payload?.agent?.session?.id ?? payload?.agent?.id
     if (typeof sessionId !== 'string') return
     const error = payload?.error
-    const message = typeof error?.message === 'string' ? error.message : String(error ?? 'error')
-    failures.set(sessionId, { at: Date.now(), message: message.replace(/\s+/g, ' ').slice(0, 200) })
+    const raw = typeof error?.message === 'string' ? error.message : String(error ?? 'error')
+    // The failure channel is the one text a model or a tool wrote, and it is the
+    // loudest signal on the board (red lamp, one line, a system notification).
+    // Sanitising Bot names but not this was backwards: a name is chosen once and
+    // changes rarely, while an error message is arbitrary prose. `text()` also
+    // strips ANSI escapes, which would otherwise paint the drawer.
+    failures.set(sessionId, { at: Date.now(), message: text(raw).slice(0, 200) || 'error' })
     // A long-lived client must not grow this store without bound. Evict the oldest
     // by `at`, not by insertion order: re-setting a key does not move it in a Map,
     // so a Bot that keeps failing would keep its original position and be dropped
@@ -226,7 +237,16 @@ export function apply(ctx, config = {}) {
     // `work.from/to` is usually a bot id, but a Bot that rolled over a part hands
     // work over as its current session id. Resolve through the ownership map so
     // the card never shows a raw session id and the click-through still matches.
-    const botOf = id => owners.get(id) ?? id
+    //
+    // Non-strings resolve to null rather than falling through: this file belongs
+    // to another process, and an object here used to reach React as a child node
+    // ("Objects are not valid as a React child") and blank the whole panel. A
+    // missing owner is a missing name; it must not become a crash.
+    const botOf = id => (typeof id === 'string' ? owners.get(id) ?? id : null)
+    // Output caps. Ownership is built from the full lists (so a failure on the
+    // 100th Bot still maps), but only the first N Bots/rooms reach the browser.
+    const cappedBots = safeBots.slice(0, BOTS_MAX)
+    const cappedRooms = safeRooms.slice(0, ROOMS_MAX)
 
     const listed = Object.entries(state.works ?? {})
       // Same chain as bots, rooms and segments: a null record threw on
@@ -239,8 +259,10 @@ export function apply(ctx, config = {}) {
           id: workId,
           fromId: work.from ? botOf(work.from) : null,
           toId: work.to ? botOf(work.to) : null,
-          from: nameOf(botOf(work.from)) ?? work.from ?? '',
-          to: nameOf(botOf(work.to)) ?? work.to ?? '',
+          // The fallback is `text()`, not the raw value: `work.from` can be any
+          // JSON type, and `from` is rendered as a string on the hand-off card.
+          from: nameOf(botOf(work.from)) ?? text(work.from).slice(0, 40),
+          to: nameOf(botOf(work.to)) ?? text(work.to).slice(0, 40),
           at: Number(work.at) || 0,
           open: Array.isArray(work.open) ? work.open.length : 0,
           done: results.length,
@@ -279,14 +301,17 @@ export function apply(ctx, config = {}) {
       // can actually check — and a mismatch has to be *said out loud*, because
       // the failure mode of a moved field is a board that looks right and is not.
       dataVersion: Number(state.version) || null,
-      bots: safeBots.map(bot => ({
-        id: bot.id,
+      bots: cappedBots.map(bot => ({
+        id: typeof bot.id === 'string' ? text(bot.id).slice(0, 80) : String(bot.id).slice(0, 80),
         // Names are short, but they are also the one field the user uses to tell two
         // Bots apart — a zero-width space would let one Bot look like two.
         name: text(bot.name).slice(0, 40),
         role: text(bot.role).slice(0, 120),
-        model: bot.model ?? null,
-        sessionId: bot.sessionId ?? null,
+        // `model` and `sessionId` are rendered as text (drawer, open-chat). They
+        // were the only two Bot fields forwarded raw; an object model crashed the
+        // drawer, and a non-string session id was handed to openSession().
+        model: text(bot.model).slice(0, 60) || null,
+        sessionId: text(bot.sessionId).slice(0, 80) || null,
         // The colour the user picked for this Bot in DS Bot's own UI (a named ink
         // or #rrggbb). Forwarded as sanitised text and validated on the browser
         // side, where it is only ever read as a key into the ink table — an
@@ -306,7 +331,12 @@ export function apply(ctx, config = {}) {
       works,
       // Only the names: `work.waiting[botId].rooms` carries room ids, and showing
       // a raw id on the card is worse than showing nothing.
-      rooms: Object.fromEntries(safeRooms.map(room => [room.id, text(room.name) || room.id]).filter(([id]) => id)),
+      rooms: Object.fromEntries(cappedRooms
+        // A room id is used as an object key and compared against `work.roomId`.
+        // Only a non-empty string is a legal key; anything else is dropped rather
+        // than stringified into "[object Object]".
+        .filter(room => typeof room.id === 'string' && room.id)
+        .map(room => [room.id, text(room.name).slice(0, 60) || room.id])),
     }
     cache = { key, data, owners, readAt }
     // `data` already carries readAt; the fresh read is by definition not stale.

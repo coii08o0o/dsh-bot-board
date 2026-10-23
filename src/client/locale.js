@@ -16,6 +16,12 @@ export const zh = {
   'panel.noState': '没找到 DS Bot 的状态文件',
   'panel.unreadable': '状态文件读不了',
   'panel.sumHandoff': '{n} 项在交接',
+  'panel.dataVersion': 'DS Bot 数据版本变了，显示的内容可能不准',
+  'panel.viewStale': '连不上 DS Bot，显示的是最后一次数据',
+  'panel.crashed': '看板出错了，已隔离（刷新可恢复）',
+  'panel.timeout': '连接超时',
+  'panel.total': '{n} 个',
+  'run.overflow': '还有 {n} 个在下面',
 
   'legend.busy': '干活',
   'legend.alert': '等你',
@@ -30,6 +36,8 @@ export const zh = {
   'legend.hint.error': '出错了，跑不动',
   'legend.hint.idle': '闲着，没有活',
   'legend.hint.done': '刚交完活（7 秒后回落到闲着）',
+  'legend.badge': '报错过',
+  'legend.hint.badge': '报错过但已经安静下来；红灯只表示现在卡住',
 
   'attention.empty': '没有需要你的事',
   'attention.overflow': '还有 {n} 个',
@@ -85,11 +93,14 @@ export const zh = {
   'drawer.close': '关闭',
   'drawer.none': '暂无',
   'drawer.unknown': '未知',
+  'drawer.notStarted': '还没开始跑',
   'drawer.noOpener': '暂时打不开会话（宿主还没就绪）',
 
   'notice.approval': '等你处理',
   'notice.approvalBody': '想运行',
   'notice.approvalFallback': '有个审批在等你',
+  'notice.question': '等你回答',
+  'notice.questionFallback': '有个问题在等你回答',
   'notice.error': '出错了',
 
   'ago.just': '刚刚',
@@ -113,6 +124,12 @@ export const en = {
   'panel.noState': 'DS Bot has no state file yet',
   'panel.unreadable': 'The state file cannot be read',
   'panel.sumHandoff': '{n} open hand-offs',
+  'panel.dataVersion': 'DS Bot data format changed — what you see may be wrong',
+  'panel.viewStale': 'Cannot reach DS Bot — showing the last data',
+  'panel.crashed': 'The board hit an error and was isolated (reload to recover)',
+  'panel.timeout': 'Connection timed out',
+  'panel.total': '{n} total',
+  'run.overflow': '{n} more below',
 
   'legend.busy': 'Working',
   'legend.alert': 'Needs you',
@@ -127,6 +144,8 @@ export const en = {
   'legend.hint.error': 'Failed — it cannot continue',
   'legend.hint.idle': 'Idle, nothing running',
   'legend.hint.done': 'Just handed back (idle after 7s)',
+  'legend.badge': 'Failed before',
+  'legend.hint.badge': 'Failed earlier and has gone quiet; the red lamp is about now',
 
   'attention.empty': 'Nothing needs you',
   'attention.overflow': '{n} more',
@@ -182,11 +201,14 @@ export const en = {
   'drawer.close': 'Close',
   'drawer.none': 'Nothing yet',
   'drawer.unknown': 'unknown',
+  'drawer.notStarted': 'Not started yet',
   'drawer.noOpener': 'Chat is not available yet',
 
   'notice.approval': 'Needs you',
   'notice.approvalBody': 'Wants to run',
   'notice.approvalFallback': 'An approval is waiting',
+  'notice.question': 'Needs your answer',
+  'notice.questionFallback': 'A question is waiting for you',
   'notice.error': 'Failed',
 
   'ago.just': 'just now',

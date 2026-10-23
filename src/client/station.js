@@ -1,7 +1,7 @@
 // One workstation: chair + desk + monitor + lamp + dumpling + prop + name, plus
 // the one-line meta strip that answers "what is it doing and for how long".
 import { memo, createElement as h } from 'react'
-import { CHARACTERS, LAMP, LAMP_BASE, LAMP_BASE_R, LAMP_R, LAMP_STROKE, LAMP_STROKE_W, NAME_INK, SCENE_VB, seatOf, statusLabel } from './const.js'
+import { CHARACTERS, LAMP, LAMP_BASE, LAMP_BASE_R, LAMP_R, LAMP_STROKE, LAMP_STROKE_W, LAMP_STROKE_W_SMALL, NAME_INK, SCENE_VB, seatOf, statusLabel } from './const.js'
 import { Elapsed } from './elapsed.js'
 
 const DARK = '#2C2C2A'
@@ -119,8 +119,10 @@ export function Lamp({ scene, size = 12 }) {
   }, h(shape.tag, {
     ...shape.props,
     fill: LAMP[scene] ?? LAMP.idle,
-    stroke: '#5B5648',
-    strokeWidth: 1.5,
+    // Same ink and a proportional width as the classroom lamp, from const.js —
+    // not a second hand-typed copy that can drift out of sync.
+    stroke: LAMP_STROKE,
+    strokeWidth: LAMP_STROKE_W_SMALL,
   }))
 }
 
@@ -246,7 +248,7 @@ export function blobSeat(scene, seat) {
 // `false` is load-bearing — the existing render checks exercise the full card and
 // must keep passing unchanged.
 function StationView({ row, onOpen, note, t, compact = false }) {
-  const { bot, status, scene, action, since, stalled, badge } = row
+  const { bot, status, scene, action, since, stalled, badge, freezeAt = 0 } = row
   const seat = row.seat ?? seatOf(bot)
   const label = scene === 'done' ? t('status.done') : statusLabel(status, t)
   const title = `${bot.name} · ${label}${action ? ` · ${action}` : ''}${stalled ? ` · ${t('meta.stalled')}` : ''}`
@@ -289,6 +291,7 @@ function StationView({ row, onOpen, note, t, compact = false }) {
             h(Elapsed, {
               key: 'time',
               since,
+              until: freezeAt,
               className: stalled ? 'bb-station-time bb-stalled' : 'bb-station-time',
             }),
           ]
@@ -297,7 +300,7 @@ function StationView({ row, onOpen, note, t, compact = false }) {
       ? null
       : h('div', { className: 'bb-meta' },
           action ? h('span', { className: 'bb-meta-act', title: action }, action) : null,
-          h(Elapsed, { since, className: stalled ? 'bb-meta-time bb-stalled' : 'bb-meta-time' })),
+          h(Elapsed, { since, until: freezeAt, className: stalled ? 'bb-meta-time bb-stalled' : 'bb-meta-time' })),
     note ? h('span', { className: 'bb-note' }) : null)
 }
 
@@ -322,6 +325,16 @@ export const Station = memo(StationView, (prev, next) => {
     && a.stalled === b.stalled
     && a.badge === b.badge
     && a.failure === b.failure
+    // The seat is derived, not stored on `bot`: `seatOf` returns a fresh object
+    // every render, so identity cannot be compared. Without these three fields a
+    // colour/shape change in DS Bot's UI repainted layer 1 but left the
+    // workstation on the old face — the panel contradicting itself.
+    && a.seat?.color === b.seat?.color
+    && a.seat?.shape === b.seat?.shape
+    && a.seat?.prop === b.seat?.prop
+    // Freezing the clock (stale feed) changes `freezeAt`; without this the memo
+    // would keep the live ticker and the time would keep climbing.
+    && a.freezeAt === b.freezeAt
     && prev.note === next.note
     && prev.t === next.t
     && prev.compact === next.compact

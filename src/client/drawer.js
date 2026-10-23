@@ -14,7 +14,7 @@ function Row({ label, children }) {
 
 export function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
   if (!row) return null
-  const { bot, status, scene, detail, work, lastResult, since, action, place } = row
+  const { bot, status, scene, detail, work, lastResult, since, action, place, freezeAt = 0 } = row
   const label = scene === 'done' ? t('status.done') : statusLabel(status, t)
   const approval = detail.kind === 'approval' ? detail : null
   const question = detail.kind === 'question' ? detail : null
@@ -46,7 +46,12 @@ export function Drawer({ row, t, onClose, onOpenChat, canOpenChat = true }) {
     h('div', { className: 'bb-drawer-body' },
       bot.role ? h(Row, { label: t('drawer.role') }, bot.role) : null,
       bot.model ? h(Row, { label: t('drawer.model') }, bot.model) : null,
-      h(Row, { label: t('drawer.elapsed') }, since ? h(Elapsed, { since }) : t('drawer.unknown')),
+      h(Row, { label: t('drawer.elapsed') },
+        since
+          ? h(Elapsed, { since, until: freezeAt })
+          // An approval that arrived before the turn started has no `since`, and
+          // "已跑 未知" read as a broken clock. Say what is actually true.
+          : (approval || question ? t('drawer.notStarted') : t('drawer.unknown'))),
       action ? h(Row, { label: t('drawer.now') }, action) : null,
       place ? h(Row, { label: t('drawer.place') }, place) : null,
 
