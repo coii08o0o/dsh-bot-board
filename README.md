@@ -1,5 +1,6 @@
 # dsh-bot-board
 
+[![npm](https://img.shields.io/npm/v/dsh-bot-board.svg)](https://www.npmjs.com/package/dsh-bot-board)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 
@@ -13,21 +14,12 @@ Requirements: DSH (a Developer Preview build is fine), DS Bot `0.1.7` or `0.2.0`
 
 ## Install
 
-The package is not on npm yet; install from the repository.
-
-```sh
-git clone https://github.com/jiahaosen07/dsh-bot-board.git
-cd dsh-bot-board
-npm install
-npm run build        # only needed after you edit src/
-```
-
-Then register it in your profile's `package.json` (`~/.dsh/profiles/desktop/package.json`), pointing at wherever you cloned it:
+The package is on npm. Add it to your profile's `package.json` (`~/.dsh/profiles/desktop/package.json`) and register the bundle:
 
 ```json
 {
   "dependencies": {
-    "dsh-bot-board": "file:/path/to/dsh-bot-board"
+    "dsh-bot-board": "^0.7.1"
   },
   "dsh": {
     "profile": {
@@ -37,16 +29,26 @@ Then register it in your profile's `package.json` (`~/.dsh/profiles/desktop/pack
 }
 ```
 
-Link it into the profile's `node_modules`, then restart DSH completely:
+Then install in that directory with whatever the profile already uses — `pnpm install` if it has a `pnpm-lock.yaml`, otherwise `npm install` — and restart DSH completely:
 
 ```sh
-ln -sfn /path/to/dsh-bot-board ~/.dsh/profiles/desktop/node_modules/dsh-bot-board
 killall -9 "DeepSeek Harness"    # osascript quit pops an automation prompt
+```
+
+To change the code instead of just using it, clone and link:
+
+```sh
+git clone https://github.com/jiahaosen07/dsh-bot-board.git
+cd dsh-bot-board
+npm install
+npm run build        # only needed after you edit src/
+ln -sfn /path/to/dsh-bot-board ~/.dsh/profiles/desktop/node_modules/dsh-bot-board
+killall -9 "DeepSeek Harness"
 ```
 
 The panel appears bottom-right. The client half hot-reloads after `npm run build`; changes under `src/host/` need a restart.
 
-Windows: `ln -sfn` is Unix-only. Use `mklink /D "%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-bot-board" "C:\path\to\dsh-bot-board"` from an elevated `cmd`, or let `pnpm install` in the profile create the link from the `file:` dependency.
+Windows: the npm install needs no symlink at all. Only the source path does, and `ln -sfn` is Unix-only — use `mklink /D "%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-bot-board" "C:\path\to\dsh-bot-board"` from an elevated `cmd`.
 
 ## What it shows
 

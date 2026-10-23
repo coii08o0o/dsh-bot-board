@@ -2,6 +2,8 @@
 
 [English](README.md) · 中文
 
+[![npm](https://img.shields.io/npm/v/dsh-bot-board.svg)](https://www.npmjs.com/package/dsh-bot-board)
+
 给 DS Bot 加一块浮动看板：谁在跑、跑了多久、卡在哪、谁在等谁交活。不用逐个点开他们的会话。
 
 ![560×480，三件需要你、五个在动、一个闲着](docs/screenshot.png)
@@ -147,6 +149,19 @@ Bot2 · 共 2 项
 ## 安装
 
 插件目录就是本仓库。装 DS Bot 之前它没有东西可画——看板的数据全部来自 DS Bot。
+
+**只是要用**，在 profile 目录里装它，再把包名加进 `bundles`，然后完全退出 DSH 重开：
+
+```sh
+cd ~/.dsh/profiles/desktop
+npm install dsh-bot-board      # profile 里有 pnpm-lock.yaml 就用 pnpm add dsh-bot-board
+```
+
+```json
+{ "dsh": { "profile": { "bundles": ["...", "dsh-bot-board"] } } }
+```
+
+**要改代码**，按下面四步从源码装。
 
 1. 拿代码并构建浏览器侧产物（源码在 `src/`，`client.js` 是生成的；仓库里已带一份与源码同步的产物，改了 `src/` 才需要重新构建）：
 
