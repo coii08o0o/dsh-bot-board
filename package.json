@@ -25,7 +25,9 @@
     "src",
     "cordis.patch.yml",
     "README.md",
-    "README.zh-CN.md"
+    "README.zh-CN.md",
+    "docs/social-preview.png",
+    "docs/screenshot.png"
   ],
   "scripts": {
     "build": "node tools/build.mjs",
